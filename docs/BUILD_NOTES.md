@@ -47,7 +47,7 @@ deviates from it, and what is still open. Keep this current.
 5. **$SWAY token**: supply, staking thresholds, level names, Genesis pool size (`GENESIS_POOL_UNITS`, defaults to
    5% of 1B).
 6. **X API tier**: confirm the endpoints used (follows lookup, user timelines, tweet lookup) are in the plan, and
-   set the per-15-minute limits in `packages/x` accordingly. Set `LAUNCH_POST_ID` for the repost task.
+   set the per-15-minute limits in `packages/x` accordingly. Set `X_LAUNCH_POST_ID` for the repost task.
 7. **Admin keys**: put the owner behind a multisig + timelock; move `OPERATOR_PRIVATE_KEY` / `ISSUER_PRIVATE_KEY`
    to a secrets manager; consider separating the operator (markets, referrers, fan claims) from the fan admin.
 8. **Launchpad**: pool venue and migration flow, airdrop root generation from the key-holder snapshot.

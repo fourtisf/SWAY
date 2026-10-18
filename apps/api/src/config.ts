@@ -16,12 +16,17 @@ const optAddr = z.preprocess(
     .regex(/^0x[0-9a-fA-F]{40}$/, 'must be a 0x-prefixed 20-byte address')
     .optional(),
 );
-const flag = z.preprocess(blank, z.enum(['0', '1', 'true', 'false']).optional()).transform((v) => v === '1' || v === 'true');
+const flag = z
+  .preprocess(blank, z.enum(['0', '1', 'true', 'false']).optional())
+  .transform((v) => v === '1' || v === 'true');
 const num = (def: number) => z.preprocess(blank, z.coerce.number().default(def));
 
 const EnvSchema = z.object({
   NODE_ENV: z.preprocess(blank, z.enum(['development', 'test', 'production']).default('development')),
-  LOG_LEVEL: z.preprocess(blank, z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional()),
+  LOG_LEVEL: z.preprocess(
+    blank,
+    z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional(),
+  ),
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.preprocess(blank, z.string().default('redis://localhost:6379')),
   API_PORT: num(4000),
@@ -52,7 +57,13 @@ const EnvSchema = z.object({
   GENESIS_PASS_ADDRESS: optAddr,
   FAN_ESCROW_ADDRESS: optAddr,
   LAUNCHPAD_ADDRESS: optAddr,
-  OPERATOR_PRIVATE_KEY: z.preprocess(blank, z.string().regex(/^0x[0-9a-fA-F]{64}$/, 'must be a 0x-prefixed 32-byte hex key').optional()),
+  OPERATOR_PRIVATE_KEY: z.preprocess(
+    blank,
+    z
+      .string()
+      .regex(/^0x[0-9a-fA-F]{64}$/, 'must be a 0x-prefixed 32-byte hex key')
+      .optional(),
+  ),
 
   EMBEDDED_WALLET_PROVIDER: z.preprocess(blank, z.enum(['privy', 'cdp', 'burner']).default('burner')),
   WALLETCONNECT_PROJECT_ID: optStr,
@@ -125,7 +136,9 @@ export class ConfigError extends Error {}
 const DEFAULT_SECRET = 'change-me-to-a-long-random-string';
 const lower = (a?: string): Address | null => (a ? (a.toLowerCase() as Address) : null);
 
-export function loadConfig(raw: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env): Config {
+export function loadConfig(
+  raw: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
+): Config {
   const parsed = EnvSchema.safeParse(raw);
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
@@ -144,7 +157,12 @@ export function loadConfig(raw: NodeJS.ProcessEnv | Record<string, string | unde
     throw new ConfigError('SESSION_SECRET must be a random string of at least 32 characters in production');
   }
 
-  const chain = swayChain({ chainId: e.CHAIN_ID, rpcUrl: e.RPC_URL, explorerUrl: e.EXPLORER_URL, name: e.CHAIN_NAME });
+  const chain = swayChain({
+    chainId: e.CHAIN_ID,
+    rpcUrl: e.RPC_URL,
+    explorerUrl: e.EXPLORER_URL,
+    name: e.CHAIN_NAME,
+  });
   const isLocal = e.CHAIN_ID === LOCAL_CHAIN_ID;
   return {
     env: e.NODE_ENV,
@@ -184,7 +202,10 @@ export function loadConfig(raw: NodeJS.ProcessEnv | Record<string, string | unde
       launchpad: lower(e.LAUNCHPAD_ADDRESS),
     },
     operatorKey: (e.OPERATOR_PRIVATE_KEY as `0x${string}` | undefined) ?? null,
-    wallets: { embedded: e.EMBEDDED_WALLET_PROVIDER, walletConnectProjectId: e.WALLETCONNECT_PROJECT_ID ?? null },
+    wallets: {
+      embedded: e.EMBEDDED_WALLET_PROVIDER,
+      walletConnectProjectId: e.WALLETCONNECT_PROJECT_ID ?? null,
+    },
     ethUsdFallback: e.ETH_USD_FALLBACK,
     snapshotAt: new Date(e.SNAPSHOT_AT),
     genesisMinScore: e.GENESIS_MIN_SCORE,

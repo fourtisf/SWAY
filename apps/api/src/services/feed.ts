@@ -26,12 +26,21 @@ export function teaser(length: number): string {
 }
 
 /** For You score: (likes + 2·reposts + 3·replies) / (1 + ageMinutes/120) + 400 if boosted + authorScore·3. */
-export function forYouScore(p: Pick<Post, 'likeCount' | 'repostCount' | 'replyCount' | 'boosted' | 'createdAt'>, authorScore: number, now: number): number {
+export function forYouScore(
+  p: Pick<Post, 'likeCount' | 'repostCount' | 'replyCount' | 'boosted' | 'createdAt'>,
+  authorScore: number,
+  now: number,
+): number {
   const ageMin = Math.max(0, (now - p.createdAt.getTime()) / 60000);
-  return (p.likeCount + p.repostCount * 2 + p.replyCount * 3) / (1 + ageMin / 120) + (p.boosted ? 400 : 0) + (authorScore || 60) * 3;
+  return (
+    (p.likeCount + p.repostCount * 2 + p.replyCount * 3) / (1 + ageMin / 120) +
+    (p.boosted ? 400 : 0) +
+    (authorScore || 60) * 3
+  );
 }
 
-export const trendingScore = (p: Pick<Post, 'likeCount' | 'repostCount'>): number => p.likeCount + p.repostCount * 2;
+export const trendingScore = (p: Pick<Post, 'likeCount' | 'repostCount'>): number =>
+  p.likeCount + p.repostCount * 2;
 
 interface Ctx {
   prisma: PrismaClient;
@@ -42,21 +51,39 @@ export async function postDTOs(ctx: Ctx, viewer: Viewer | null, posts: PostRow[]
   if (!posts.length) return [];
   const viewerId = viewer?.user.id ?? null;
   const ids = posts.map((p) => p.id);
-  const authorMarkets = [...new Map(posts.flatMap((p) => (p.author.market ? [[p.author.market.id, p.author.market] as const] : []))).values()];
+  const authorMarkets = [
+    ...new Map(
+      posts.flatMap((p) => (p.author.market ? [[p.author.market.id, p.author.market] as const] : [])),
+    ).values(),
+  ];
 
   const holderPosts = posts.filter((p) => p.visibility === 'holders' && p.authorId !== viewerId);
   const subPosts = posts.filter((p) => p.visibility === 'subs' && p.authorId !== viewerId);
   const accessViewer = viewer ? { userId: viewer.user.id, wallet: viewer.wallet?.address ?? null } : null;
 
   const [likes, reposts, stats, holderAccess, subs] = await Promise.all([
-    viewerId ? ctx.prisma.like.findMany({ where: { userId: viewerId, postId: { in: ids } }, select: { postId: true } }) : [],
-    viewerId ? ctx.prisma.repost.findMany({ where: { userId: viewerId, postId: { in: ids } }, select: { postId: true } }) : [],
+    viewerId
+      ? ctx.prisma.like.findMany({
+          where: { userId: viewerId, postId: { in: ids } },
+          select: { postId: true },
+        })
+      : [],
+    viewerId
+      ? ctx.prisma.repost.findMany({
+          where: { userId: viewerId, postId: { in: ids } },
+          select: { postId: true },
+        })
+      : [],
     marketStats(ctx.prisma, authorMarkets),
-    ctx.access.holderAccess(
-      accessViewer,
-      [...new Map(holderPosts.flatMap((p) => (p.author.market ? [[p.author.market.id, p.author.market] as const] : []))).values()],
+    ctx.access.holderAccess(accessViewer, [
+      ...new Map(
+        holderPosts.flatMap((p) => (p.author.market ? [[p.author.market.id, p.author.market] as const] : [])),
+      ).values(),
+    ]),
+    ctx.access.subscribedTo(
+      viewerId,
+      subPosts.map((p) => p.authorId),
     ),
-    ctx.access.subscribedTo(viewerId, subPosts.map((p) => p.authorId)),
   ]);
   const liked = new Set(likes.map((l) => l.postId));
   const reposted = new Set(reposts.map((r) => r.postId));
@@ -129,13 +156,24 @@ async function followingAuthorIds(prisma: PrismaClient, viewer: Viewer): Promise
   const [follows, held] = await Promise.all([
     prisma.follow.findMany({ where: { followerId: viewer.user.id }, select: { followeeId: true } }),
     viewer.wallet
-      ? prisma.holding.findMany({ where: { address: viewer.wallet.address, units: { gt: 0n } }, select: { market: { select: { userId: true } } } })
+      ? prisma.holding.findMany({
+          where: { address: viewer.wallet.address, units: { gt: 0n } },
+          select: { market: { select: { userId: true } } },
+        })
       : [],
   ]);
-  return [...new Set([viewer.user.id, ...follows.map((f) => f.followeeId), ...held.map((h) => h.market.userId)])];
+  return [
+    ...new Set([viewer.user.id, ...follows.map((f) => f.followeeId), ...held.map((h) => h.market.userId)]),
+  ];
 }
 
-export async function getFeed(ctx: Ctx, viewer: Viewer | null, tab: FeedTab, cursor?: string | null, now = Date.now()): Promise<FeedResponse> {
+export async function getFeed(
+  ctx: Ctx,
+  viewer: Viewer | null,
+  tab: FeedTab,
+  cursor?: string | null,
+  now = Date.now(),
+): Promise<FeedResponse> {
   const { prisma } = ctx;
   const pinned = !cursor && (tab === 'foryou' || tab === 'latest') ? await pinnedPost(prisma) : null;
   const base = { parentId: null, deletedAt: null, ...(pinned ? { id: { not: pinned.id } } : {}) };
@@ -147,21 +185,31 @@ export async function getFeed(ctx: Ctx, viewer: Viewer | null, tab: FeedTab, cur
     const oc = dec<OffsetCursor>(cursor);
     const at = oc?.t ?? now;
     const offset = Math.max(0, oc?.o ?? 0);
-    const where = tab === 'trending' ? { ...base, createdAt: { gte: new Date(at - TRENDING_WINDOW_MS) } } : base;
-    const candidates = await prisma.post.findMany({ where, orderBy: { createdAt: 'desc' }, take: RANK_CANDIDATES, include: POST_INCLUDE });
+    const where =
+      tab === 'trending' ? { ...base, createdAt: { gte: new Date(at - TRENDING_WINDOW_MS) } } : base;
+    const candidates = await prisma.post.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: RANK_CANDIDATES,
+      include: POST_INCLUDE,
+    });
     const ranked =
       tab === 'foryou'
         ? candidates
             .map((p) => ({ p, s: forYouScore(p, p.author.score, at) }))
             .sort((a, b) => b.s - a.s || b.p.createdAt.getTime() - a.p.createdAt.getTime())
             .map((x) => x.p)
-        : candidates.sort((a, b) => trendingScore(b) - trendingScore(a) || b.createdAt.getTime() - a.createdAt.getTime());
+        : candidates.sort(
+            (a, b) => trendingScore(b) - trendingScore(a) || b.createdAt.getTime() - a.createdAt.getTime(),
+          );
     page = ranked.slice(offset, offset + FEED_PAGE);
-    if (offset + FEED_PAGE < ranked.length) nextCursor = enc({ o: offset + FEED_PAGE, t: at } satisfies OffsetCursor);
+    if (offset + FEED_PAGE < ranked.length)
+      nextCursor = enc({ o: offset + FEED_PAGE, t: at } satisfies OffsetCursor);
   } else {
     if (tab === 'following' && !viewer) return { pinned: null, posts: [], nextCursor: null };
     const kc = dec<KeyCursor>(cursor);
-    const authorFilter = tab === 'following' && viewer ? { authorId: { in: await followingAuthorIds(prisma, viewer) } } : {};
+    const authorFilter =
+      tab === 'following' && viewer ? { authorId: { in: await followingAuthorIds(prisma, viewer) } } : {};
     const keyset = kc
       ? { OR: [{ createdAt: { lt: new Date(kc.c) } }, { createdAt: new Date(kc.c), id: { lt: kc.i } }] }
       : {};

@@ -9,7 +9,13 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { WebSocket } from 'ws';
 import type { Redis } from 'ioredis';
 import { z } from 'zod';
-import { BUS_CHANNEL, normalizeHandle, type BusEvent, type MarketDTO, type WsServerMessage } from '@sway/shared';
+import {
+  BUS_CHANNEL,
+  normalizeHandle,
+  type BusEvent,
+  type MarketDTO,
+  type WsServerMessage,
+} from '@sway/shared';
 import { messageDTO, notificationDTO, TRADE_INCLUDE, tradeDTOs } from './services/dto';
 import { marketDTO, marketStats } from './services/markets';
 
@@ -17,8 +23,16 @@ const HEARTBEAT_MS = 30_000;
 const MSG_BUDGET = 40; // client messages per 10s
 
 // Client messages (WsClientMessage), validated per shape.
-const SubRoom = z.object({ type: z.enum(['subscribe', 'unsubscribe']), channel: z.literal('room'), handle: z.string().min(1).max(40) });
-const SubDm = z.object({ type: z.literal('subscribe'), channel: z.literal('dm'), threadId: z.string().min(1).max(64) });
+const SubRoom = z.object({
+  type: z.enum(['subscribe', 'unsubscribe']),
+  channel: z.literal('room'),
+  handle: z.string().min(1).max(40),
+});
+const SubDm = z.object({
+  type: z.literal('subscribe'),
+  channel: z.literal('dm'),
+  threadId: z.string().min(1).max(64),
+});
 
 interface Client {
   socket: WebSocket;
@@ -65,7 +79,14 @@ export class WsHub {
   }
 
   attach(socket: WebSocket, req: FastifyRequest): void {
-    const c: Client = { socket, userId: req.session?.userId ?? null, rooms: new Set(), dms: new Set(), alive: true, budget: { n: 0, at: Date.now() } };
+    const c: Client = {
+      socket,
+      userId: req.session?.userId ?? null,
+      rooms: new Set(),
+      dms: new Set(),
+      alive: true,
+      budget: { n: 0, at: Date.now() },
+    };
     this.clients.add(c);
     if (c.userId) {
       const set = this.byUser.get(c.userId) ?? new Set();
@@ -124,7 +145,10 @@ export class WsHub {
 
   private async viewerFor(c: Client) {
     if (!c.userId) return null;
-    const w = await this.app.deps.prisma.wallet.findUnique({ where: { userId: c.userId }, select: { address: true } });
+    const w = await this.app.deps.prisma.wallet.findUnique({
+      where: { userId: c.userId },
+      select: { address: true },
+    });
     return { userId: c.userId, wallet: w?.address ?? null };
   }
 
@@ -142,7 +166,9 @@ export class WsHub {
     const room = SubRoom.safeParse(msg);
     if (room.success) {
       const { prisma } = this.app.deps;
-      const market = await prisma.keyMarket.findFirst({ where: { user: { handle: normalizeHandle(room.data.handle) } } });
+      const market = await prisma.keyMarket.findFirst({
+        where: { user: { handle: normalizeHandle(room.data.handle) } },
+      });
       if (!market) return;
       if (room.data.type === 'unsubscribe') {
         c.rooms.delete(market.id);
@@ -158,7 +184,10 @@ export class WsHub {
     }
     const dm = SubDm.safeParse(msg);
     if (dm.success && c.userId) {
-      const t = await this.app.deps.prisma.dmThread.findUnique({ where: { id: dm.data.threadId }, select: { aId: true, bId: true } });
+      const t = await this.app.deps.prisma.dmThread.findUnique({
+        where: { id: dm.data.threadId },
+        select: { aId: true, bId: true },
+      });
       if (t && (t.aId === c.userId || t.bId === c.userId)) c.dms.add(dm.data.threadId);
     }
   }
@@ -174,7 +203,8 @@ export class WsHub {
     const { prisma, config } = this.app.deps;
     switch (ev.kind) {
       case 'price':
-        if (typeof ev.ethUsd === 'number' && ev.ethUsd > 0) this.broadcast({ type: 'price', ethUsd: ev.ethUsd });
+        if (typeof ev.ethUsd === 'number' && ev.ethUsd > 0)
+          this.broadcast({ type: 'price', ethUsd: ev.ethUsd });
         return;
       case 'trade': {
         const t = await prisma.trade.findUnique({ where: { id: ev.tradeId }, include: TRADE_INCLUDE });
@@ -190,12 +220,23 @@ export class WsHub {
         const full: MarketDTO = marketDTO(m, (await marketStats(prisma, [m])).get(m.id));
         this.broadcast({
           type: 'market',
-          data: { subject: full.subject, handle: full.handle, supplyUnits: full.supplyUnits, priceWei: full.priceWei, holders: full.holders, volumeWei: full.volumeWei, change: full.change },
+          data: {
+            subject: full.subject,
+            handle: full.handle,
+            supplyUnits: full.supplyUnits,
+            priceWei: full.priceWei,
+            holders: full.holders,
+            volumeWei: full.volumeWei,
+            change: full.change,
+          },
         });
         return;
       }
       case 'notification': {
-        const n = await prisma.notification.findUnique({ where: { id: ev.notificationId }, include: { from: { include: { market: true } } } });
+        const n = await prisma.notification.findUnique({
+          where: { id: ev.notificationId },
+          include: { from: { include: { market: true } } },
+        });
         if (!n) return;
         const targets = this.byUser.get(n.userId);
         if (!targets?.size) return;
@@ -223,10 +264,14 @@ export class WsHub {
         return;
       }
       case 'dm': {
-        const m = await prisma.dmMessage.findUnique({ where: { id: ev.messageId }, include: { author: { include: { market: true } }, thread: true } });
+        const m = await prisma.dmMessage.findUnique({
+          where: { id: ev.messageId },
+          include: { author: { include: { market: true } }, thread: true },
+        });
         if (!m) return;
         for (const uid of [m.thread.aId, m.thread.bId]) {
-          for (const c of this.byUser.get(uid) ?? []) this.send(c, { type: 'dm', threadId: m.threadId, data: messageDTO(m, c.userId) });
+          for (const c of this.byUser.get(uid) ?? [])
+            this.send(c, { type: 'dm', threadId: m.threadId, data: messageDTO(m, c.userId) });
         }
         return;
       }
@@ -241,4 +286,3 @@ export async function setupWs(app: FastifyInstance): Promise<WsHub> {
   app.addHook('onClose', () => hub.stop());
   return hub;
 }
-

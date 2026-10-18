@@ -14,32 +14,36 @@ const sessKey = (sid: string) => `sess:${sid}`;
 
 /** Registers cookie parsing and the session loader on the root instance (not encapsulated). */
 export async function setupSession(app: FastifyInstance): Promise<void> {
-    const { config, redis } = app.deps;
-    await app.register(cookie, { secret: config.sessionSecret, hook: 'onRequest' });
-    app.decorateRequest('sid', null);
-    app.decorateRequest('session', null);
+  const { config, redis } = app.deps;
+  await app.register(cookie, { secret: config.sessionSecret, hook: 'onRequest' });
+  app.decorateRequest('sid', null);
+  app.decorateRequest('session', null);
 
-    app.addHook('onRequest', async (req) => {
-      const raw = req.cookies[SESSION_COOKIE];
-      if (!raw) return;
-      const un = req.unsignCookie(raw);
-      if (!un.valid || !un.value) return;
-      const data = await redis.get(sessKey(un.value));
-      if (!data) return;
-      try {
-        req.session = JSON.parse(data) as SessionData;
-        req.sid = un.value;
-      } catch {
-        /* corrupt session: treat as guest */
-      }
-    });
+  app.addHook('onRequest', async (req) => {
+    const raw = req.cookies[SESSION_COOKIE];
+    if (!raw) return;
+    const un = req.unsignCookie(raw);
+    if (!un.valid || !un.value) return;
+    const data = await redis.get(sessKey(un.value));
+    if (!data) return;
+    try {
+      req.session = JSON.parse(data) as SessionData;
+      req.sid = un.value;
+    } catch {
+      /* corrupt session: treat as guest */
+    }
+  });
 }
 
 export function cookieOptions(secure: boolean) {
   return { path: '/', httpOnly: true, sameSite: 'lax' as const, secure, signed: true, maxAge: SESSION_TTL_S };
 }
 
-export async function createSession(req: FastifyRequest, reply: FastifyReply, data: Omit<SessionData, 'createdAt'>): Promise<string> {
+export async function createSession(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  data: Omit<SessionData, 'createdAt'>,
+): Promise<string> {
   const { redis, config } = req.server.deps;
   if (req.sid) await redis.del(sessKey(req.sid));
   const sid = randomBytes(32).toString('base64url');
@@ -70,6 +74,10 @@ export function referralFrom(req: FastifyRequest, explicit?: string | null): str
   if (!raw) return null;
   const un = req.unsignCookie(raw);
   const v = un.valid && un.value ? un.value : raw;
-  const h = v.replace(/^@/, '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+  const h = v
+    .replace(/^@/, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '');
   return h || null;
 }

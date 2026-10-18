@@ -3,7 +3,14 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { Prisma, decToBig } from '@sway/db';
 import { genesisSharePercent, GENESIS_MAX, tierOf } from '@sway/scoring';
-import type { GenesisResponse, GenesisRow, LaunchpadResponse, LeaderboardResponse, LeaderboardRow, Address } from '@sway/shared';
+import type {
+  GenesisResponse,
+  GenesisRow,
+  LaunchpadResponse,
+  LeaderboardResponse,
+  LeaderboardRow,
+  Address,
+} from '@sway/shared';
 import { query } from './_util';
 import { getViewer } from '../plugins/auth';
 import { userRef } from '../services/dto';
@@ -70,12 +77,17 @@ export async function rankingRoutes(app: FastifyInstance) {
   const { prisma, config } = app.deps;
 
   app.get('/leaderboard', async (req): Promise<LeaderboardResponse> => {
-    const { tab } = query(z.object({ tab: z.enum(['points', 'creators', 'stakers', 'fighters']).default('points') }), req);
+    const { tab } = query(
+      z.object({ tab: z.enum(['points', 'creators', 'stakers', 'fighters']).default('points') }),
+      req,
+    );
     const col = Prisma.raw(`m."${METRIC[tab]}"`);
     const col2 = Prisma.raw(`m2."${METRIC[tab]}"`);
     const v = await getViewer(req);
     const meId = v?.user.id ?? null;
-    const rows = await prisma.$queryRaw<Row[]>(Prisma.sql`${LB_BASE} SELECT * FROM m ORDER BY ${col} DESC, m."memberNo" ASC NULLS LAST LIMIT 50`);
+    const rows = await prisma.$queryRaw<Row[]>(
+      Prisma.sql`${LB_BASE} SELECT * FROM m ORDER BY ${col} DESC, m."memberNo" ASC NULLS LAST LIMIT 50`,
+    );
     let me: LeaderboardRow | null = null;
     if (meId) {
       const idx = rows.findIndex((r) => r.id === meId);
@@ -96,7 +108,10 @@ export async function rankingRoutes(app: FastifyInstance) {
     const v = await getViewer(req);
     const now = new Date();
     const split = GENESIS_SPLIT_RANKS.map((rank) => ({ rank, sharePct: genesisSharePercent(rank) }));
-    const snapshot = await prisma.genesisSnapshot.findFirst({ where: { takenAt: { lte: now } }, orderBy: { takenAt: 'desc' } });
+    const snapshot = await prisma.genesisSnapshot.findFirst({
+      where: { takenAt: { lte: now } },
+      orderBy: { takenAt: 'desc' },
+    });
     const frozen = !!snapshot || now >= config.snapshotAt;
 
     if (snapshot) {
@@ -106,17 +121,32 @@ export async function rankingRoutes(app: FastifyInstance) {
         take: 30,
         include: { user: { include: { market: true } } },
       });
-      const mine = v ? await prisma.genesisEntry.findUnique({ where: { snapshotId_userId: { snapshotId: snapshot.id, userId: v.user.id } } }) : null;
+      const mine = v
+        ? await prisma.genesisEntry.findUnique({
+            where: { snapshotId_userId: { snapshotId: snapshot.id, userId: v.user.id } },
+          })
+        : null;
       return {
         snapshotAt: snapshot.takenAt.toISOString(),
         frozen: true,
         me: v
           ? mine
-            ? { rank: mine.rank, points: mine.points, inCut: true, sharePct: genesisSharePercent(mine.rank), toCut: 0 }
+            ? {
+                rank: mine.rank,
+                points: mine.points,
+                inCut: true,
+                sharePct: genesisSharePercent(mine.rank),
+                toCut: 0,
+              }
             : { rank: 0, points: 0, inCut: false, sharePct: 0, toCut: 0 }
           : null,
         split,
-        top: entries.map((e) => ({ rank: e.rank, user: userRef(e.user, e.user.market), points: e.points, sharePct: genesisSharePercent(e.rank) })),
+        top: entries.map((e) => ({
+          rank: e.rank,
+          user: userRef(e.user, e.user.market),
+          points: e.points,
+          sharePct: genesisSharePercent(e.rank),
+        })),
       };
     }
 
@@ -135,11 +165,23 @@ export async function rankingRoutes(app: FastifyInstance) {
       Prisma.sql`${eligibleBase} SELECT id, points FROM m ORDER BY points DESC, "memberNo" ASC NULLS LAST LIMIT ${GENESIS_MAX}`,
     );
     const topIds = ranked.slice(0, 30);
-    const users = await prisma.user.findMany({ where: { id: { in: topIds.map((r) => r.id) } }, include: { market: true } });
+    const users = await prisma.user.findMany({
+      where: { id: { in: topIds.map((r) => r.id) } },
+      include: { market: true },
+    });
     const byId = new Map(users.map((u) => [u.id, u]));
     const top: GenesisRow[] = topIds.flatMap((r, i) => {
       const u = byId.get(r.id);
-      return u ? [{ rank: i + 1, user: userRef(u, u.market), points: Number(r.points), sharePct: genesisSharePercent(i + 1) }] : [];
+      return u
+        ? [
+            {
+              rank: i + 1,
+              user: userRef(u, u.market),
+              points: Number(r.points),
+              sharePct: genesisSharePercent(i + 1),
+            },
+          ]
+        : [];
     });
 
     let me: GenesisResponse['me'] = null;
@@ -148,7 +190,9 @@ export async function rankingRoutes(app: FastifyInstance) {
       const pts = idx >= 0 ? Number(ranked[idx]!.points) : (await pointsDTO(prisma, v.user)).total;
       let rank = idx + 1;
       if (idx < 0) {
-        const [r] = await prisma.$queryRaw<Array<{ n: number }>>(Prisma.sql`${eligibleBase} SELECT count(*)::int AS n FROM m WHERE points > ${pts}`);
+        const [r] = await prisma.$queryRaw<Array<{ n: number }>>(
+          Prisma.sql`${eligibleBase} SELECT count(*)::int AS n FROM m WHERE points > ${pts}`,
+        );
         rank = (r?.n ?? 0) + 1;
       }
       const inCut = idx >= 0;
@@ -169,7 +213,13 @@ export async function rankingRoutes(app: FastifyInstance) {
     if (!v) return { symbol: '$YOU', score: null, startCapUsd: null, launched: false, tokenAddress: null };
     const lt = await prisma.launchToken.findUnique({ where: { userId: v.user.id } });
     return {
-      symbol: lt?.symbol ?? '$' + v.user.handle.replace(/[^a-z0-9]/gi, '').slice(0, 6).toUpperCase(),
+      symbol:
+        lt?.symbol ??
+        '$' +
+          v.user.handle
+            .replace(/[^a-z0-9]/gi, '')
+            .slice(0, 6)
+            .toUpperCase(),
       score: v.user.score,
       startCapUsd: 2000 + v.user.score * 60,
       launched: !!lt?.launchedAt,

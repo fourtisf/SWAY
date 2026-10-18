@@ -30,13 +30,19 @@ export type TaskCheckResult = 'verified' | 'not_found' | 'unsupported';
 
 export const isSwayCardPost = (p: Pick<XPost, 'text' | 'hashtags'>, hosts: string[] = []): boolean => {
   const t = p.text.toLowerCase();
-  return t.includes('sway score') || p.hashtags.includes('sway') || hosts.some((h) => h && t.includes(h.toLowerCase()));
+  return (
+    t.includes('sway score') ||
+    p.hashtags.includes('sway') ||
+    hosts.some((h) => h && t.includes(h.toLowerCase()))
+  );
 };
 
 export async function checkTaskOnX(ctx: XContext, input: TaskCheckInput): Promise<TaskCheckResult> {
   switch (input.taskId) {
     case 'follow':
-      return (await isFollowing(ctx, input.xUserId, input.officialHandle ?? OFFICIAL_HANDLE)) ? 'verified' : 'not_found';
+      return (await isFollowing(ctx, input.xUserId, input.officialHandle ?? OFFICIAL_HANDLE))
+        ? 'verified'
+        : 'not_found';
     case 'repost':
       if (!input.launchPostId) return 'unsupported';
       return (await hasReposted(ctx, input.xUserId, input.launchPostId)) ? 'verified' : 'not_found';
@@ -46,7 +52,9 @@ export async function checkTaskOnX(ctx: XContext, input: TaskCheckInput): Promis
       return hit ? 'verified' : 'not_found';
     }
     case 'daily':
-      return (await findRecentPostWithTag(ctx, input.xUserId, DAILY_TAG, input.day)) ? 'verified' : 'not_found';
+      return (await findRecentPostWithTag(ctx, input.xUserId, DAILY_TAG, input.day))
+        ? 'verified'
+        : 'not_found';
     default:
       return 'unsupported';
   }

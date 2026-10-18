@@ -9,13 +9,15 @@ export const X_AUTHORIZE_URL = 'https://x.com/i/oauth2/authorize';
 export const X_TOKEN_URL = 'https://api.x.com/2/oauth2/token';
 export const X_SCOPES = ['tweet.read', 'users.read', 'follows.read', 'offline.access'] as const;
 
-const b64url = (buf: Buffer): string => buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const b64url = (buf: Buffer): string =>
+  buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
 /** 43-char code verifier (32 random bytes, base64url), within RFC 7636's 43..128 range. */
 export const generateCodeVerifier = (): string => b64url(randomBytes(32));
 
 /** S256 code challenge for a verifier. */
-export const codeChallenge = (verifier: string): string => b64url(createHash('sha256').update(verifier).digest());
+export const codeChallenge = (verifier: string): string =>
+  b64url(createHash('sha256').update(verifier).digest());
 
 /** Opaque CSRF state. */
 export const generateState = (): string => b64url(randomBytes(24));
@@ -62,7 +64,8 @@ async function tokenRequest(opts: TokenClientOptions, body: Record<string, strin
   const f = opts.fetch ?? fetch;
   const headers: Record<string, string> = { 'content-type': 'application/x-www-form-urlencoded' };
   if (opts.clientSecret) {
-    headers.authorization = 'Basic ' + Buffer.from(`${opts.clientId}:${opts.clientSecret}`).toString('base64');
+    headers.authorization =
+      'Basic ' + Buffer.from(`${opts.clientId}:${opts.clientSecret}`).toString('base64');
   }
   const res = await f(opts.tokenUrl ?? X_TOKEN_URL, {
     method: 'POST',

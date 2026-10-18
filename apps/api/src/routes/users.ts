@@ -30,7 +30,8 @@ const DAY_MS = 24 * 3600 * 1000;
 export async function userRoutes(app: FastifyInstance) {
   const { prisma, redis, chain, config } = app.deps;
   const ctx = { prisma, access: app.access };
-  const accessViewer = (v: Viewer | null) => (v ? { userId: v.user.id, wallet: v.wallet?.address ?? null } : null);
+  const accessViewer = (v: Viewer | null) =>
+    v ? { userId: v.user.id, wallet: v.wallet?.address ?? null } : null;
 
   app.get('/users/:handle', async (req): Promise<ProfileDTO> => {
     const { handle } = params(HandleParams, req);
@@ -40,9 +41,21 @@ export async function userRoutes(app: FastifyInstance) {
     const [stats, history, follow, sub, held] = await Promise.all([
       m ? marketStats(prisma, [m]) : null,
       m ? priceHistory(prisma, m) : [],
-      v ? prisma.follow.findUnique({ where: { followerId_followeeId: { followerId: v.user.id, followeeId: u.id } } }) : null,
-      v ? prisma.subscription.findFirst({ where: { subscriberId: v.user.id, creatorId: u.id, expiresAt: { gt: new Date() } } }) : null,
-      v?.wallet && m ? prisma.holding.findUnique({ where: { marketId_address: { marketId: m.id, address: v.wallet.address } } }) : null,
+      v
+        ? prisma.follow.findUnique({
+            where: { followerId_followeeId: { followerId: v.user.id, followeeId: u.id } },
+          })
+        : null,
+      v
+        ? prisma.subscription.findFirst({
+            where: { subscriberId: v.user.id, creatorId: u.id, expiresAt: { gt: new Date() } },
+          })
+        : null,
+      v?.wallet && m
+        ? prisma.holding.findUnique({
+            where: { marketId_address: { marketId: m.id, address: v.wallet.address } },
+          })
+        : null,
     ]);
     const unclaimed = !!m && !m.claimed;
     return {
@@ -74,8 +87,15 @@ export async function userRoutes(app: FastifyInstance) {
     const u = await userByHandle(req, handle, { market: true });
     if (!u.market) return [];
     const v = await getViewer(req);
-    const rows = await prisma.holding.findMany({ where: { marketId: u.market.id, units: { gt: 0n } }, orderBy: { units: 'desc' }, take: 200 });
-    const members = await membersByAddress(prisma, rows.map((r) => r.address));
+    const rows = await prisma.holding.findMany({
+      where: { marketId: u.market.id, units: { gt: 0n } },
+      orderBy: { units: 'desc' },
+      take: 200,
+    });
+    const members = await membersByAddress(
+      prisma,
+      rows.map((r) => r.address),
+    );
     return rows.map((r) => {
       const m = members.get(r.address);
       return {
@@ -132,27 +152,36 @@ export async function userRoutes(app: FastifyInstance) {
     return { access, messages, oneKeyTotalWei: oneKeyTotalWei(market.supplyUnits).toString() };
   });
 
-  app.post('/users/:handle/room', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (req): Promise<MessageDTO> => {
-    const v = await requireViewer(req);
-    const { market } = await marketOf(req);
-    const b = body(z.object({ text: text(1000) }), req);
-    const access = await app.access.roomAccess(accessViewer(v), market);
-    if (access !== 'open') {
-      throw forbidden('locked', access === 'unclaimed' ? 'This room opens when the account claims its market' : 'Hold 1 key to post in this room');
-    }
-    const now = new Date();
-    const msg = await prisma.roomMessage.create({
-      data: { marketId: market.id, authorId: v.user.id, text: b.text, createdAt: now },
-      include: { author: { include: { market: true } } },
-    });
-    await prisma.roomRead.upsert({
-      where: { userId_marketId: { userId: v.user.id, marketId: market.id } },
-      create: { userId: v.user.id, marketId: market.id, readAt: now },
-      update: { readAt: now },
-    });
-    await publish(redis, { kind: 'room', messageId: msg.id }).catch(() => undefined);
-    return messageDTO(msg, v.user.id);
-  });
+  app.post(
+    '/users/:handle/room',
+    { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } },
+    async (req): Promise<MessageDTO> => {
+      const v = await requireViewer(req);
+      const { market } = await marketOf(req);
+      const b = body(z.object({ text: text(1000) }), req);
+      const access = await app.access.roomAccess(accessViewer(v), market);
+      if (access !== 'open') {
+        throw forbidden(
+          'locked',
+          access === 'unclaimed'
+            ? 'This room opens when the account claims its market'
+            : 'Hold 1 key to post in this room',
+        );
+      }
+      const now = new Date();
+      const msg = await prisma.roomMessage.create({
+        data: { marketId: market.id, authorId: v.user.id, text: b.text, createdAt: now },
+        include: { author: { include: { market: true } } },
+      });
+      await prisma.roomRead.upsert({
+        where: { userId_marketId: { userId: v.user.id, marketId: market.id } },
+        create: { userId: v.user.id, marketId: market.id, readAt: now },
+        update: { readAt: now },
+      });
+      await publish(redis, { kind: 'room', messageId: msg.id }).catch(() => undefined);
+      return messageDTO(msg, v.user.id);
+    },
+  );
 
   /* ------------------------------------------------------------------ follow */
 
@@ -185,10 +214,13 @@ export async function userRoutes(app: FastifyInstance) {
       throw unavailable('chain_unavailable', 'Could not reach the chain to check the payment. Try again.');
     }
     if (!tx) throw badRequest('tx_not_found', 'That transaction was not found onchain');
-    if (tx.status === 'pending') throw conflict('tx_pending', 'The payment is not confirmed yet. Try again in a moment.');
+    if (tx.status === 'pending')
+      throw conflict('tx_pending', 'The payment is not confirmed yet. Try again in a moment.');
     if (tx.status === 'reverted') throw badRequest('tx_reverted', 'That payment reverted');
-    if (tx.from !== v.wallet!.address) throw forbidden('tx_not_yours', 'That payment was not sent from your wallet');
-    if (tx.to !== creatorWallet.toLowerCase()) throw badRequest('wrong_recipient', 'That payment did not go to this creator');
+    if (tx.from !== v.wallet!.address)
+      throw forbidden('tx_not_yours', 'That payment was not sent from your wallet');
+    if (tx.to !== creatorWallet.toLowerCase())
+      throw badRequest('wrong_recipient', 'That payment did not go to this creator');
     if (tx.value * 100n < expected * 98n) throw badRequest('underpaid', `The payment is less than $${usd}`);
     return tx.value;
   }
@@ -199,14 +231,16 @@ export async function userRoutes(app: FastifyInstance) {
     const { handle } = params(HandleParams, req);
     const u = await userByHandle(req, handle, { market: true, wallet: true });
     if (u.id === v.user.id) throw badRequest('self', 'You can’t pay yourself');
-    if (!u.wallet || (u.market && !u.market.claimed)) throw conflict('no_owner', `@${handle} hasn’t claimed this account yet`);
+    if (!u.wallet || (u.market && !u.market.claimed))
+      throw conflict('no_owner', `@${handle} hasn’t claimed this account yet`);
     const { txHash } = body(z.object({ txHash: TxHash }), req);
     return { v, u, wallet: u.wallet, txHash };
   }
 
   app.post('/users/:handle/subscribe', async (req) => {
     const { v, u, wallet, txHash } = await payTarget(req);
-    if (await prisma.subscription.findUnique({ where: { txHash } })) throw conflict('tx_used', 'This payment is already recorded');
+    if (await prisma.subscription.findUnique({ where: { txHash } }))
+      throw conflict('tx_used', 'This payment is already recorded');
     const value = await verifyPayment(v, wallet.address, SUBSCRIPTION_USD, txHash);
     const current = await prisma.subscription.findFirst({
       where: { subscriberId: v.user.id, creatorId: u.id, expiresAt: { gt: new Date() } },
@@ -215,12 +249,30 @@ export async function userRoutes(app: FastifyInstance) {
     const from = current ? current.expiresAt.getTime() : Date.now();
     await prisma.$transaction([
       prisma.subscription.create({
-        data: { subscriberId: v.user.id, creatorId: u.id, txHash, amountWei: value.toString(), expiresAt: new Date(from + SUB_DAYS * DAY_MS) },
+        data: {
+          subscriberId: v.user.id,
+          creatorId: u.id,
+          txHash,
+          amountWei: value.toString(),
+          expiresAt: new Date(from + SUB_DAYS * DAY_MS),
+        },
       }),
       prisma.activity.createMany({
         data: [
-          { userId: v.user.id, label: `Subscribed to ${u.name}`, amountWei: (-value).toString(), txHash, ref: `sub:${txHash}:out` },
-          { userId: u.id, label: `Subscription from ${v.user.name}`, amountWei: value.toString(), txHash, ref: `sub:${txHash}:in` },
+          {
+            userId: v.user.id,
+            label: `Subscribed to ${u.name}`,
+            amountWei: (-value).toString(),
+            txHash,
+            ref: `sub:${txHash}:out`,
+          },
+          {
+            userId: u.id,
+            label: `Subscription from ${v.user.name}`,
+            amountWei: value.toString(),
+            txHash,
+            ref: `sub:${txHash}:in`,
+          },
         ],
         skipDuplicates: true,
       }),
@@ -230,12 +282,25 @@ export async function userRoutes(app: FastifyInstance) {
 
   app.post('/users/:handle/tip', async (req) => {
     const { v, u, wallet, txHash } = await payTarget(req);
-    if (await prisma.activity.findUnique({ where: { ref: `tip:${txHash}:out` } })) throw conflict('tx_used', 'This payment is already recorded');
+    if (await prisma.activity.findUnique({ where: { ref: `tip:${txHash}:out` } }))
+      throw conflict('tx_used', 'This payment is already recorded');
     const value = await verifyPayment(v, wallet.address, TIP_USD, txHash);
     await prisma.activity.createMany({
       data: [
-        { userId: v.user.id, label: `Tipped ${u.name}`, amountWei: (-value).toString(), txHash, ref: `tip:${txHash}:out` },
-        { userId: u.id, label: `Tip from ${v.user.name}`, amountWei: value.toString(), txHash, ref: `tip:${txHash}:in` },
+        {
+          userId: v.user.id,
+          label: `Tipped ${u.name}`,
+          amountWei: (-value).toString(),
+          txHash,
+          ref: `tip:${txHash}:out`,
+        },
+        {
+          userId: u.id,
+          label: `Tip from ${v.user.name}`,
+          amountWei: value.toString(),
+          txHash,
+          ref: `tip:${txHash}:in`,
+        },
       ],
       skipDuplicates: true,
     });
@@ -250,11 +315,23 @@ export async function userRoutes(app: FastifyInstance) {
     note: z.string().trim().max(2000).optional(),
   });
 
-  app.post('/users/:handle/claim-request', { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } }, async (req) => {
-    const v = await requireViewer(req);
-    const { market } = await marketOf(req);
-    const b = body(ClaimBody, req);
-    await prisma.claimRequest.create({ data: { marketId: market.id, userId: v.user.id, kind: b.kind, contact: b.contact, note: b.note || null } });
-    return { ok: true as const };
-  });
+  app.post(
+    '/users/:handle/claim-request',
+    { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } },
+    async (req) => {
+      const v = await requireViewer(req);
+      const { market } = await marketOf(req);
+      const b = body(ClaimBody, req);
+      await prisma.claimRequest.create({
+        data: {
+          marketId: market.id,
+          userId: v.user.id,
+          kind: b.kind,
+          contact: b.contact,
+          note: b.note || null,
+        },
+      });
+      return { ok: true as const };
+    },
+  );
 }

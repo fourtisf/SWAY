@@ -39,7 +39,9 @@ export const memberPointsSql = P.sql`
   WHERE u."joinedAt" IS NOT NULL AND u.official = false`;
 
 export async function rankForPoints(prisma: PrismaClient, total: number): Promise<number> {
-  const r = await prisma.$queryRaw<Array<{ n: number }>>(P.sql`SELECT count(*)::int AS n FROM (${memberPointsSql}) m WHERE m.points > ${total}`);
+  const r = await prisma.$queryRaw<Array<{ n: number }>>(
+    P.sql`SELECT count(*)::int AS n FROM (${memberPointsSql}) m WHERE m.points > ${total}`,
+  );
   return 1 + (r[0]?.n ?? 0);
 }
 
@@ -51,7 +53,10 @@ export interface PointsParts {
   earned: number;
 }
 
-export async function pointsParts(tx: Tx, user: Pick<User, 'id' | 'score' | 'heldPoints'>): Promise<PointsParts> {
+export async function pointsParts(
+  tx: Tx,
+  user: Pick<User, 'id' | 'score' | 'heldPoints'>,
+): Promise<PointsParts> {
   const ledger = await ledgerSum(tx, user.id);
   const score = scorePoints(user.score);
   const held = user.heldPoints;
@@ -76,7 +81,10 @@ export function pointsDtoFrom(parts: PointsParts, rank: number): PointsDTO {
   };
 }
 
-export async function pointsDTO(prisma: PrismaClient, user: Pick<User, 'id' | 'score' | 'heldPoints' | 'joinedAt'>): Promise<PointsDTO> {
+export async function pointsDTO(
+  prisma: PrismaClient,
+  user: Pick<User, 'id' | 'score' | 'heldPoints' | 'joinedAt'>,
+): Promise<PointsDTO> {
   const parts = await pointsParts(prisma, user);
   const rank = await rankForPoints(prisma, parts.total);
   return pointsDtoFrom(parts, rank);
@@ -84,9 +92,15 @@ export async function pointsDTO(prisma: PrismaClient, user: Pick<User, 'id' | 's
 
 /** Points that can be staked or spent on backings (everything except score points). */
 export async function earnedPoints(tx: Tx, userId: string): Promise<number> {
-  const u = await tx.user.findUnique({ where: { id: userId }, select: { id: true, score: true, heldPoints: true } });
+  const u = await tx.user.findUnique({
+    where: { id: userId },
+    select: { id: true, score: true, heldPoints: true },
+  });
   if (!u) return 0;
   return (await pointsParts(tx, u)).earned;
 }
 
-export const EMPTY_POINTS: PointsDTO = pointsDtoFrom({ total: 0, score: 0, ledger: 0, held: 0, earned: 0 }, 0);
+export const EMPTY_POINTS: PointsDTO = pointsDtoFrom(
+  { total: 0, score: 0, ledger: 0, held: 0, earned: 0 },
+  0,
+);

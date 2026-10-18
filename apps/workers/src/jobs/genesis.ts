@@ -8,6 +8,7 @@ import { allocateGenesis, rankGenesis, scorePoints, type GenesisCandidate } from
 import { genesisPassAbi } from '@sway/shared/abi';
 import { dec } from '@sway/db';
 import type { Clients } from '../clients';
+import { withSenderLock } from '../txlock';
 
 export interface SnapshotResult {
   snapshotId: string;
@@ -60,16 +61,22 @@ export async function takeSnapshot(c: Clients, takenAt = c.cfg.snapshotAt): Prom
 export async function mintPasses(c: Clients): Promise<number> {
   const { prisma, cfg } = c;
   const pass = cfg.contracts.genesisPass;
-  if (!pass || !c.issuer) return 0;
+  const issuer = c.issuer;
+  if (!pass || !issuer) return 0;
+  const send = (args: Parameters<typeof issuer.writeContract>[0]) =>
+    withSenderLock(c, issuer, async () => {
+      const hash = await issuer.writeContract(args);
+      await c.pub.waitForTransactionReceipt({ hash });
+      return hash;
+    });
   const snap = await prisma.genesisSnapshot.findFirst({ orderBy: { takenAt: 'desc' }, include: { entries: { where: { mintTx: null }, orderBy: { rank: 'asc' } } } });
   if (!snap) return 0;
   const committed = (await c.pub.readContract({ address: pass, abi: genesisPassAbi, functionName: 'snapshotHash' })) as `0x${string}`;
   if (/^0x0{64}$/.test(committed)) {
-    const hash = await c.issuer.writeContract({
+    await send({
       address: pass, abi: genesisPassAbi, functionName: 'commitSnapshot',
       args: [snap.listHash as `0x${string}`, BigInt(Math.floor(snap.takenAt.getTime() / 1000)), `${cfg.genesisListBaseUrl}/${snap.id}`],
-    });
-    await c.pub.waitForTransactionReceipt({ hash });
+    } as never);
   } else if (committed.toLowerCase() !== snap.listHash.toLowerCase()) {
     throw new Error(`GenesisPass committed ${committed} but the latest snapshot is ${snap.listHash}; refusing to mint`);
   }
@@ -82,11 +89,10 @@ export async function mintPasses(c: Clients): Promise<number> {
       if (!owner) pending.push(e);
     }
     if (!pending.length) continue;
-    const hash = await c.issuer.writeContract({
+    const hash = await send({
       address: pass, abi: genesisPassAbi, functionName: 'mintBatch',
       args: [pending.map((e) => e.wallet as `0x${string}`), pending.map((e) => BigInt(e.rank))],
-    });
-    await c.pub.waitForTransactionReceipt({ hash });
+    } as never);
     await prisma.genesisEntry.updateMany({ where: { snapshotId: snap.id, rank: { in: pending.map((e) => e.rank) } }, data: { mintTx: hash } });
     minted += pending.length;
   }

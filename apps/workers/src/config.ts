@@ -74,7 +74,7 @@ export function loadConfig(): WorkerConfig {
     genesisListBaseUrl: str('GENESIS_LIST_URL', `${str('WEB_URL', 'http://localhost:3000')}/genesis/list`),
     xBearer: str('X_BEARER_TOKEN'),
     devAuth: str('DEV_AUTH') === '1' && process.env.NODE_ENV !== 'production',
-    launchPostId: str('LAUNCH_POST_ID'),
+    launchPostId: str('X_LAUNCH_POST_ID'),
     webUrl: str('WEB_URL', 'http://localhost:3000'),
   };
 }

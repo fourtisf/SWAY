@@ -7,9 +7,16 @@ import { userRef } from './dto';
 export const ROOM_UNITS = 100n;
 
 /** Markets whose room the viewer is in: their own, plus every claimed market where they hold ≥ 1 key (mirror). */
-export async function roomMarkets(prisma: PrismaClient, userId: string, wallet: string | null): Promise<Array<KeyMarket & { user: User }>> {
+export async function roomMarkets(
+  prisma: PrismaClient,
+  userId: string,
+  wallet: string | null,
+): Promise<Array<KeyMarket & { user: User }>> {
   const held = wallet
-    ? await prisma.holding.findMany({ where: { address: wallet.toLowerCase(), units: { gte: ROOM_UNITS } }, select: { marketId: true } })
+    ? await prisma.holding.findMany({
+        where: { address: wallet.toLowerCase(), units: { gte: ROOM_UNITS } },
+        select: { marketId: true },
+      })
     : [];
   return prisma.keyMarket.findMany({
     where: { claimed: true, OR: [{ userId }, { id: { in: held.map((h) => h.marketId) } }] },
@@ -17,7 +24,11 @@ export async function roomMarkets(prisma: PrismaClient, userId: string, wallet: 
   });
 }
 
-export async function roomThreads(prisma: PrismaClient, userId: string, wallet: string | null): Promise<ThreadDTO[]> {
+export async function roomThreads(
+  prisma: PrismaClient,
+  userId: string,
+  wallet: string | null,
+): Promise<ThreadDTO[]> {
   const markets = await roomMarkets(prisma, userId, wallet);
   if (!markets.length) return [];
   const ids = markets.map((m) => m.id);
@@ -51,7 +62,10 @@ export async function roomThreads(prisma: PrismaClient, userId: string, wallet: 
     .map((x) => x.thread);
 }
 
-type ThreadRow = DmThread & { a: User & { market: KeyMarket | null }; b: User & { market: KeyMarket | null } };
+type ThreadRow = DmThread & {
+  a: User & { market: KeyMarket | null };
+  b: User & { market: KeyMarket | null };
+};
 
 export function dmThreadDTO(t: ThreadRow, viewerId: string, last: string | null): ThreadDTO {
   const other = t.aId === viewerId ? t.b : t.a;
@@ -65,7 +79,10 @@ export function dmThreadDTO(t: ThreadRow, viewerId: string, last: string | null)
   };
 }
 
-export const DM_INCLUDE = { a: { include: { market: true } }, b: { include: { market: true } } } satisfies Prisma.DmThreadInclude;
+export const DM_INCLUDE = {
+  a: { include: { market: true } },
+  b: { include: { market: true } },
+} satisfies Prisma.DmThreadInclude;
 
 export async function dmThreads(prisma: PrismaClient, userId: string): Promise<ThreadDTO[]> {
   const threads = await prisma.dmThread.findMany({
@@ -78,7 +95,11 @@ export async function dmThreads(prisma: PrismaClient, userId: string): Promise<T
 }
 
 /** Unread DM threads plus unread rooms (the Messages badge). */
-export async function unreadMessages(prisma: PrismaClient, userId: string, wallet: string | null): Promise<number> {
+export async function unreadMessages(
+  prisma: PrismaClient,
+  userId: string,
+  wallet: string | null,
+): Promise<number> {
   const [dm] = await prisma.$queryRaw<Array<{ n: number }>>(Prisma.sql`
     SELECT count(*)::int AS n FROM "DmThread" t
     WHERE EXISTS (SELECT 1 FROM "DmMessage" m WHERE m."threadId" = t.id AND m."authorId" <> ${userId})

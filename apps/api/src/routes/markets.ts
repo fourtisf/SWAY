@@ -1,7 +1,15 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { decToStr, Prisma, type PrismaClient } from '@sway/db';
-import { MARKET_CATEGORIES, TAGS, type ExploreResponse, type MarketDTO, type MarketsResponse, type SearchResponse, type TagDTO } from '@sway/shared';
+import {
+  MARKET_CATEGORIES,
+  TAGS,
+  type ExploreResponse,
+  type MarketDTO,
+  type MarketsResponse,
+  type SearchResponse,
+  type TagDTO,
+} from '@sway/shared';
 import { query } from './_util';
 import { marketDTOs, marketDtosForUsers, marketStats, marketDTO } from '../services/markets';
 
@@ -30,6 +38,9 @@ const nameFilter = (q: string): Prisma.UserWhereInput =>
 
 export async function marketRoutes(app: FastifyInstance) {
   const { prisma } = app.deps;
+  // With contracts configured, list only markets the indexer has seen open onchain (a pending open or a
+  // pre-created fan-market row would otherwise offer a Buy that reverts).
+  const live: Prisma.KeyMarketWhereInput = app.deps.chain.keysEnabled ? { opened: true } : {};
 
   app.get('/search', async (req): Promise<SearchResponse> => {
     const raw = query(z.object({ q: z.string().max(60).default('') }), req).q.trim();
@@ -58,10 +69,15 @@ export async function marketRoutes(app: FastifyInstance) {
     const tags = await tagList(prisma, q, 20);
     if (p.tab === 'tags') return { creators: [], tags };
 
-    const where: Prisma.KeyMarketWhereInput = { claimed: true, user: { ...nameFilter(q), official: false } };
+    const where: Prisma.KeyMarketWhereInput = { ...live, claimed: true, user: { ...nameFilter(q), official: false } };
     let creators: MarketDTO[];
     if (p.tab === 'new') {
-      const ms = await prisma.keyMarket.findMany({ where, include: { user: true }, orderBy: { user: { joinedAt: { sort: 'desc', nulls: 'last' } } }, take: 60 });
+      const ms = await prisma.keyMarket.findMany({
+        where,
+        include: { user: true },
+        orderBy: { user: { joinedAt: { sort: 'desc', nulls: 'last' } } },
+        take: 60,
+      });
       creators = await marketDTOs(prisma, ms);
     } else if (p.sort === 'trending') {
       const ms = await prisma.keyMarket.findMany({
@@ -77,7 +93,11 @@ export async function marketRoutes(app: FastifyInstance) {
         .slice(0, 60);
     } else {
       const orderBy: Prisma.KeyMarketOrderByWithRelationInput =
-        p.sort === 'volume' ? { volumeWei: 'desc' } : p.sort === 'price' ? { supplyUnits: 'desc' } : { user: { score: 'desc' } };
+        p.sort === 'volume'
+          ? { volumeWei: 'desc' }
+          : p.sort === 'price'
+            ? { supplyUnits: 'desc' }
+            : { user: { score: 'desc' } };
       const ms = await prisma.keyMarket.findMany({ where, include: { user: true }, orderBy, take: 60 });
       creators = await marketDTOs(prisma, ms);
     }
@@ -86,13 +106,23 @@ export async function marketRoutes(app: FastifyInstance) {
 
   app.get('/markets', async (req): Promise<MarketsResponse> => {
     const { tab } = query(z.object({ tab: z.enum(MARKET_CATEGORIES).default('creators') }), req);
-    const where: Prisma.KeyMarketWhereInput = tab === 'creators' ? { claimed: true, user: { official: false } } : { category: tab, claimed: false };
+    const where: Prisma.KeyMarketWhereInput =
+      tab === 'creators' ? { ...live, claimed: true, user: { official: false } } : { ...live, category: tab, claimed: false };
     const [ms, agg] = await Promise.all([
-      prisma.keyMarket.findMany({ where, include: { user: true }, orderBy: [{ volumeWei: 'desc' }, { supplyUnits: 'desc' }], take: 100 }),
+      prisma.keyMarket.findMany({
+        where,
+        include: { user: true },
+        orderBy: [{ volumeWei: 'desc' }, { supplyUnits: 'desc' }],
+        take: 100,
+      }),
       prisma.keyMarket.aggregate({ where, _count: { _all: true }, _sum: { volumeWei: true, holders: true } }),
     ]);
     return {
-      stats: { markets: agg._count._all, volumeWei: decToStr(agg._sum.volumeWei), holders: agg._sum.holders ?? 0 },
+      stats: {
+        markets: agg._count._all,
+        volumeWei: decToStr(agg._sum.volumeWei),
+        holders: agg._sum.holders ?? 0,
+      },
       markets: await marketDTOs(prisma, ms),
     };
   });

@@ -10,6 +10,8 @@ module.exports = {
       instances: 2,
       exec_mode: 'cluster',
       max_memory_restart: '512M',
+      // Production mode: JSON logs, and dev sign-in stays off even if DEV_AUTH is set.
+      env: { NODE_ENV: 'production' },
     },
     {
       // One process is enough; a second one stands by (the indexer holds a Redis lock).
@@ -19,6 +21,7 @@ module.exports = {
       node_args: '--env-file=../../.env',
       instances: 1,
       max_memory_restart: '512M',
+      env: { NODE_ENV: 'production' },
     },
     {
       name: 'sway-web',

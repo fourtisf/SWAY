@@ -18,7 +18,13 @@ export interface NotifyInput {
 export async function notify(prisma: PrismaClient, redis: Redis, n: NotifyInput): Promise<string | null> {
   if (n.fromUserId && n.fromUserId === n.userId) return null;
   const row = await prisma.notification.create({
-    data: { userId: n.userId, type: n.type, fromUserId: n.fromUserId ?? null, body: n.body as object[], link: n.link ?? null },
+    data: {
+      userId: n.userId,
+      type: n.type,
+      fromUserId: n.fromUserId ?? null,
+      body: n.body as object[],
+      link: n.link ?? null,
+    },
   });
   await publish(redis, { kind: 'notification', notificationId: row.id }).catch(() => undefined);
   return row.id;

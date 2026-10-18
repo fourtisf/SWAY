@@ -15,8 +15,13 @@ export default defineConfig({
   splitting: false,
   noExternal: [/^@sway\//],
   external: ['pino-pretty'],
-  banner: { js: "import { createRequire as __swayCreateRequire } from 'node:module'; const require = __swayCreateRequire(import.meta.url);" },
+  banner: {
+    js: "import { createRequire as __swayCreateRequire } from 'node:module'; const require = __swayCreateRequire(import.meta.url);",
+  },
   esbuildOptions(o) {
-    o.alias = { ...(o.alias ?? {}), '@prisma/client': fileURLToPath(new URL('./build/prisma-client-shim.cjs', import.meta.url)) };
+    o.alias = {
+      ...(o.alias ?? {}),
+      '@prisma/client': fileURLToPath(new URL('../../packages/db/runtime/prisma-client-shim.cjs', import.meta.url)),
+    };
   },
 });

@@ -22,9 +22,12 @@ async function main() {
   const jobs = new BullJobQueue(config.redisUrl);
   const app = await buildApp({ config, prisma, redis, chain, jobs });
 
-  if (!chain.keysEnabled) app.log.warn('SWAY_KEYS_ADDRESS is empty: no holder room access, zero earnings, market opens are no-ops');
-  else if (!chain.operatorEnabled) app.log.warn('OPERATOR_PRIVATE_KEY is empty: markets cannot be opened or claimed onchain');
-  if (config.devAuth) app.log.warn('DEV_AUTH is on: POST /api/auth/dev signs anyone in. Never enable it in production.');
+  if (!chain.keysEnabled)
+    app.log.warn('SWAY_KEYS_ADDRESS is empty: no holder room access, zero earnings, market opens are no-ops');
+  else if (!chain.operatorEnabled)
+    app.log.warn('OPERATOR_PRIVATE_KEY is empty: markets cannot be opened or claimed onchain');
+  if (config.devAuth)
+    app.log.warn('DEV_AUTH is on: POST /api/auth/dev signs anyone in. Never enable it in production.');
 
   const shutdown = async (signal: string) => {
     app.log.info({ signal }, 'shutting down');

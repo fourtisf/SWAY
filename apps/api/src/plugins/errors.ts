@@ -9,7 +9,8 @@ import { ChainError, ChainUnavailable } from '../services/chain';
 
 export function setupErrors(app: FastifyInstance): void {
   app.setErrorHandler((err: FastifyError | Error | Record<string, unknown>, req, reply) => {
-    const send = (status: number, error: string, message: string) => reply.status(status).send({ error, message } satisfies ApiError);
+    const send = (status: number, error: string, message: string) =>
+      reply.status(status).send({ error, message } satisfies ApiError);
 
     if (err instanceof HttpError) return send(err.statusCode, err.code, err.message);
     if (err instanceof ZodError) {
@@ -33,11 +34,17 @@ export function setupErrors(app: FastifyInstance): void {
       if (err.code === 'P2002') return send(409, 'conflict', 'That already exists');
       if (err.code === 'P2025') return send(404, 'not_found', 'Not found');
     }
-    const status = typeof (err as { statusCode?: unknown }).statusCode === 'number' ? ((err as { statusCode: number }).statusCode) : 500;
+    const status =
+      typeof (err as { statusCode?: unknown }).statusCode === 'number'
+        ? (err as { statusCode: number }).statusCode
+        : 500;
     if (status === 429) return send(429, 'rate_limited', 'Too many requests. Slow down a little.');
-    if ((err as FastifyError).validation) return send(400, 'invalid_input', String((err as FastifyError).message));
+    if ((err as FastifyError).validation)
+      return send(400, 'invalid_input', String((err as FastifyError).message));
     if (status >= 400 && status < 500) {
-      const code = String((err as FastifyError).code ?? 'bad_request').toLowerCase().replace(/^fst_err_/, '');
+      const code = String((err as FastifyError).code ?? 'bad_request')
+        .toLowerCase()
+        .replace(/^fst_err_/, '');
       return send(status, code, String((err as Error).message ?? 'Bad request'));
     }
     req.log.error({ err }, 'unhandled error');
@@ -45,6 +52,11 @@ export function setupErrors(app: FastifyInstance): void {
   });
 
   app.setNotFoundHandler((req, reply) => {
-    reply.status(404).send({ error: 'not_found', message: `No route for ${req.method} ${req.url.split('?')[0]}` } satisfies ApiError);
+    reply
+      .status(404)
+      .send({
+        error: 'not_found',
+        message: `No route for ${req.method} ${req.url.split('?')[0]}`,
+      } satisfies ApiError);
   });
 }

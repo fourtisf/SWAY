@@ -28,7 +28,18 @@ describe('config', () => {
     });
     expect(c.contracts.swayKeys).toBe('0x5fbdb2315678afecb367f032d93f642f64180aa3');
     expect(c.contracts.swayStaking).toBeNull();
-    expect(Object.keys(c).sort()).toEqual(['auth', 'chainId', 'chainName', 'contracts', 'ethUsd', 'explorerUrl', 'mainnet', 'rpcUrl', 'snapshotAt', 'wallets']);
+    expect(Object.keys(c).sort()).toEqual([
+      'auth',
+      'chainId',
+      'chainName',
+      'contracts',
+      'ethUsd',
+      'explorerUrl',
+      'mainnet',
+      'rpcUrl',
+      'snapshotAt',
+      'wallets',
+    ]);
   });
 
   it('GET /api/price falls back, then reads the workers’ Redis price', async () => {
@@ -53,7 +64,13 @@ describe('config', () => {
   });
 
   it('never enables dev auth in production and requires a strong secret there', () => {
-    expect(() => loadConfig({ ...TEST_ENV, NODE_ENV: 'production', SESSION_SECRET: 'change-me-to-a-long-random-string' })).toThrow(/SESSION_SECRET/);
+    expect(() =>
+      loadConfig({
+        ...TEST_ENV,
+        NODE_ENV: 'production',
+        SESSION_SECRET: 'change-me-to-a-long-random-string',
+      }),
+    ).toThrow(/SESSION_SECRET/);
     const c = loadConfig({ ...TEST_ENV, NODE_ENV: 'production', SESSION_SECRET: 'x'.repeat(40) });
     expect(c.devAuth).toBe(false);
   });
@@ -72,7 +89,11 @@ describe('errors and plumbing', () => {
     const me = await ctx.app.inject('/api/me');
     expect(me.statusCode).toBe(401);
     expect(me.json()).toEqual({ error: 'auth_required', message: 'Sign in with X first' });
-    const post = await ctx.app.inject({ method: 'POST', url: '/api/posts', payload: { text: 'hi', visibility: 'public' } });
+    const post = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/posts',
+      payload: { text: 'hi', visibility: 'public' },
+    });
     expect(post.statusCode).toBe(401);
   });
 
@@ -83,11 +104,43 @@ describe('errors and plumbing', () => {
   });
 
   it('restricts CORS to WEB_URL with credentials', async () => {
-    const ok = await ctx.app.inject({ method: 'OPTIONS', url: '/api/feed', headers: { origin: 'http://localhost:3000', 'access-control-request-method': 'GET' } });
+    const ok = await ctx.app.inject({
+      method: 'OPTIONS',
+      url: '/api/feed',
+      headers: { origin: 'http://localhost:3000', 'access-control-request-method': 'GET' },
+    });
     expect(ok.headers['access-control-allow-origin']).toBe('http://localhost:3000');
     expect(ok.headers['access-control-allow-credentials']).toBe('true');
-    const bad = await ctx.app.inject({ method: 'OPTIONS', url: '/api/feed', headers: { origin: 'https://evil.example', 'access-control-request-method': 'GET' } });
+    const bad = await ctx.app.inject({
+      method: 'OPTIONS',
+      url: '/api/feed',
+      headers: { origin: 'https://evil.example', 'access-control-request-method': 'GET' },
+    });
     expect(bad.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
+  it('rate-limits auth routes more strictly (429 rate_limited)', async () => {
+    const tight = await makeApp({ env: { RATE_LIMIT_AUTH_MAX: '2' } });
+    try {
+      const hit = () =>
+        tight.app.inject({
+          method: 'POST',
+          url: '/api/auth/dev',
+          payload: { handle: 'spammer' },
+          remoteAddress: '10.9.8.7',
+        });
+      expect((await hit()).statusCode).toBe(200);
+      expect((await hit()).statusCode).toBe(200);
+      const third = await hit();
+      expect(third.statusCode).toBe(429);
+      expect(third.json().error).toBe('rate_limited');
+      expect((await tight.app.inject({ url: '/api/config', remoteAddress: '10.9.8.7' })).statusCode).toBe(
+        200,
+      );
+    } finally {
+      await tight.redis.flushdb();
+      await tight.close();
+    }
   });
 
   it('serializes BigInt safely', () => {

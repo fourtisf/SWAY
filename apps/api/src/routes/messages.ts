@@ -15,7 +15,10 @@ export async function messageRoutes(app: FastifyInstance) {
   app.get('/messages', async (req): Promise<MessagesResponse> => {
     const v = await getViewer(req);
     if (!v) return { rooms: [], dms: [] };
-    const [rooms, dms] = await Promise.all([roomThreads(prisma, v.user.id, v.wallet?.address ?? null), dmThreads(prisma, v.user.id)]);
+    const [rooms, dms] = await Promise.all([
+      roomThreads(prisma, v.user.id, v.wallet?.address ?? null),
+      dmThreads(prisma, v.user.id),
+    ]);
     return { rooms, dms };
   });
 
@@ -24,7 +27,8 @@ export async function messageRoutes(app: FastifyInstance) {
     const b = body(z.object({ handle: z.string().trim().min(1).max(40) }), req);
     const handle = normalizeHandle(b.handle);
     const other = await prisma.user.findUnique({ where: { handle } });
-    if (!other || (!other.joinedAt && !other.official)) throw notFound(`@${handle} isn’t on Sway yet`, 'user_not_found');
+    if (!other || (!other.joinedAt && !other.official))
+      throw notFound(`@${handle} isn’t on Sway yet`, 'user_not_found');
     if (other.id === v.user.id) throw badRequest('self', 'You can’t message yourself');
     const [aId, bId] = orderPair(v.user.id, other.id);
     const now = new Date();
@@ -40,7 +44,8 @@ export async function messageRoutes(app: FastifyInstance) {
   async function threadFor(req: FastifyRequest, viewerId: string) {
     const { id } = params(IdParams, req);
     const t = await prisma.dmThread.findUnique({ where: { id }, include: DM_INCLUDE });
-    if (!t || (t.aId !== viewerId && t.bId !== viewerId)) throw notFound('Conversation not found', 'thread_not_found');
+    if (!t || (t.aId !== viewerId && t.bId !== viewerId))
+      throw notFound('Conversation not found', 'thread_not_found');
     return t;
   }
 
@@ -62,17 +67,24 @@ export async function messageRoutes(app: FastifyInstance) {
     };
   });
 
-  app.post('/messages/dm/:id', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (req): Promise<MessageDTO> => {
-    const v = await requireViewer(req);
-    const t = await threadFor(req, v.user.id);
-    const b = body(z.object({ text: text(2000) }), req);
-    const now = new Date();
-    const read = t.aId === v.user.id ? { aReadAt: now } : { bReadAt: now };
-    const [msg] = await prisma.$transaction([
-      prisma.dmMessage.create({ data: { threadId: t.id, authorId: v.user.id, text: b.text, createdAt: now }, include: { author: { include: { market: true } } } }),
-      prisma.dmThread.update({ where: { id: t.id }, data: { lastMessageAt: now, ...read } }),
-    ]);
-    await publish(redis, { kind: 'dm', messageId: msg.id }).catch(() => undefined);
-    return messageDTO(msg, v.user.id);
-  });
+  app.post(
+    '/messages/dm/:id',
+    { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } },
+    async (req): Promise<MessageDTO> => {
+      const v = await requireViewer(req);
+      const t = await threadFor(req, v.user.id);
+      const b = body(z.object({ text: text(2000) }), req);
+      const now = new Date();
+      const read = t.aId === v.user.id ? { aReadAt: now } : { bReadAt: now };
+      const [msg] = await prisma.$transaction([
+        prisma.dmMessage.create({
+          data: { threadId: t.id, authorId: v.user.id, text: b.text, createdAt: now },
+          include: { author: { include: { market: true } } },
+        }),
+        prisma.dmThread.update({ where: { id: t.id }, data: { lastMessageAt: now, ...read } }),
+      ]);
+      await publish(redis, { kind: 'dm', messageId: msg.id }).catch(() => undefined);
+      return messageDTO(msg, v.user.id);
+    },
+  );
 }

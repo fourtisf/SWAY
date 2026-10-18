@@ -53,7 +53,13 @@ export class FakeChain implements ChainClient {
   }
   addTx(t: Omit<TxInfo, 'hash' | 'blockNumber'> & { hash?: Hash }): Hash {
     const hash = t.hash ?? fakeHash();
-    this.txs.set(hash, { blockNumber: 1n, ...t, hash, from: t.from.toLowerCase() as Address, to: (t.to?.toLowerCase() as Address) ?? null });
+    this.txs.set(hash, {
+      blockNumber: 1n,
+      ...t,
+      hash,
+      from: t.from.toLowerCase() as Address,
+      to: (t.to?.toLowerCase() as Address) ?? null,
+    });
     return hash;
   }
   async getBalance(a: Address) {
@@ -81,7 +87,13 @@ export class FakeChain implements ChainClient {
   }
   async openMarket(owner: Address, xId: bigint): Promise<OperatorTxResult> {
     this.calls.push({ fn: 'openMarket', args: [owner, xId] });
-    this.markets.set(owner.toLowerCase(), { owner: owner.toLowerCase() as Address, xId, fan: false, halted: false, supply: 100n });
+    this.markets.set(owner.toLowerCase(), {
+      owner: owner.toLowerCase() as Address,
+      xId,
+      fan: false,
+      halted: false,
+      supply: 100n,
+    });
     this.setKeys(owner, owner, 100n);
     return { hash: fakeHash(), status: 'success' };
   }
@@ -107,7 +119,9 @@ export interface TestCtx {
   close(): Promise<void>;
 }
 
-export async function makeApp(opts: { env?: Record<string, string>; chain?: FakeChain; xFetch?: typeof fetch } = {}): Promise<TestCtx> {
+export async function makeApp(
+  opts: { env?: Record<string, string>; chain?: FakeChain; xFetch?: typeof fetch } = {},
+): Promise<TestCtx> {
   const config = loadConfig({ ...TEST_ENV, ...opts.env });
   const redis = new Redis(config.redisUrl, { maxRetriesPerRequest: 2 });
   const chain = opts.chain ?? new FakeChain();
@@ -130,14 +144,42 @@ export async function makeApp(opts: { env?: Record<string, string>; chain?: Fake
 }
 
 const TABLES = [
-  'PointsLedger', 'TaskCompletion', 'Notification', 'DmMessage', 'DmThread', 'RoomMessage', 'RoomRead', 'Like', 'Repost',
-  'PostTag', 'Post', 'Follow', 'Subscription', 'BattleBacking', 'Battle', 'TreasuryEntry', 'Stake', 'EarningsClaim', 'Activity',
-  'GenesisEntry', 'GenesisSnapshot', 'LaunchToken', 'ClaimRequest', 'Referral', 'Trade', 'Holding', 'KeyMarket', 'Wallet', 'User',
+  'PointsLedger',
+  'TaskCompletion',
+  'Notification',
+  'DmMessage',
+  'DmThread',
+  'RoomMessage',
+  'RoomRead',
+  'Like',
+  'Repost',
+  'PostTag',
+  'Post',
+  'Follow',
+  'Subscription',
+  'BattleBacking',
+  'Battle',
+  'TreasuryEntry',
+  'Stake',
+  'EarningsClaim',
+  'Activity',
+  'GenesisEntry',
+  'GenesisSnapshot',
+  'LaunchToken',
+  'ClaimRequest',
+  'Referral',
+  'Trade',
+  'Holding',
+  'KeyMarket',
+  'Wallet',
+  'User',
 ];
 
 /** Empties the test database and Redis db 15. */
 export async function resetState(redis?: Redis): Promise<void> {
-  await prisma.$executeRawUnsafe(`TRUNCATE ${TABLES.map((t) => `"${t}"`).join(', ')} RESTART IDENTITY CASCADE`);
+  await prisma.$executeRawUnsafe(
+    `TRUNCATE ${TABLES.map((t) => `"${t}"`).join(', ')} RESTART IDENTITY CASCADE`,
+  );
   if (redis) await redis.flushdb();
 }
 
@@ -155,8 +197,17 @@ export interface Member {
 }
 
 /** Dev sign-in; returns the session cookie and user row. */
-export async function login(ctx: TestCtx, handle: string, followers?: number, ref?: string): Promise<{ cookie: string; user: User; me: Record<string, unknown> }> {
-  const res = await ctx.app.inject({ method: 'POST', url: '/api/auth/dev', payload: { handle, followers, ref } });
+export async function login(
+  ctx: TestCtx,
+  handle: string,
+  followers?: number,
+  ref?: string,
+): Promise<{ cookie: string; user: User; me: Record<string, unknown> }> {
+  const res = await ctx.app.inject({
+    method: 'POST',
+    url: '/api/auth/dev',
+    payload: { handle, followers, ref },
+  });
   if (res.statusCode !== 200) throw new Error(`login failed ${res.statusCode} ${res.body}`);
   const user = await prisma.user.findUniqueOrThrow({ where: { handle } });
   return { cookie: cookieOf(res), user, me: res.json() };
@@ -174,15 +225,39 @@ export async function member(ctx: TestCtx, handle: string, followers = 5000): Pr
 /** A member's own key market row (opened). */
 export async function openMarketRow(m: Member, supply = 100n): Promise<KeyMarket> {
   return prisma.keyMarket.create({
-    data: { subject: m.address, userId: m.user.id, xId: m.user.xId, claimed: true, opened: true, supplyUnits: supply, holders: 1 },
+    data: {
+      subject: m.address,
+      userId: m.user.id,
+      xId: m.user.xId,
+      claimed: true,
+      opened: true,
+      supplyUnits: supply,
+      holders: 1,
+    },
   });
 }
 
 /** Placeholder user + unclaimed fan market. */
-export async function fanMarket(handle: string, xId: string, category: 'crypto' | 'football' | 'stocks' | 'rwa' = 'crypto'): Promise<{ user: User; market: KeyMarket }> {
-  const user = await prisma.user.create({ data: { xId, handle, name: handle.toUpperCase(), followers: 100000, verified: true } });
+export async function fanMarket(
+  handle: string,
+  xId: string,
+  category: 'crypto' | 'football' | 'stocks' | 'rwa' = 'crypto',
+): Promise<{ user: User; market: KeyMarket }> {
+  const user = await prisma.user.create({
+    data: { xId, handle, name: handle.toUpperCase(), followers: 100000, verified: true },
+  });
   const market = await prisma.keyMarket.create({
-    data: { subject: fanSubject(BigInt(xId)).toLowerCase(), userId: user.id, xId, fan: true, claimed: false, opened: true, category, supplyUnits: 300n, holders: 2 },
+    data: {
+      subject: fanSubject(BigInt(xId)).toLowerCase(),
+      userId: user.id,
+      xId,
+      fan: true,
+      claimed: false,
+      opened: true,
+      category,
+      supplyUnits: 300n,
+      holders: 2,
+    },
   });
   return { user, market };
 }

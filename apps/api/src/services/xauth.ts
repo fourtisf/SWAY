@@ -22,7 +22,11 @@ export async function sessionXToken(req: FastifyRequest): Promise<string | null>
       refreshToken: x.refreshToken,
       fetch: xFetch,
     });
-    req.session!.x = { accessToken: t.accessToken, refreshToken: t.refreshToken ?? x.refreshToken, expiresAt: t.expiresAt };
+    req.session!.x = {
+      accessToken: t.accessToken,
+      refreshToken: t.refreshToken ?? x.refreshToken,
+      expiresAt: t.expiresAt,
+    };
     await saveSession(req);
     return t.accessToken;
   } catch (e) {

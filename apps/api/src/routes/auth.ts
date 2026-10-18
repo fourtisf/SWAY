@@ -21,7 +21,13 @@ import { getViewer, requireViewer } from '../plugins/auth';
 import { createSession, destroySession, referralFrom } from '../plugins/session';
 import { badRequest, forbidden, unauthorized, unavailable } from '../errors';
 import { buildMe } from '../services/me';
-import { devXId, makeDevProfile, upsertMember, type MemberProfile } from '../services/users';
+import {
+  devXId,
+  makeDevProfile,
+  upsertMember,
+  type MemberProfile,
+  type MemberScore,
+} from '../services/users';
 import { xClient } from '../services/xauth';
 
 const OAUTH_TTL_S = 600;
@@ -29,7 +35,8 @@ const oauthKey = (state: string) => `oauth:${state}`;
 
 /** Only same-site relative paths: no scheme, no protocol-relative '//' and no backslashes. */
 export function safeRedirect(r: unknown): string {
-  if (typeof r !== 'string' || !r.startsWith('/') || r.startsWith('//') || r.includes('\\') || r.length > 300) return '/';
+  if (typeof r !== 'string' || !r.startsWith('/') || r.startsWith('//') || r.includes('\\') || r.length > 300)
+    return '/';
   return r;
 }
 
@@ -46,7 +53,8 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   app.get('/auth/x/start', { config: authLimit }, async (req, reply) => {
-    if (!config.x.enabled || !config.x.clientId) throw unavailable('x_disabled', 'Sign in with X is not configured on this server');
+    if (!config.x.enabled || !config.x.clientId)
+      throw unavailable('x_disabled', 'Sign in with X is not configured on this server');
     const q = query(z.object({ redirect: z.string().optional(), ref: z.string().max(40).optional() }), req);
     const state = generateState();
     const verifier = generateCodeVerifier();
@@ -56,13 +64,22 @@ export async function authRoutes(app: FastifyInstance) {
       'EX',
       OAUTH_TTL_S,
     );
-    const url = buildAuthorizeUrl({ clientId: config.x.clientId, redirectUri: config.x.callbackUrl, state, codeChallenge: codeChallenge(verifier) });
+    const url = buildAuthorizeUrl({
+      clientId: config.x.clientId,
+      redirectUri: config.x.callbackUrl,
+      state,
+      codeChallenge: codeChallenge(verifier),
+    });
     return reply.redirect(url, 302);
   });
 
   app.get('/auth/x/callback', { config: authLimit }, async (req, reply) => {
-    const q = query(z.object({ code: z.string().optional(), state: z.string().optional(), error: z.string().optional() }), req);
-    const fail = (code: string) => reply.redirect(withParam(`${config.webUrl}/`, `auth_error=${encodeURIComponent(code)}`), 302);
+    const q = query(
+      z.object({ code: z.string().optional(), state: z.string().optional(), error: z.string().optional() }),
+      req,
+    );
+    const fail = (code: string) =>
+      reply.redirect(withParam(`${config.webUrl}/`, `auth_error=${encodeURIComponent(code)}`), 302);
     if (q.error) return fail(q.error === 'access_denied' ? 'denied' : 'x_error');
     if (!q.code || !q.state || !config.x.clientId) return fail('invalid_request');
     const raw = await redis.getdel(oauthKey(q.state));
@@ -80,8 +97,19 @@ export async function authRoutes(app: FastifyInstance) {
       });
       const tokScope = 'tok:' + createHash('sha256').update(tokens.accessToken).digest('hex').slice(0, 16);
       const me = await xClient(app.deps, tokens.accessToken, tokScope).getMe();
-      const posts = await xClient(app.deps, tokens.accessToken, `x:${me.id}`).getRecentPosts(me.id, 50);
-      const { inputs, result } = scoreXAccount(me, posts);
+      // A returning member whose posts can't be read (X budget spent) signs in on their stored score and
+      // gets a refresh-score job; a new account needs the read to be scored at all.
+      let scored: MemberScore | null = null;
+      let refresh = false;
+      try {
+        const posts = await xClient(app.deps, tokens.accessToken, `x:${me.id}`).getRecentPosts(me.id, 50);
+        const { inputs, result } = scoreXAccount(me, posts);
+        scored = { inputs, score: result.score, value: result.value };
+      } catch (e) {
+        const known = await prisma.user.findUnique({ where: { xId: me.id }, select: { scoredAt: true } });
+        if (!isXBudgetExceeded(e) || !known?.scoredAt) throw e;
+        refresh = true;
+      }
       const profile: MemberProfile = {
         xId: me.id,
         handle: me.username,
@@ -92,10 +120,15 @@ export async function authRoutes(app: FastifyInstance) {
         verified: me.verified,
         xCreatedAt: me.createdAt ? new Date(me.createdAt) : null,
       };
-      const { user } = await upsertMember(prisma, profile, { inputs, score: result.score, value: result.value }, { ref: st.ref });
+      const { user } = await upsertMember(prisma, profile, scored, { ref: st.ref });
+      if (refresh) await app.deps.jobs.enqueueRefreshScore(user.id).catch(() => undefined);
       await createSession(req, reply, {
         userId: user.id,
-        x: { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, expiresAt: tokens.expiresAt },
+        x: {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          expiresAt: tokens.expiresAt,
+        },
       });
       return reply.redirect(withParam(`${config.webUrl}${st.redirect}`, 'onboard=1'), 302);
     } catch (e) {
@@ -116,7 +149,8 @@ export async function authRoutes(app: FastifyInstance) {
     if (!config.devAuth) throw forbidden('dev_auth_disabled', 'Dev sign-in is disabled');
     const b = body(DevBody, req);
     const handle = normalizeHandle(b.handle) || 'you';
-    if (!/^[a-z0-9_]{1,30}$/.test(handle)) throw badRequest('invalid_handle', 'Handles use letters, digits and _');
+    if (!/^[a-z0-9_]{1,30}$/.test(handle))
+      throw badRequest('invalid_handle', 'Handles use letters, digits and _');
     const ref = referralFrom(req, b.ref ?? null);
 
     const existing = await prisma.user.findUnique({ where: { handle } });

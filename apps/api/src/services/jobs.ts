@@ -3,12 +3,15 @@
  *   queue `x-jobs`, job name `verify-task`, payload VerifyTaskJob { userId, taskId, day: 'YYYY-MM-DD' }.
  * The worker verifies on X (with the app bearer token or a stored budget), writes TaskCompletion +
  * PointsLedger (ref `task:<taskId>:<day>`) and the 'points' notification.
+ *   job `refresh-score`, payload { userId }: rescore a member from public X data (queued when the X budget
+ *   runs out while reading a returning member's posts at sign-in).
  */
 import { Queue } from 'bullmq';
 import type { TaskId } from '@sway/shared';
 
 export const X_JOBS_QUEUE = 'x-jobs';
 export const VERIFY_TASK_JOB = 'verify-task';
+export const REFRESH_SCORE_JOB = 'refresh-score';
 
 export interface VerifyTaskJob {
   userId: string;
@@ -19,6 +22,7 @@ export interface VerifyTaskJob {
 
 export interface JobQueue {
   enqueueVerifyTask(job: VerifyTaskJob): Promise<void>;
+  enqueueRefreshScore(userId: string): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -41,6 +45,20 @@ export class BullJobQueue implements JobQueue {
     });
   }
 
+  async enqueueRefreshScore(userId: string): Promise<void> {
+    await this.queue.add(
+      REFRESH_SCORE_JOB,
+      { userId },
+      {
+        jobId: `refresh-score__${userId}`,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 15 * 60_000 },
+        removeOnComplete: true,
+        removeOnFail: true,
+      },
+    );
+  }
+
   async close(): Promise<void> {
     await this.queue.close();
   }
@@ -49,9 +67,12 @@ export class BullJobQueue implements JobQueue {
 /** In-memory queue for tests and scripts. */
 export class MemoryJobQueue implements JobQueue {
   readonly jobs: VerifyTaskJob[] = [];
+  readonly refreshes: string[] = [];
   async enqueueVerifyTask(job: VerifyTaskJob): Promise<void> {
     this.jobs.push(job);
   }
+  async enqueueRefreshScore(userId: string): Promise<void> {
+    this.refreshes.push(userId);
+  }
   async close(): Promise<void> {}
 }
-

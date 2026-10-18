@@ -13,12 +13,7 @@ export const BUDGET_WINDOW_MS = 15 * 60 * 1000;
 
 /** Endpoint keys used for budgeting. */
 export type XEndpoint =
-  | 'users/me'
-  | 'users/by/username'
-  | 'users/lookup'
-  | 'users/tweets'
-  | 'users/following'
-  | 'tweets/lookup';
+  'users/me' | 'users/by/username' | 'users/lookup' | 'users/tweets' | 'users/following' | 'tweets/lookup';
 
 /**
  * Default per-window limits, kept below X's published per-15-minute caps so one noisy job can never trip
@@ -77,10 +72,16 @@ async function spendBudget(ctx: XContext, endpoint: XEndpoint): Promise<void> {
 export type Query = Record<string, string | number | undefined>;
 
 /** GET an X API v2 path and return its JSON body. */
-export async function xGet<T>(ctx: XContext, endpoint: XEndpoint, path: string, query: Query = {}): Promise<T> {
+export async function xGet<T>(
+  ctx: XContext,
+  endpoint: XEndpoint,
+  path: string,
+  query: Query = {},
+): Promise<T> {
   await spendBudget(ctx, endpoint);
   const url = new URL(path, ctx.baseUrl ?? X_API_BASE);
-  for (const [k, v] of Object.entries(query)) if (v !== undefined && v !== '') url.searchParams.set(k, String(v));
+  for (const [k, v] of Object.entries(query))
+    if (v !== undefined && v !== '') url.searchParams.set(k, String(v));
   const token = typeof ctx.token === 'function' ? await ctx.token() : ctx.token;
   const f = ctx.fetch ?? fetch;
   const sleep = ctx.sleep ?? defaultSleep;
@@ -93,7 +94,9 @@ export async function xGet<T>(ctx: XContext, endpoint: XEndpoint, path: string, 
     let res: Response | null = null;
     let networkError: unknown = null;
     try {
-      res = await f(url.toString(), { headers: { authorization: `Bearer ${token}`, accept: 'application/json' } });
+      res = await f(url.toString(), {
+        headers: { authorization: `Bearer ${token}`, accept: 'application/json' },
+      });
     } catch (e) {
       networkError = e;
     }
@@ -105,13 +108,20 @@ export async function xGet<T>(ctx: XContext, endpoint: XEndpoint, path: string, 
       const reset = Number(res.headers.get('x-rate-limit-reset'));
       const resetAt = Number.isFinite(reset) && reset > 0 ? reset * 1000 : now() + delay;
       const wait = Math.max(0, resetAt - now());
-      if (wait > maxWait || attempt >= maxRetries) throw new XBudgetExceeded(endpoint, new Date(Math.max(resetAt, now())));
+      if (wait > maxWait || attempt >= maxRetries)
+        throw new XBudgetExceeded(endpoint, new Date(Math.max(resetAt, now())));
       await sleep(Math.max(wait, delay));
       continue;
     }
     if (networkError || (res && res.status >= 500)) {
       if (attempt >= maxRetries) {
-        if (res) throw new XApiError(`X API ${endpoint} failed (${res.status})`, res.status, endpoint, await safeJson(res));
+        if (res)
+          throw new XApiError(
+            `X API ${endpoint} failed (${res.status})`,
+            res.status,
+            endpoint,
+            await safeJson(res),
+          );
         throw new XApiError(`X API ${endpoint} unreachable: ${String(networkError)}`, 0, endpoint);
       }
       await sleep(delay);

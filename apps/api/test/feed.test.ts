@@ -2,7 +2,16 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { FeedResponse, PostDetailResponse, PostDTO } from '@sway/shared';
 import { forYouScore, parseMentions, parseTags, teaser } from '../src/services/feed';
 import { accessKey } from '../src/services/access';
-import { login, makeApp, member, openMarketRow, prisma, resetState, type Member, type TestCtx } from './helpers';
+import {
+  login,
+  makeApp,
+  member,
+  openMarketRow,
+  prisma,
+  resetState,
+  type Member,
+  type TestCtx,
+} from './helpers';
 
 let ctx: TestCtx;
 beforeAll(async () => {
@@ -14,9 +23,13 @@ beforeEach(async () => {
 });
 afterAll(() => ctx.close());
 
-const post = (cookie: string, payload: Record<string, unknown>) => ctx.app.inject({ method: 'POST', url: '/api/posts', headers: { cookie }, payload });
+const post = (cookie: string, payload: Record<string, unknown>) =>
+  ctx.app.inject({ method: 'POST', url: '/api/posts', headers: { cookie }, payload });
 const feed = (tab: string, cookie?: string, cursor?: string) =>
-  ctx.app.inject({ url: `/api/feed?tab=${tab}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, headers: cookie ? { cookie } : {} });
+  ctx.app.inject({
+    url: `/api/feed?tab=${tab}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
+    headers: cookie ? { cookie } : {},
+  });
 
 describe('posting', () => {
   it('limits posts to 500 characters, 2,000 with a staking level', async () => {
@@ -32,20 +45,29 @@ describe('posting', () => {
   });
 
   it('parses #tags into PostTag and @mentions into mention notifications', async () => {
-    expect(parseTags('gm #SwayDaily and #OpenModel #swaydaily x#no #123')).toEqual(['swaydaily', 'openmodel']);
+    expect(parseTags('gm #SwayDaily and #OpenModel #swaydaily x#no #123')).toEqual([
+      'swaydaily',
+      'openmodel',
+    ]);
     expect(parseMentions('hey @Bob, @carol_1 and me@mail.com @bob')).toEqual(['bob', 'carol_1']);
     const bob = await login(ctx, 'bob');
     const { cookie } = await login(ctx, 'tagger');
     const res = await post(cookie, { text: 'hi @bob and @ghost #SwayDaily #Genesis', visibility: 'public' });
     const p = res.json<PostDTO>();
-    expect((await prisma.postTag.findMany({ where: { postId: p.id } })).map((t) => t.tag).sort()).toEqual(['genesis', 'swaydaily']);
+    expect((await prisma.postTag.findMany({ where: { postId: p.id } })).map((t) => t.tag).sort()).toEqual([
+      'genesis',
+      'swaydaily',
+    ]);
     const n = await prisma.notification.findMany({ where: { userId: bob.user.id } });
     expect(n).toHaveLength(1);
     expect(n[0]).toMatchObject({ type: 'mention', link: `/post/${p.id}` });
     expect(JSON.stringify(n[0]!.body)).toContain('mentioned you: “hi @bob');
     // Gated posts do not quote their text in the notification.
     await post(cookie, { text: '@bob secret alpha', visibility: 'holders' });
-    const n2 = await prisma.notification.findFirst({ where: { userId: bob.user.id }, orderBy: { createdAt: 'desc' } });
+    const n2 = await prisma.notification.findFirst({
+      where: { userId: bob.user.id },
+      orderBy: { createdAt: 'desc' },
+    });
     expect(JSON.stringify(n2!.body)).not.toContain('secret alpha');
     const tags = await ctx.app.inject('/api/explore?tab=tags&q=sway');
     expect(tags.json().tags[0]).toEqual({ tag: 'SwayDaily', posts: 1 });
@@ -65,7 +87,9 @@ describe('posting', () => {
     const f = (await feed('latest')).json<FeedResponse>();
     expect(f.posts.map((p) => p.text)).toEqual(['root']);
     expect(await prisma.notification.count({ where: { userId: a.user.id, type: 'mention' } })).toBe(1);
-    expect((await post(b.cookie, { text: 'x', visibility: 'public', parentId: 'missing' })).statusCode).toBe(404);
+    expect((await post(b.cookie, { text: 'x', visibility: 'public', parentId: 'missing' })).statusCode).toBe(
+      404,
+    );
   });
 });
 
@@ -98,8 +122,14 @@ describe('gating', () => {
       expect(res.body).not.toContain('front-ran');
       expect(res.body).not.toContain('macro note');
       const f = res.json<FeedResponse>();
-      assertLocked(f.posts.find((p) => p.id === holderPost.id)!, SECRET.length);
-      assertLocked(f.posts.find((p) => p.id === subsPost.id)!, SUBS.length);
+      assertLocked(
+        f.posts.find((p) => p.id === holderPost.id)!,
+        SECRET.length,
+      );
+      assertLocked(
+        f.posts.find((p) => p.id === subsPost.id)!,
+        SUBS.length,
+      );
       expect(f.posts.find((p) => p.text === 'public hello')!.locked).toBe(false);
     }
     for (const url of [`/api/posts/${holderPost.id}`, '/api/users/novareyes/posts']) {
@@ -111,7 +141,10 @@ describe('gating', () => {
 
   it('locks for members without keys, unlocks for holders with ≥ 100 units onchain', async () => {
     let f = (await feed('latest', fan.cookie)).json<FeedResponse>();
-    assertLocked(f.posts.find((p) => p.id === holderPost.id)!, SECRET.length);
+    assertLocked(
+      f.posts.find((p) => p.id === holderPost.id)!,
+      SECRET.length,
+    );
 
     ctx.chain.setKeys(creator.address, fan.address, 99n);
     await ctx.redis.del(accessKey(creator.address, fan.address));
@@ -143,7 +176,13 @@ describe('gating', () => {
 
   it('unlocks subscriber posts with an unexpired subscription; authors always see their own', async () => {
     await prisma.subscription.create({
-      data: { subscriberId: fan.user.id, creatorId: creator.user.id, txHash: '0x' + '1'.repeat(64), amountWei: '1', expiresAt: new Date(Date.now() + 86400e3) },
+      data: {
+        subscriberId: fan.user.id,
+        creatorId: creator.user.id,
+        txHash: '0x' + '1'.repeat(64),
+        amountWei: '1',
+        expiresAt: new Date(Date.now() + 86400e3),
+      },
     });
     let f = (await feed('latest', fan.cookie)).json<FeedResponse>();
     expect(f.posts.find((p) => p.id === subsPost.id)).toMatchObject({ locked: false, text: SUBS });
@@ -160,18 +199,26 @@ describe('likes and reposts', () => {
     const a = await login(ctx, 'liker');
     const b = await login(ctx, 'liker2');
     const p = (await post(a.cookie, { text: 'like me', visibility: 'public' })).json<PostDTO>();
-    const like = (cookie: string) => ctx.app.inject({ method: 'POST', url: `/api/posts/${p.id}/like`, headers: { cookie } });
+    const like = (cookie: string) =>
+      ctx.app.inject({ method: 'POST', url: `/api/posts/${p.id}/like`, headers: { cookie } });
     expect((await like(a.cookie)).json()).toEqual({ liked: true, count: 1 });
     expect((await like(b.cookie)).json()).toEqual({ liked: true, count: 2 });
     expect((await like(a.cookie)).json()).toEqual({ liked: false, count: 1 });
     await Promise.all(Array.from({ length: 6 }, () => like(a.cookie)));
     const row = await prisma.post.findUniqueOrThrow({ where: { id: p.id } });
     expect(row.likeCount).toBe(await prisma.like.count({ where: { postId: p.id } }));
-    const rp = await ctx.app.inject({ method: 'POST', url: `/api/posts/${p.id}/repost`, headers: { cookie: b.cookie } });
+    const rp = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/posts/${p.id}/repost`,
+      headers: { cookie: b.cookie },
+    });
     expect(rp.json()).toEqual({ reposted: true, count: 1 });
     const f = (await feed('latest', b.cookie)).json<FeedResponse>();
     expect(f.posts[0]).toMatchObject({ reposted: true, liked: true, reposts: 1 });
-    expect((await ctx.app.inject({ method: 'POST', url: '/api/posts/nope/like', headers: { cookie: a.cookie } })).statusCode).toBe(404);
+    expect(
+      (await ctx.app.inject({ method: 'POST', url: '/api/posts/nope/like', headers: { cookie: a.cookie } }))
+        .statusCode,
+    ).toBe(404);
   });
 });
 
@@ -182,16 +229,39 @@ describe('ranking and tabs', () => {
     await prisma.user.update({ where: { id: hi.user.id }, data: { score: 90 } });
     await prisma.user.update({ where: { id: lo.user.id }, data: { score: 10 } });
     const now = Date.now();
-    const mk = (authorId: string, text: string, minsAgo: number, likes: number, reposts = 0, replies = 0, boosted = false) =>
-      prisma.post.create({ data: { authorId, text, createdAt: new Date(now - minsAgo * 60000), likeCount: likes, repostCount: reposts, replyCount: replies, boosted } });
+    const mk = (
+      authorId: string,
+      text: string,
+      minsAgo: number,
+      likes: number,
+      reposts = 0,
+      replies = 0,
+      boosted = false,
+    ) =>
+      prisma.post.create({
+        data: {
+          authorId,
+          text,
+          createdAt: new Date(now - minsAgo * 60000),
+          likeCount: likes,
+          repostCount: reposts,
+          replyCount: replies,
+          boosted,
+        },
+      });
     await mk(lo.user.id, 'old viral', 60 * 72, 5000, 100);
     await mk(lo.user.id, 'fresh', 1, 10);
     await mk(hi.user.id, 'scored author', 30, 5);
     await mk(lo.user.id, 'boosted', 120, 0, 0, 0, true);
 
-    const score = (p: { likeCount: number; repostCount: number; replyCount: number; boosted: boolean; createdAt: Date }, s: number) => forYouScore(p, s, now);
+    const score = (
+      p: { likeCount: number; repostCount: number; replyCount: number; boosted: boolean; createdAt: Date },
+      s: number,
+    ) => forYouScore(p, s, now);
     const rows = await prisma.post.findMany({ include: { author: true } });
-    const expected = rows.sort((a, b) => score(b, b.author.score) - score(a, a.author.score)).map((r) => r.text);
+    const expected = rows
+      .sort((a, b) => score(b, b.author.score) - score(a, a.author.score))
+      .map((r) => r.text);
     const fy = (await feed('foryou')).json<FeedResponse>();
     expect(fy.posts.map((p) => p.text)).toEqual(expected);
     expect(fy.posts[0]!.text).toBe('boosted');
@@ -205,11 +275,28 @@ describe('ranking and tabs', () => {
   });
 
   it('paginates with cursors and pins the newest official post', async () => {
-    const off = await prisma.user.create({ data: { xId: '1', handle: 'swaydotfam', name: 'Sway', official: true, verified: true, joinedAt: new Date(), memberNo: 99 } });
-    await prisma.post.create({ data: { authorId: off.id, text: 'old pin', pinned: true, createdAt: new Date(Date.now() - 1e6) } });
-    const pin = await prisma.post.create({ data: { authorId: off.id, text: 'Shipped today on Sway', pinned: true } });
+    const off = await prisma.user.create({
+      data: {
+        xId: '1',
+        handle: 'swaydotfam',
+        name: 'Sway',
+        official: true,
+        verified: true,
+        joinedAt: new Date(),
+        memberNo: 99,
+      },
+    });
+    await prisma.post.create({
+      data: { authorId: off.id, text: 'old pin', pinned: true, createdAt: new Date(Date.now() - 1e6) },
+    });
+    const pin = await prisma.post.create({
+      data: { authorId: off.id, text: 'Shipped today on Sway', pinned: true },
+    });
     const { user } = await login(ctx, 'prolific');
-    for (let i = 0; i < 45; i++) await prisma.post.create({ data: { authorId: user.id, text: `p${i}`, createdAt: new Date(Date.now() - i * 1000) } });
+    for (let i = 0; i < 45; i++)
+      await prisma.post.create({
+        data: { authorId: user.id, text: `p${i}`, createdAt: new Date(Date.now() - i * 1000) },
+      });
     const p1 = (await feed('latest')).json<FeedResponse>();
     expect(p1.pinned?.id).toBe(pin.id);
     expect(p1.posts).toHaveLength(20);
@@ -233,10 +320,19 @@ describe('ranking and tabs', () => {
     const held = await member(ctx, 'heldcreator');
     const hm = await openMarketRow(held);
     await login(ctx, 'stranger');
-    for (const [h, c] of [['follower', me.cookie], ['followed', followed.cookie], ['heldcreator', held.cookie]] as const) await post(c, { text: `from ${h}`, visibility: 'public' });
+    for (const [h, c] of [
+      ['follower', me.cookie],
+      ['followed', followed.cookie],
+      ['heldcreator', held.cookie],
+    ] as const)
+      await post(c, { text: `from ${h}`, visibility: 'public' });
     const s = await prisma.user.findUniqueOrThrow({ where: { handle: 'stranger' } });
     await prisma.post.create({ data: { authorId: s.id, text: 'from stranger' } });
-    await ctx.app.inject({ method: 'POST', url: '/api/users/followed/follow', headers: { cookie: me.cookie } });
+    await ctx.app.inject({
+      method: 'POST',
+      url: '/api/users/followed/follow',
+      headers: { cookie: me.cookie },
+    });
     await prisma.holding.create({ data: { marketId: hm.id, address: me.address, units: 50n } });
     const f = (await feed('following', me.cookie)).json<FeedResponse>();
     expect(f.posts.map((p) => p.text).sort()).toEqual(['from followed', 'from follower', 'from heldcreator']);

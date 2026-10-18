@@ -24,12 +24,15 @@ export function createXClient(ctx: XContext) {
     getMe: () => api.getMe(ctx),
     getUserByUsername: (username: string) => api.getUserByUsername(ctx, username),
     getUserById: (id: string) => api.getUserById(ctx, id),
-    getRecentPosts: (userId: string, n?: number, opts?: api.RecentPostsOptions) => api.getRecentPosts(ctx, userId, n, opts),
-    isFollowing: (sourceId: string, targetHandle: string, maxPages?: number) => api.isFollowing(ctx, sourceId, targetHandle, maxPages),
+    getRecentPosts: (userId: string, n?: number, opts?: api.RecentPostsOptions) =>
+      api.getRecentPosts(ctx, userId, n, opts),
+    isFollowing: (sourceId: string, targetHandle: string, maxPages?: number) =>
+      api.isFollowing(ctx, sourceId, targetHandle, maxPages),
     hasReposted: (userId: string, postId: string) => api.hasReposted(ctx, userId, postId),
     findRecentPost: (userId: string, since: Date | string, predicate: (p: api.XPost) => boolean) =>
       api.findRecentPost(ctx, userId, since, predicate),
-    findRecentPostWithTag: (userId: string, tag: string, since: Date | string) => api.findRecentPostWithTag(ctx, userId, tag, since),
+    findRecentPostWithTag: (userId: string, tag: string, since: Date | string) =>
+      api.findRecentPostWithTag(ctx, userId, tag, since),
     getPostMetrics: (postId: string) => api.getPostMetrics(ctx, postId),
     checkTask: (input: TaskCheckInput) => checkTaskOnX(ctx, input),
   };

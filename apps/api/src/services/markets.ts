@@ -24,19 +24,29 @@ interface TradePoint {
 }
 
 /** Supply before a trade, from its direction and size. */
-const supplyBefore = (t: Pick<TradePoint, 'isBuy' | 'units' | 'supplyAfter'>) => (t.isBuy ? t.supplyAfter - t.units : t.supplyAfter + t.units);
+const supplyBefore = (t: Pick<TradePoint, 'isBuy' | 'units' | 'supplyAfter'>) =>
+  t.isBuy ? t.supplyAfter - t.units : t.supplyAfter + t.units;
 
-export function statsFromTrades(supply: bigint, tradesOldestFirst: Array<Pick<TradePoint, 'isBuy' | 'units' | 'supplyAfter'>>): MarketStats {
+export function statsFromTrades(
+  supply: bigint,
+  tradesOldestFirst: Array<Pick<TradePoint, 'isBuy' | 'units' | 'supplyAfter'>>,
+): MarketStats {
   const current = weiToEth(priceWei(supply));
   if (!tradesOldestFirst.length) return { change: 0, spark: Array(SPARK_POINTS).fill(current) };
-  const prices = [weiToEth(priceWei(supplyBefore(tradesOldestFirst[0]!))), ...tradesOldestFirst.map((t) => weiToEth(priceWei(t.supplyAfter)))];
+  const prices = [
+    weiToEth(priceWei(supplyBefore(tradesOldestFirst[0]!))),
+    ...tradesOldestFirst.map((t) => weiToEth(priceWei(t.supplyAfter))),
+  ];
   const base = prices.length > CHANGE_TRADES ? prices[prices.length - 1 - CHANGE_TRADES]! : prices[0]!;
   const change = base > 0 ? (current / base - 1) * 100 : 0;
   return { change: Math.round(change * 100) / 100, spark: prices.slice(-SPARK_POINTS) };
 }
 
 /** Change and spark for many markets in one query (last 40 trades each). */
-export async function marketStats(prisma: PrismaClient, markets: Array<Pick<KeyMarket, 'id' | 'supplyUnits'>>): Promise<Map<string, MarketStats>> {
+export async function marketStats(
+  prisma: PrismaClient,
+  markets: Array<Pick<KeyMarket, 'id' | 'supplyUnits'>>,
+): Promise<Map<string, MarketStats>> {
   const out = new Map<string, MarketStats>();
   if (!markets.length) return out;
   const ids = markets.map((m) => m.id);
@@ -109,16 +119,27 @@ export async function marketDTOs(prisma: PrismaClient, markets: MarketWithUser[]
   return markets.map((m) => marketDTO(m, stats.get(m.id)));
 }
 
-export async function marketDtosForUsers(prisma: PrismaClient, users: Array<User & { market: KeyMarket | null }>): Promise<MarketDTO[]> {
-  const stats = await marketStats(prisma, users.flatMap((u) => (u.market ? [u.market] : [])));
+export async function marketDtosForUsers(
+  prisma: PrismaClient,
+  users: Array<User & { market: KeyMarket | null }>,
+): Promise<MarketDTO[]> {
+  const stats = await marketStats(
+    prisma,
+    users.flatMap((u) => (u.market ? [u.market] : [])),
+  );
   return users.map((u) => marketDtoForUser(u, u.market ? stats.get(u.market.id) : undefined));
 }
 
 /** Total cost of one key (100 units) right now, fees included. */
-export const oneKeyTotalWei = (supplyUnits: bigint): bigint => (supplyUnits >= 100n ? quoteWei(supplyUnits, 'buy', 100n).total : 0n);
+export const oneKeyTotalWei = (supplyUnits: bigint): bigint =>
+  supplyUnits >= 100n ? quoteWei(supplyUnits, 'buy', 100n).total : 0n;
 
 /** Price history for the profile chart, oldest first. */
-export async function priceHistory(prisma: PrismaClient, m: KeyMarket, limit = 500): Promise<Array<{ t: string; priceWei: string }>> {
+export async function priceHistory(
+  prisma: PrismaClient,
+  m: KeyMarket,
+  limit = 500,
+): Promise<Array<{ t: string; priceWei: string }>> {
   const trades = await prisma.trade.findMany({
     where: { marketId: m.id },
     orderBy: [{ ts: 'desc' }, { blockNumber: 'desc' }, { logIndex: 'desc' }],
@@ -136,7 +157,10 @@ export async function priceHistory(prisma: PrismaClient, m: KeyMarket, limit = 5
   }
   const first = trades[0]!;
   return [
-    { t: (start < first.ts ? start : first.ts).toISOString(), priceWei: priceWei(supplyBefore(first)).toString() },
+    {
+      t: (start < first.ts ? start : first.ts).toISOString(),
+      priceWei: priceWei(supplyBefore(first)).toString(),
+    },
     ...trades.map((t) => ({ t: t.ts.toISOString(), priceWei: priceWei(t.supplyAfter).toString() })),
   ];
 }

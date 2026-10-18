@@ -42,7 +42,10 @@ export async function upsertMember(
     // Handles move between X accounts; the stale holder of this handle gets a suffixed one.
     const clash = await tx.user.findUnique({ where: { handle } });
     if (clash && clash.xId !== profile.xId) {
-      await tx.user.update({ where: { id: clash.id }, data: { handle: `${handle}_${clash.id.slice(-5)}`.slice(0, 40) } });
+      await tx.user.update({
+        where: { id: clash.id },
+        data: { handle: `${handle}_${clash.id.slice(-5)}`.slice(0, 40) },
+      });
     }
 
     const isNew = !existing?.joinedAt;
@@ -60,7 +63,12 @@ export async function upsertMember(
       verified: profile.verified,
       xCreatedAt: profile.xCreatedAt,
       ...(scored
-        ? { score: scored.score, reachValue: scored.value, scoreInputs: scored.inputs as unknown as object, scoredAt: now }
+        ? {
+            score: scored.score,
+            reachValue: scored.value,
+            scoreInputs: scored.inputs as unknown as object,
+            scoredAt: now,
+          }
         : {}),
       ...(isNew ? { joinedAt: now, memberNo } : {}),
     };
@@ -71,7 +79,10 @@ export async function upsertMember(
     if (isNew && opts.ref) {
       const inviter = await tx.user.findUnique({ where: { handle: normalizeHandle(opts.ref) } });
       if (inviter && inviter.id !== user.id && inviter.joinedAt) {
-        await tx.referral.createMany({ data: [{ inviterId: inviter.id, inviteeId: user.id }], skipDuplicates: true });
+        await tx.referral.createMany({
+          data: [{ inviterId: inviter.id, inviteeId: user.id }],
+          skipDuplicates: true,
+        });
       }
     }
     return { user, isNew };
@@ -92,16 +103,27 @@ export function rng(a: number): () => number {
 }
 
 /** Deterministic uint64 X id for a dev handle: 9e18 + hash(handle), as a decimal string. */
-export const devXId = (handle: string): string => (9_000_000_000_000_000_000n + BigInt(hash(handle))).toString();
+export const devXId = (handle: string): string =>
+  (9_000_000_000_000_000_000n + BigInt(hash(handle))).toString();
 
 const YEAR_MS = 365.25 * 24 * 3600 * 1000;
 
 /** The prototype's makeUser(handle, followers): same followers, inputs and score for the same handle. */
-export function makeDevProfile(rawHandle: string, followersIn?: number, now = new Date()): { profile: MemberProfile; scored: MemberScore } {
+export function makeDevProfile(
+  rawHandle: string,
+  followersIn?: number,
+  now = new Date(),
+): { profile: MemberProfile; scored: MemberScore } {
   const handle = normalizeHandle(rawHandle) || 'you';
   const r = rng(hash(handle + 'u'));
   const followers = followersIn || Math.round(Math.pow(10, 2.6 + r() * 3.2));
-  const inputs: ScoreInputs = { followers, er: 0.008 + r() * 0.04, ppw: 3 + r() * 18, age: 1 + r() * 9, verified: r() > 0.35 };
+  const inputs: ScoreInputs = {
+    followers,
+    er: 0.008 + r() * 0.04,
+    ppw: 3 + r() * 18,
+    age: 1 + r() * 9,
+    verified: r() > 0.35,
+  };
   const sm = score(inputs);
   return {
     profile: {

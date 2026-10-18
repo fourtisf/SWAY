@@ -154,12 +154,19 @@ export class ViemChainClient implements ChainClient {
     this.keysEnabled = this.rpcEnabled && !!this.keys;
     const multicall = config.chain.multicall3 ?? (config.chain.isLocal ? null : CANONICAL_MULTICALL3);
     this.multicallOk = !!multicall;
-    const base = swayChain({ chainId: config.chain.id, rpcUrl: config.chain.rpcUrl, explorerUrl: config.chain.explorerUrl, name: config.chain.name });
+    const base = swayChain({
+      chainId: config.chain.id,
+      rpcUrl: config.chain.rpcUrl,
+      explorerUrl: config.chain.explorerUrl,
+      name: config.chain.name,
+    });
     this.chain = multicall ? { ...base, contracts: { multicall3: { address: multicall } } } : base;
     const transport = http(config.chain.rpcUrl, { timeout: 10_000, retryCount: 1 });
     this.pub = createPublicClient({ chain: this.chain, transport }) as PublicClient;
     this.account = config.operatorKey ? privateKeyToAccount(config.operatorKey) : null;
-    this.wallet = this.account ? createWalletClient({ chain: this.chain, transport, account: this.account }) : null;
+    this.wallet = this.account
+      ? createWalletClient({ chain: this.chain, transport, account: this.account })
+      : null;
     this.operatorEnabled = this.keysEnabled && !!this.account;
   }
 
@@ -298,7 +305,12 @@ export class ViemChainClient implements ChainClient {
   async sendEth(to: Address, value: bigint): Promise<OperatorTxResult> {
     if (!this.rpcEnabled || !this.wallet || !this.account) throw new ChainUnavailable('Operator');
     return withRedisLock(this.redis, OPERATOR_LOCK_KEY, async () => {
-      const hash = await this.wallet!.sendTransaction({ to, value, account: this.account!, chain: this.chain });
+      const hash = await this.wallet!.sendTransaction({
+        to,
+        value,
+        account: this.account!,
+        chain: this.chain,
+      });
       return this.receipt(hash);
     });
   }

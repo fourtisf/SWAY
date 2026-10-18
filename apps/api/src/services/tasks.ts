@@ -7,7 +7,15 @@ import type { FastifyRequest } from 'fastify';
 import type { PrismaClient, TaskCompletion, User } from '@sway/db';
 import { ONE_OFF_DAY, utcDay } from '@sway/db';
 import { isXBudgetExceeded, XApiError, checkTaskOnX } from '@sway/x';
-import { TASKS, taskById, type RichText, type TaskDef, type TaskDTO, type TaskId, type TaskStatus } from '@sway/shared';
+import {
+  TASKS,
+  taskById,
+  type RichText,
+  type TaskDef,
+  type TaskDTO,
+  type TaskId,
+  type TaskStatus,
+} from '@sway/shared';
 import type { AppDeps } from '../deps';
 import { notFound, conflict, unprocessable, badRequest } from '../errors';
 import { notify, officialUserId } from './notify';
@@ -28,7 +36,16 @@ export async function syncTaskCatalogue(prisma: PrismaClient): Promise<void> {
 }
 
 function dto(def: TaskDef, status: TaskStatus): TaskDTO {
-  return { id: def.id, title: def.title, pts: def.pts, icon: def.icon, group: def.group, skippable: !!def.skippable, auto: !!def.auto, status };
+  return {
+    id: def.id,
+    title: def.title,
+    pts: def.pts,
+    icon: def.icon,
+    group: def.group,
+    skippable: !!def.skippable,
+    auto: !!def.auto,
+    status,
+  };
 }
 
 async function activeDefs(prisma: PrismaClient): Promise<TaskDef[]> {
@@ -38,7 +55,11 @@ async function activeDefs(prisma: PrismaClient): Promise<TaskDef[]> {
 }
 
 /** Statuses for every active task, applying the sequential unlock. `userId` null → guest view. */
-export async function taskList(prisma: PrismaClient, userId: string | null, now = new Date()): Promise<TaskDTO[]> {
+export async function taskList(
+  prisma: PrismaClient,
+  userId: string | null,
+  now = new Date(),
+): Promise<TaskDTO[]> {
   const defs = await activeDefs(prisma);
   const rows: TaskCompletion[] = userId
     ? await prisma.taskCompletion.findMany({ where: { userId, day: { in: [ONE_OFF_DAY, utcDay(now)] } } })
@@ -56,21 +77,52 @@ export async function taskList(prisma: PrismaClient, userId: string | null, now 
   });
 }
 
-async function award(deps: AppDeps, user: User, def: TaskDef, day: Date, status: 'verified' | 'trusted', how: 'x' | 'auto' | 'trusted'): Promise<void> {
+async function award(
+  deps: AppDeps,
+  user: User,
+  def: TaskDef,
+  day: Date,
+  status: 'verified' | 'trusted',
+  how: 'x' | 'auto' | 'trusted',
+): Promise<void> {
   const { prisma, redis } = deps;
   const now = new Date();
   const created = await prisma.$transaction(async (tx) => {
     await tx.taskCompletion.upsert({
       where: { userId_taskId_day: { userId: user.id, taskId: def.id, day } },
-      create: { userId: user.id, taskId: def.id, day, status, points: def.pts, attempts: 1, checkedAt: now, verifiedAt: now },
+      create: {
+        userId: user.id,
+        taskId: def.id,
+        day,
+        status,
+        points: def.pts,
+        attempts: 1,
+        checkedAt: now,
+        verifiedAt: now,
+      },
       update: { status, points: def.pts, attempts: { increment: 1 }, checkedAt: now, verifiedAt: now },
     });
-    return appendLedger(tx, { userId: user.id, kind: 'task', amount: def.pts, ref: `task:${def.id}:${dayKey(day)}` });
+    return appendLedger(tx, {
+      userId: user.id,
+      kind: 'task',
+      amount: def.pts,
+      ref: `task:${def.id}:${dayKey(day)}`,
+    });
   });
   if (!created) return;
   const lead = how === 'x' ? 'Task verified on X: ' : how === 'auto' ? 'Task verified: ' : 'Task recorded: ';
-  const body: RichText = [{ t: lead }, { t: def.title, b: true }, { t: `. +${def.pts.toLocaleString('en-US')} points.` }];
-  await notify(prisma, redis, { userId: user.id, type: 'points', fromUserId: await officialUserId(prisma), body, link: '/tasks' });
+  const body: RichText = [
+    { t: lead },
+    { t: def.title, b: true },
+    { t: `. +${def.pts.toLocaleString('en-US')} points.` },
+  ];
+  await notify(prisma, redis, {
+    userId: user.id,
+    type: 'points',
+    fromUserId: await officialUserId(prisma),
+    body,
+    link: '/tasks',
+  });
 }
 
 async function markPending(deps: AppDeps, user: User, def: TaskDef, day: Date): Promise<void> {
@@ -84,17 +136,30 @@ async function markPending(deps: AppDeps, user: User, def: TaskDef, day: Date): 
 }
 
 /** Holds ≥ 1 key of a market that isn't theirs (Holding mirror). */
-export async function holdsOthersKey(prisma: PrismaClient, user: User, wallet: string | null): Promise<boolean> {
+export async function holdsOthersKey(
+  prisma: PrismaClient,
+  user: User,
+  wallet: string | null,
+): Promise<boolean> {
   if (!wallet) return false;
   const h = await prisma.holding.findFirst({
-    where: { address: wallet.toLowerCase(), units: { gte: ACCESS_UNITS }, market: { userId: { not: user.id } } },
+    where: {
+      address: wallet.toLowerCase(),
+      units: { gte: ACCESS_UNITS },
+      market: { userId: { not: user.id } },
+    },
     select: { id: true },
   });
   return !!h;
 }
 
 /** Completes the auto task when the mirror shows a key the member didn't mint. */
-export async function autoTasks(deps: AppDeps, user: User, wallet: string | null, list: TaskDTO[]): Promise<boolean> {
+export async function autoTasks(
+  deps: AppDeps,
+  user: User,
+  wallet: string | null,
+  list: TaskDTO[],
+): Promise<boolean> {
   const t = list.find((x) => x.id === 'buykey');
   if (!t || t.status !== 'open') return false;
   if (!(await holdsOthersKey(deps.prisma, user, wallet))) return false;
@@ -105,7 +170,12 @@ export async function autoTasks(deps: AppDeps, user: User, wallet: string | null
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export async function verifyTask(req: FastifyRequest, user: User, wallet: string | null, id: string): Promise<TaskDTO> {
+export async function verifyTask(
+  req: FastifyRequest,
+  user: User,
+  wallet: string | null,
+  id: string,
+): Promise<TaskDTO> {
   const deps = req.server.deps;
   const def = taskById(id);
   const list = await taskList(deps.prisma, user.id);
@@ -156,7 +226,10 @@ export async function verifyTask(req: FastifyRequest, user: User, wallet: string
       await markPending(deps, user, def, day);
       return done('pending');
     }
-    throw unprocessable('not_verified', `We couldn’t find that on your X account yet. Try again in a minute.`);
+    throw unprocessable(
+      'not_verified',
+      `We couldn’t find that on your X account yet. Try again in a minute.`,
+    );
   } catch (e) {
     if (isXBudgetExceeded(e) || e instanceof XApiError) {
       // Budget spent, token rejected or X down: the task stays open for the worker to check later.
@@ -183,4 +256,3 @@ export async function skipTask(prisma: PrismaClient, user: User, id: string): Pr
   });
   return dto(def, 'skipped');
 }
-

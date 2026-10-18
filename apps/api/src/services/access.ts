@@ -10,7 +10,8 @@ import type { ChainClient } from './chain';
 
 export const ACCESS_UNITS = 100n;
 export const ACCESS_TTL_S = 60;
-export const accessKey = (subject: string, holder: string) => `acc:${subject.toLowerCase()}:${holder.toLowerCase()}`;
+export const accessKey = (subject: string, holder: string) =>
+  `acc:${subject.toLowerCase()}:${holder.toLowerCase()}`;
 
 export interface AccessViewer {
   userId: string;
@@ -46,7 +47,9 @@ export class AccessService {
     if (misses.length) {
       let bals: bigint[];
       try {
-        bals = await this.chain.keyBalances(misses.map((s) => ({ subject: s as Address, holder: wallet.toLowerCase() as Address })));
+        bals = await this.chain.keyBalances(
+          misses.map((s) => ({ subject: s as Address, holder: wallet.toLowerCase() as Address })),
+        );
       } catch {
         bals = misses.map(() => 0n); // chain unreachable: no access, nothing cached
         misses.forEach((s, i) => out.set(s, bals[i]!));
@@ -72,7 +75,10 @@ export class AccessService {
       else toCheck.push(m);
     }
     if (toCheck.length && viewer?.wallet) {
-      const bals = await this.balances(viewer.wallet, toCheck.map((m) => m.subject));
+      const bals = await this.balances(
+        viewer.wallet,
+        toCheck.map((m) => m.subject),
+      );
       for (const m of toCheck) out.set(m.id, (bals.get(m.subject.toLowerCase()) ?? 0n) >= ACCESS_UNITS);
     }
     return out;
@@ -88,7 +94,11 @@ export class AccessService {
   async subscribedTo(viewerId: string | null, creatorIds: string[]): Promise<Set<string>> {
     if (!viewerId || !creatorIds.length) return new Set();
     const rows = await this.prisma.subscription.findMany({
-      where: { subscriberId: viewerId, creatorId: { in: [...new Set(creatorIds)] }, expiresAt: { gt: new Date() } },
+      where: {
+        subscriberId: viewerId,
+        creatorId: { in: [...new Set(creatorIds)] },
+        expiresAt: { gt: new Date() },
+      },
       select: { creatorId: true },
     });
     return new Set(rows.map((r) => r.creatorId));

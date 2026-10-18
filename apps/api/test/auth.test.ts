@@ -8,7 +8,10 @@ import { cookieOf, fanMarket, login, makeApp, prisma, resetState, type TestCtx }
 
 /** Pulls named functions out of the prototype HTML so parity is checked against the real source. */
 function prototypeFns(): { makeUser: (h: string, f?: number) => any } {
-  const html = readFileSync(fileURLToPath(new URL('../../../docs/sway-prototype.html', import.meta.url)), 'utf8');
+  const html = readFileSync(
+    fileURLToPath(new URL('../../../docs/sway-prototype.html', import.meta.url)),
+    'utf8',
+  );
   const grab = (sig: string) => {
     const i = html.indexOf(sig);
     if (i < 0) throw new Error(`missing ${sig}`);
@@ -19,7 +22,9 @@ function prototypeFns(): { makeUser: (h: string, f?: number) => any } {
     }
     throw new Error(`unterminated ${sig}`);
   };
-  const src = ['function hash(', 'function rng(', 'function scoreModel(', 'function makeUser('].map(grab).join('\n');
+  const src = ['function hash(', 'function rng(', 'function scoreModel(', 'function makeUser(']
+    .map(grab)
+    .join('\n');
   return { makeUser: new Function(`${src}; return makeUser;`)() };
 }
 
@@ -64,7 +69,14 @@ describe('dev sign-in', () => {
     expect(sid.secure).toBeFalsy();
     const me = res.json<MeDTO>();
     const expected = makeDevProfile('alice');
-    expect(me.user).toMatchObject({ handle: 'alice', name: 'Alice', memberNo: 1, followers: expected.profile.followers, score: expected.scored.score, verified: expected.profile.verified });
+    expect(me.user).toMatchObject({
+      handle: 'alice',
+      name: 'Alice',
+      memberNo: 1,
+      followers: expected.profile.followers,
+      score: expected.scored.score,
+      verified: expected.profile.verified,
+    });
     expect(me.wallet).toBeNull();
     expect(me.market).toBeNull();
     expect(me.points.score).toBe(Math.min(10000, expected.scored.score * 100));
@@ -101,7 +113,12 @@ describe('dev sign-in', () => {
     expect(r).toHaveLength(1);
     expect(r[0]!.inviterId).toBe(inviter.user.id);
     expect(r[0]!.status).toBe('pending');
-    await ctx.app.inject({ method: 'POST', url: '/api/auth/dev', payload: { handle: 'cookied' }, headers: { cookie: 'sway_ref=inviter' } });
+    await ctx.app.inject({
+      method: 'POST',
+      url: '/api/auth/dev',
+      payload: { handle: 'cookied' },
+      headers: { cookie: 'sway_ref=inviter' },
+    });
     expect(await prisma.referral.count({ where: { inviterId: inviter.user.id } })).toBe(2);
     // Re-login with another ref does nothing; self-referral is ignored.
     await login(ctx, 'invitee', undefined, 'cookied');
@@ -136,7 +153,8 @@ describe('X OAuth 2.0 PKCE', () => {
     const xFetch = (async (input: string | URL | Request, init?: RequestInit) => {
       const url = new URL(String(input));
       calls.push(url.pathname);
-      const ok = (b: unknown) => new Response(JSON.stringify(b), { status: 200, headers: { 'content-type': 'application/json' } });
+      const ok = (b: unknown) =>
+        new Response(JSON.stringify(b), { status: 200, headers: { 'content-type': 'application/json' } });
       if (url.pathname === '/2/oauth2/token') {
         const body = new URLSearchParams(String(init!.body));
         expect(body.get('grant_type')).toBe('authorization_code');
@@ -163,9 +181,26 @@ describe('X OAuth 2.0 PKCE', () => {
         const now = Date.now();
         return ok({
           data: [
-            { id: 't1', text: 'hello', created_at: new Date(now - 3600e3).toISOString(), public_metrics: { like_count: 100, retweet_count: 10, reply_count: 5 } },
-            { id: 't2', text: '@a reply', created_at: new Date(now - 7200e3).toISOString(), referenced_tweets: [{ type: 'replied_to', id: 'p' }], public_metrics: { like_count: 4, retweet_count: 0, reply_count: 0 } },
-            { id: 't3', text: 'RT', created_at: new Date(now - 9000e3).toISOString(), referenced_tweets: [{ type: 'retweeted', id: 'q' }], public_metrics: { like_count: 0, retweet_count: 50, reply_count: 0 } },
+            {
+              id: 't1',
+              text: 'hello',
+              created_at: new Date(now - 3600e3).toISOString(),
+              public_metrics: { like_count: 100, retweet_count: 10, reply_count: 5 },
+            },
+            {
+              id: 't2',
+              text: '@a reply',
+              created_at: new Date(now - 7200e3).toISOString(),
+              referenced_tweets: [{ type: 'replied_to', id: 'p' }],
+              public_metrics: { like_count: 4, retweet_count: 0, reply_count: 0 },
+            },
+            {
+              id: 't3',
+              text: 'RT',
+              created_at: new Date(now - 9000e3).toISOString(),
+              referenced_tweets: [{ type: 'retweeted', id: 'q' }],
+              public_metrics: { like_count: 0, retweet_count: 50, reply_count: 0 },
+            },
           ],
         });
       }
@@ -193,7 +228,14 @@ describe('X OAuth 2.0 PKCE', () => {
 
       const u = await prisma.user.findUniqueOrThrow({ where: { xId: '1449999' } });
       expect(u.id).toBe(placeholder.id);
-      expect(u).toMatchObject({ handle: 'realperson', name: 'Real Person', followers: 25000, verified: true, bio: 'bio here', memberNo: 1 });
+      expect(u).toMatchObject({
+        handle: 'realperson',
+        name: 'Real Person',
+        followers: 25000,
+        verified: true,
+        bio: 'bio here',
+        memberNo: 1,
+      });
       expect(u.avatarUrl).toContain('_400x400');
       expect(u.score).toBeGreaterThan(1);
       expect(u.scoreInputs).toMatchObject({ followers: 25000, verified: true });
@@ -211,6 +253,55 @@ describe('X OAuth 2.0 PKCE', () => {
       const evil = await x.app.inject({ url: '/api/auth/x/start?redirect=//evil.example' });
       const st2 = new URL(evil.headers.location as string).searchParams.get('state')!;
       expect(JSON.parse((await x.redis.get(`oauth:${st2}`))!).redirect).toBe('/');
+    } finally {
+      await x.close();
+    }
+  });
+
+  it('when the X budget runs out mid sign-in: returning members get in and are queued for a rescore', async () => {
+    const xFetch = (async (input: string | URL | Request) => {
+      const url = new URL(String(input));
+      const res = (b: unknown, status = 200, h: Record<string, string> = {}) =>
+        new Response(JSON.stringify(b), { status, headers: { 'content-type': 'application/json', ...h } });
+      if (url.pathname === '/2/oauth2/token') return res({ access_token: 'AT', expires_in: 7200 });
+      if (url.pathname === '/2/users/me')
+        return res({
+          data: {
+            id: url.searchParams.has('user.fields') ? '5150' : '0',
+            username: 'budgeted',
+            name: 'B',
+            public_metrics: { followers_count: 10 },
+          },
+        });
+      return res({}, 429, { 'x-rate-limit-reset': String(Math.floor(Date.now() / 1000) + 900) });
+    }) as typeof fetch;
+    const x = await makeApp({ env: { X_CLIENT_ID: 'cid' }, xFetch });
+    try {
+      const signIn = async () => {
+        const start = await x.app.inject({ url: '/api/auth/x/start' });
+        const state = new URL(start.headers.location as string).searchParams.get('state')!;
+        return x.app.inject({ url: `/api/auth/x/callback?code=c&state=${state}` });
+      };
+      const first = await signIn();
+      expect(first.headers.location).toBe('http://localhost:3000/?auth_error=x_budget');
+      expect(await prisma.user.count({ where: { xId: '5150' } })).toBe(0);
+
+      await prisma.user.create({
+        data: {
+          xId: '5150',
+          handle: 'budgeted',
+          name: 'B',
+          score: 42,
+          scoredAt: new Date(),
+          joinedAt: new Date(),
+          memberNo: 7,
+        },
+      });
+      const again = await signIn();
+      expect(again.headers.location).toBe('http://localhost:3000/?onboard=1');
+      const u = await prisma.user.findUniqueOrThrow({ where: { xId: '5150' } });
+      expect(u.score).toBe(42);
+      expect(x.jobs.refreshes).toEqual([u.id]);
     } finally {
       await x.close();
     }

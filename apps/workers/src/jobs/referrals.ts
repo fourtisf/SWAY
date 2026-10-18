@@ -8,6 +8,7 @@ import { swayKeysAbi } from '@sway/shared/abi';
 import { utcDay } from '@sway/db';
 import type { Clients } from '../clients';
 import { createNotification, publishNotifications } from '../notify';
+import { withSenderLock } from '../txlock';
 
 const DAY_MS = 86400e3;
 
@@ -55,9 +56,14 @@ export async function creditReferrals(c: Clients, now = new Date()): Promise<num
     const keys = c.cfg.contracts.swayKeys;
     if (keys && c.operator && inv.wallet && r.inviter.wallet) {
       try {
-        const hash = await c.operator.writeContract({
-          address: keys, abi: swayKeysAbi, functionName: 'setReferrer',
-          args: [inv.wallet.address as `0x${string}`, r.inviter.wallet.address as `0x${string}`],
+        const op = c.operator;
+        const hash = await withSenderLock(c, op, async () => {
+          const h = await op.writeContract({
+            address: keys, abi: swayKeysAbi, functionName: 'setReferrer',
+            args: [inv.wallet!.address as `0x${string}`, r.inviter.wallet!.address as `0x${string}`],
+          });
+          await c.pub.waitForTransactionReceipt({ hash: h });
+          return h;
         });
         await prisma.referral.update({ where: { id: r.id }, data: { onchainTx: hash } });
       } catch (e) {

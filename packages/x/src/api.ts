@@ -2,7 +2,14 @@
  * Typed X API v2 reads used by Sway: profile + recent posts for scoring, task verification and battle reads.
  * Every function takes an XContext (token, budget, fetch) as its first argument; createXClient binds one.
  */
-import { inputsFromX, score, type ScoreInputs, type ScoreResult, type XPostSample, type BattleMetrics } from '@sway/scoring';
+import {
+  inputsFromX,
+  score,
+  type ScoreInputs,
+  type ScoreResult,
+  type XPostSample,
+  type BattleMetrics,
+} from '@sway/scoring';
 import { xGet, type XContext } from './request';
 
 export const USER_FIELDS = 'created_at,public_metrics,verified,verified_type,profile_image_url,description';
@@ -130,12 +137,16 @@ export async function getMe(ctx: XContext): Promise<XUser> {
 export async function getUserByUsername(ctx: XContext, username: string): Promise<XUser | null> {
   const name = username.replace(/^@/, '').trim();
   if (!/^[A-Za-z0-9_]{1,15}$/.test(name)) return null;
-  const res = await xGet<Page<RawUser>>(ctx, 'users/by/username', `/2/users/by/username/${name}`, { 'user.fields': USER_FIELDS });
+  const res = await xGet<Page<RawUser>>(ctx, 'users/by/username', `/2/users/by/username/${name}`, {
+    'user.fields': USER_FIELDS,
+  });
   return res.data ? mapUser(res.data) : null;
 }
 
 export async function getUserById(ctx: XContext, id: string): Promise<XUser | null> {
-  const res = await xGet<Page<RawUser>>(ctx, 'users/lookup', `/2/users/${encodeURIComponent(id)}`, { 'user.fields': USER_FIELDS });
+  const res = await xGet<Page<RawUser>>(ctx, 'users/lookup', `/2/users/${encodeURIComponent(id)}`, {
+    'user.fields': USER_FIELDS,
+  });
   return res.data ? mapUser(res.data) : null;
 }
 
@@ -149,18 +160,28 @@ export interface RecentPostsOptions {
 }
 
 /** The user's most recent posts, newest first (replies and reposts included and flagged unless excluded). */
-export async function getRecentPosts(ctx: XContext, userId: string, n = 50, opts: RecentPostsOptions = {}): Promise<XPost[]> {
+export async function getRecentPosts(
+  ctx: XContext,
+  userId: string,
+  n = 50,
+  opts: RecentPostsOptions = {},
+): Promise<XPost[]> {
   const out: XPost[] = [];
   let token: string | undefined;
   const pages = opts.maxPages ?? Math.max(1, Math.ceil(n / 100));
   for (let i = 0; i < pages && out.length < n; i++) {
-    const res = await xGet<Page<RawTweet[]>>(ctx, 'users/tweets', `/2/users/${encodeURIComponent(userId)}/tweets`, {
-      max_results: Math.min(100, Math.max(5, n - out.length)),
-      'tweet.fields': TWEET_FIELDS,
-      start_time: opts.since ? new Date(opts.since).toISOString() : undefined,
-      exclude: opts.exclude?.length ? opts.exclude.join(',') : undefined,
-      pagination_token: token,
-    });
+    const res = await xGet<Page<RawTweet[]>>(
+      ctx,
+      'users/tweets',
+      `/2/users/${encodeURIComponent(userId)}/tweets`,
+      {
+        max_results: Math.min(100, Math.max(5, n - out.length)),
+        'tweet.fields': TWEET_FIELDS,
+        start_time: opts.since ? new Date(opts.since).toISOString() : undefined,
+        exclude: opts.exclude?.length ? opts.exclude.join(',') : undefined,
+        pagination_token: token,
+      },
+    );
     for (const t of res.data ?? []) out.push(mapPost(t));
     token = res.meta?.next_token;
     if (!token) break;
@@ -185,15 +206,27 @@ async function resolveUserId(ctx: XContext, handle: string): Promise<string | nu
  * Whether `sourceId` follows `targetHandle` (or a numeric target id prefixed with "id:").
  * Pages through the source's following list, up to `maxPages` × 1000 accounts.
  */
-export async function isFollowing(ctx: XContext, sourceId: string, targetHandle: string, maxPages = 3): Promise<boolean> {
-  const targetId = targetHandle.startsWith('id:') ? targetHandle.slice(3) : await resolveUserId(ctx, targetHandle);
+export async function isFollowing(
+  ctx: XContext,
+  sourceId: string,
+  targetHandle: string,
+  maxPages = 3,
+): Promise<boolean> {
+  const targetId = targetHandle.startsWith('id:')
+    ? targetHandle.slice(3)
+    : await resolveUserId(ctx, targetHandle);
   if (!targetId) return false;
   let token: string | undefined;
   for (let i = 0; i < maxPages; i++) {
-    const res = await xGet<Page<Array<{ id: string }>>>(ctx, 'users/following', `/2/users/${encodeURIComponent(sourceId)}/following`, {
-      max_results: 1000,
-      pagination_token: token,
-    });
+    const res = await xGet<Page<Array<{ id: string }>>>(
+      ctx,
+      'users/following',
+      `/2/users/${encodeURIComponent(sourceId)}/following`,
+      {
+        max_results: 1000,
+        pagination_token: token,
+      },
+    );
     if ((res.data ?? []).some((u) => u.id === targetId)) return true;
     token = res.meta?.next_token;
     if (!token) break;
@@ -204,7 +237,9 @@ export async function isFollowing(ctx: XContext, sourceId: string, targetHandle:
 /** Whether the user reposted (retweeted) or quoted `postId` among their last 100 posts. */
 export async function hasReposted(ctx: XContext, userId: string, postId: string): Promise<boolean> {
   const posts = await getRecentPosts(ctx, userId, 100);
-  return posts.some((p) => p.referenced.some((r) => (r.type === 'retweeted' || r.type === 'quoted') && r.id === postId));
+  return posts.some((p) =>
+    p.referenced.some((r) => (r.type === 'retweeted' || r.type === 'quoted') && r.id === postId),
+  );
 }
 
 /** Most recent original post (no reply, no repost) since `since` that matches `predicate`. */
@@ -225,7 +260,12 @@ export const postHasTag = (p: Pick<XPost, 'text' | 'hashtags'>, tag: string): bo
 };
 
 /** Most recent original post since `since` carrying `#tag` (case-insensitive). */
-export function findRecentPostWithTag(ctx: XContext, userId: string, tag: string, since: Date | string): Promise<XPost | null> {
+export function findRecentPostWithTag(
+  ctx: XContext,
+  userId: string,
+  tag: string,
+  since: Date | string,
+): Promise<XPost | null> {
   return findRecentPost(ctx, userId, since, (p) => postHasTag(p, tag));
 }
 
@@ -268,7 +308,11 @@ export const toScoreSamples = (posts: XPost[]): XPostSample[] =>
   }));
 
 /** Sway score of an X account from its profile and recent posts (the same call the workers make on refresh). */
-export function scoreXAccount(user: XUser, posts: XPost[], now = new Date()): { inputs: ScoreInputs; result: ScoreResult } {
+export function scoreXAccount(
+  user: XUser,
+  posts: XPost[],
+  now = new Date(),
+): { inputs: ScoreInputs; result: ScoreResult } {
   const inputs = inputsFromX(
     { followers: user.followers, createdAt: user.createdAt ?? now, verified: user.verified },
     toScoreSamples(posts),
