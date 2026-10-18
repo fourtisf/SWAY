@@ -413,6 +413,19 @@ export interface ConfigDTO {
 export interface DevLoginBody {
   handle: string;
   followers?: number;
+  /** Inviter handle captured from /i/:handle or ?ref= (same as GET /api/auth/x/start?ref=). */
+  ref?: string;
+}
+
+export interface PriceResponse {
+  ethUsd: number;
+  /** 'live' when the workers' Redis price is fresh, 'fallback' when ETH_USD_FALLBACK is used. */
+  source: 'live' | 'fallback';
+}
+
+/** Optional body of POST /api/wallet/nonce. With `address` the message comes back filled in. */
+export interface WalletNonceBody {
+  address?: Address;
 }
 
 export interface WalletNonceResponse {
@@ -466,7 +479,11 @@ export type BusEvent =
   | { kind: 'trade'; tradeId: string }
   | { kind: 'market'; marketId: string }
   | { kind: 'notification'; notificationId: string }
-  | { kind: 'price'; ethUsd: number };
+  | { kind: 'price'; ethUsd: number }
+  /** RoomMessage id: pushed to sockets subscribed to that room whose user has access. */
+  | { kind: 'room'; messageId: string }
+  /** DmMessage id: pushed to both participants. */
+  | { kind: 'dm'; messageId: string };
 
 /* ---------------------------------------------------------------- route table */
 
@@ -529,6 +546,11 @@ export const ROUTES = {
 
 /**
  * Query/body/response map per route key, for typed clients:
+ *   price:                                                              R PriceResponse
+ *   me:            (401 auth_required for guests)                       R MeDTO
+ *   xStart:        Q { redirect?: string (path); ref?: string (inviter handle) }  302 to X; callback 302s to
+ *                  `${WEB_URL}${redirect || '/'}?onboard=1` (or ?auth_error=<code>)
+ *   logout:                                                             R { ok: true }
  *   feed:          Q { tab: FeedTab; cursor?: string }                 R FeedResponse
  *   createPost:    B CreatePostBody                                      R PostDTO
  *   like/repost:                                                         R { liked|reposted: boolean; count: number }
@@ -546,6 +568,7 @@ export const ROUTES = {
  *   subscribe/tip: B { txHash: string }                                  R { ok: true }
  *   claimRequest:  B { kind: 'claim' | 'takedown'; contact: string; note?: string } R { ok: true }
  *   notifications: Q { tab: NotificationTab }                            R NotificationDTO[]
+ *   readAll/readOne:                                                     R { ok: true; unread: number }
  *   messages:                                                            R MessagesResponse
  *   dmOpen:        B { handle: string }                                  R ThreadDTO
  *   dm:                                                                  R DmResponse
@@ -563,8 +586,13 @@ export const ROUTES = {
  *   genesis:                                                             R GenesisResponse
  *   launchpad:                                                           R LaunchpadResponse
  *   devLogin:      B DevLoginBody                                        R MeDTO
- *   walletNonce:                                                         R WalletNonceResponse
+ *   walletNonce:   B WalletNonceBody (optional)                          R WalletNonceResponse
+ *                  The message contains the line "Address: {address}". Without body.address the client
+ *                  replaces "{address}" with the exact `address` string it then sends to walletLink and
+ *                  signs the result (personal_sign / EIP-191). Nonces are single-use and expire in 10 min.
  *   walletLink:    B WalletLinkBody                                      R MeDTO
+ *                  409 wallet_exists (member already has another wallet) / wallet_taken (address belongs to
+ *                  another member); 400 bad_signature / nonce_expired.
  *   openMarket:                                                          R OnboardingStatus
  *   onboarding:                                                          R OnboardingStatus
  */

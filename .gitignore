@@ -2,6 +2,7 @@ node_modules/
 .pnpm-store/
 dist/
 .next/
+.next-*/
 out/
 coverage/
 *.tsbuildinfo
@@ -16,6 +17,7 @@ coverage/
 contracts/out/
 contracts/cache/
 contracts/broadcast/*/31337/
+contracts/broadcast/*/31338/
 contracts/deployments/local.json
 contracts/deployments/31337.json
 contracts/deployments/31338.json
@@ -24,6 +26,9 @@ contracts/anvil.log
 # playwright
 test-results/
 playwright-report/
+
+# local service data
+dump.rdb
 
 # os / editors
 .DS_Store
