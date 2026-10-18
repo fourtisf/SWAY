@@ -378,6 +378,22 @@ contract SwayKeysTest is Base {
         keys.claimFanMarket(alice, bob);
     }
 
+    function test_brokenStakingNeverBlocksTrades() public {
+        BrokenStaking broken = new BrokenStaking();
+        vm.prank(admin);
+        keys.setStaking(address(broken));
+        assertEq(keys.levelOf(bob), 0);
+        _buy(bob, alice, 100);
+        assertEq(keys.balanceOf(alice, bob), 100);
+    }
+
+    function test_fanClaimRejectsEscrowAsOwner() public {
+        address subject = _openFan(8008);
+        vm.prank(operator);
+        vm.expectRevert(SwayKeys.ZeroAddress.selector);
+        keys.claimFanMarket(subject, address(escrow));
+    }
+
     function test_haltBlocksBuysNotSells() public {
         _buy(bob, alice, 100);
         vm.prank(fanAdmin);
@@ -512,6 +528,12 @@ contract SwayKeysTest is Base {
         }
         (,,,,,, uint256 supply,) = keys.markets(alice);
         owed += _reserve(supply);
+    }
+}
+
+contract BrokenStaking {
+    function levelOf(address) external pure returns (uint8) {
+        revert("broken");
     }
 }
 

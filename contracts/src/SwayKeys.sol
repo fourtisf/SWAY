@@ -182,9 +182,15 @@ contract SwayKeys is Ownable2Step, ReentrancyGuard, Pausable {
         return 7_500;
     }
 
+    /// @dev A failing staking contract must never block trading, so errors read as level 0.
     function levelOf(address trader) public view returns (uint8) {
         ISwayStaking s = staking;
-        return address(s) == address(0) ? 0 : s.levelOf(trader);
+        if (address(s) == address(0)) return 0;
+        try s.levelOf(trader) returns (uint8 level) {
+            return level;
+        } catch {
+            return 0;
+        }
     }
 
     function _fees(uint256 base, address trader) internal view returns (Fees memory f) {
@@ -273,9 +279,9 @@ contract SwayKeys is Ownable2Step, ReentrancyGuard, Pausable {
         Market storage m = markets[subject];
         if (!m.fan) revert NotFanMarket();
         if (m.owner != address(0)) revert AlreadyClaimed();
-        if (newOwner == address(0)) revert ZeroAddress();
-
         address escrow = address(fanEscrow);
+        if (newOwner == address(0) || newOwner == escrow) revert ZeroAddress();
+
         uint256 acc = m.accPerUnit;
         uint256 escrowUnits = balanceOf[subject][escrow];
         uint256 owed = (escrowUnits * (acc - rewardDebt[subject][escrow])) / ACC_PRECISION;
