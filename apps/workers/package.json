@@ -1,0 +1,28 @@
+{
+  "name": "@sway/workers",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Sway workers: chain indexer, X API jobs, points engine, ETH/USD price, Genesis snapshot (BullMQ).",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../../.env src/main.ts",
+    "start": "node --env-file-if-exists=../../.env dist/main.js",
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@sway/curve": "workspace:*",
+    "@sway/db": "workspace:*",
+    "@sway/scoring": "workspace:*",
+    "@sway/shared": "workspace:*",
+    "bullmq": "5.81.5",
+    "ioredis": "5.11.1",
+    "viem": "2.57.2"
+  },
+  "devDependencies": {
+    "tsup": "8.5.1",
+    "tsx": "4.23.15",
+    "vitest": "3.2.7"
+  }
+}

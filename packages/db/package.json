@@ -1,0 +1,36 @@
+{
+  "name": "@sway/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Prisma schema and client for Sway (PostgreSQL).",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "generate": "prisma generate",
+    "migrate:dev": "node --env-file-if-exists=../../.env node_modules/prisma/build/index.js migrate dev",
+    "migrate:deploy": "node --env-file-if-exists=../../.env node_modules/prisma/build/index.js migrate deploy",
+    "seed": "tsx --env-file-if-exists=../../.env prisma/seed.ts",
+    "reset": "node --env-file-if-exists=../../.env node_modules/prisma/build/index.js migrate reset --force",
+    "typecheck": "tsc --noEmit",
+    "postinstall": "prisma generate",
+    "studio": "node --env-file-if-exists=../../.env node_modules/prisma/build/index.js studio"
+  },
+  "prisma": {
+    "schema": "prisma/schema.prisma",
+    "seed": "tsx --env-file-if-exists=../../.env prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.3",
+    "@sway/curve": "workspace:*",
+    "@sway/scoring": "workspace:*",
+    "@sway/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "prisma": "6.19.3",
+    "tsx": "4.23.15"
+  }
+}

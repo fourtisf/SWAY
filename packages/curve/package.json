@@ -1,0 +1,21 @@
+{
+  "name": "@sway/curve",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Sway creator-key bonding curve: exact wei math (mirrors SwayKeys.sol) and the prototype's float quote().",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "vectors": "tsx scripts/vectors.ts"
+  },
+  "devDependencies": {
+    "tsx": "4.23.15",
+    "vitest": "3.2.7"
+  }
+}

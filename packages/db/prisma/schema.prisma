@@ -1,0 +1,616 @@
+// Sway data model (brief §10). Onchain state (markets, holdings, trades, claims, stakes) is a mirror the
+// indexer builds from contract events; the API never trusts client-reported balances.
+//
+// Big integers: key units fit in BigInt (int8); wei amounts use Decimal(78,0) because they exceed int8.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum WalletKind {
+  embedded
+  external
+}
+
+enum MarketCategory {
+  creators
+  crypto
+  football
+  stocks
+  rwa
+}
+
+enum Visibility {
+  public
+  holders
+  subs
+}
+
+enum NotificationType {
+  trade
+  mention
+  battle
+  points
+}
+
+enum TaskStatus {
+  pending
+  verified
+  trusted
+  revoked
+  skipped
+}
+
+enum ReferralStatus {
+  pending
+  credited
+  rejected
+}
+
+enum PointsKind {
+  task
+  invite
+  invitee
+  trade_volume
+  battle_stake
+  battle_payout
+  battle_back
+  battle_back_payout
+  weekly_prize
+  reorg_correction
+}
+
+enum BattleStatus {
+  pending
+  live
+  reading
+  settled
+  declined
+  expired
+}
+
+enum BattleSide {
+  a
+  b
+}
+
+enum BattleWinner {
+  a
+  b
+  draw
+}
+
+/// An X account. Members (signed in with X) have joinedAt and memberNo; accounts that only back an
+/// unclaimed fan market have neither until they sign in and claim.
+model User {
+  id           String    @id @default(cuid())
+  xId          String    @unique
+  handle       String    @unique
+  name         String
+  avatarUrl    String?
+  bio          String    @default("")
+  followers    Int       @default(0)
+  verified     Boolean   @default(false)
+  xCreatedAt   DateTime?
+  official     Boolean   @default(false)
+  /// Sway score 1..100 and reach value (USD), from @sway/scoring.
+  score        Int       @default(1)
+  reachValue   Float     @default(0)
+  scoreInputs  Json?
+  scoredAt     DateTime?
+  memberNo     Int?      @unique
+  joinedAt     DateTime?
+  tier         String    @default("Murmur")
+  /// Bot/farm flag: points stay, reward eligibility is removed.
+  botFlag      Boolean   @default(false)
+  /// Live points for keys held (400K per ETH of sell value), recounted every minute. Not a ledger entry.
+  heldPoints   Int       @default(0)
+  /// Cached ledger sum, rebuilt from PointsLedger by the points worker.
+  ledgerPoints Int       @default(0)
+  stakingLevel Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  wallet          Wallet?
+  market          KeyMarket?
+  posts           Post[]
+  likes           Like[]
+  reposts         Repost[]
+  following       Follow[]           @relation("follower")
+  followers_      Follow[]           @relation("followee")
+  subscriptions   Subscription[]     @relation("subscriber")
+  subscribers     Subscription[]     @relation("creator")
+  roomMessages    RoomMessage[]
+  roomReads       RoomRead[]
+  dmThreadsA      DmThread[]         @relation("dmA")
+  dmThreadsB      DmThread[]         @relation("dmB")
+  dmMessages      DmMessage[]
+  notifications   Notification[]     @relation("recipient")
+  notificationsBy Notification[]     @relation("actor")
+  tasks           TaskCompletion[]
+  invited         Referral[]         @relation("inviter")
+  invitedBy       Referral?          @relation("invitee")
+  points          PointsLedger[]
+  battlesA        Battle[]           @relation("battleA")
+  battlesB        Battle[]           @relation("battleB")
+  backings        BattleBacking[]
+  stake           Stake?
+  activity        Activity[]
+  genesisEntries  GenesisEntry[]
+  launchToken     LaunchToken?
+  claimRequests   ClaimRequest[]
+
+  @@index([joinedAt])
+}
+
+/// One wallet per member, one member per wallet.
+model Wallet {
+  id        String     @id @default(cuid())
+  userId    String     @unique
+  /// Lowercase hex.
+  address   String     @unique
+  kind      WalletKind
+  createdAt DateTime   @default(now())
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model KeyMarket {
+  id           String         @id @default(cuid())
+  /// SwayKeys subject: the member's wallet, or fanSubject(xId) for fan markets. Lowercase hex.
+  subject      String         @unique
+  userId       String         @unique
+  xId          String         @unique
+  fan          Boolean        @default(false)
+  claimed      Boolean        @default(true)
+  category     MarketCategory @default(creators)
+  /// Opened onchain (MarketOpened seen by the indexer).
+  opened       Boolean        @default(false)
+  openTx       String?
+  openedAt     DateTime?
+  halted       Boolean        @default(false)
+  supplyUnits  BigInt         @default(100)
+  priceWei     Decimal        @default(0) @db.Decimal(78, 0)
+  volumeWei    Decimal        @default(0) @db.Decimal(78, 0)
+  escrowWei    Decimal        @default(0) @db.Decimal(78, 0)
+  creatorFeesWei Decimal      @default(0) @db.Decimal(78, 0)
+  holders      Int            @default(1)
+  /// Percent change of price over the last 24 trades.
+  change       Float          @default(0)
+  lastTradeAt  DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  holdings      Holding[]
+  trades        Trade[]
+  roomMessages  RoomMessage[]
+  roomReads     RoomRead[]
+  claimRequests ClaimRequest[]
+
+  @@index([category, volumeWei])
+}
+
+/// Mirror of SwayKeys.balanceOf(subject, holder). `address` may belong to no member (direct contract users).
+model Holding {
+  id             String    @id @default(cuid())
+  marketId       String
+  /// Lowercase hex.
+  address        String
+  units          BigInt
+  /// Wei paid for the units currently held (average-cost basis), for PnL.
+  costBasisWei   Decimal   @default(0) @db.Decimal(78, 0)
+  realizedPnlWei Decimal   @default(0) @db.Decimal(78, 0)
+  updatedAt      DateTime  @updatedAt
+  market         KeyMarket @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@unique([marketId, address])
+  @@index([address])
+}
+
+model Trade {
+  id             String    @id @default(cuid())
+  txHash         String
+  logIndex       Int
+  blockNumber    BigInt
+  blockHash      String
+  marketId       String
+  /// Lowercase hex.
+  trader         String
+  isBuy          Boolean
+  units          BigInt
+  baseWei        Decimal   @db.Decimal(78, 0)
+  creatorFeeWei  Decimal   @db.Decimal(78, 0)
+  protocolFeeWei Decimal   @db.Decimal(78, 0)
+  holderFeeWei   Decimal   @db.Decimal(78, 0)
+  referralFeeWei Decimal   @db.Decimal(78, 0)
+  /// Paid (buy) or received (sell).
+  totalWei       Decimal   @db.Decimal(78, 0)
+  supplyAfter    BigInt
+  ts             DateTime
+  market         KeyMarket @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@unique([txHash, logIndex])
+  @@index([marketId, ts])
+  @@index([trader, ts])
+  @@index([ts])
+  @@index([blockNumber])
+}
+
+model Post {
+  id          String     @id @default(cuid())
+  authorId    String
+  text        String
+  visibility  Visibility @default(public)
+  pinned      Boolean    @default(false)
+  boosted     Boolean    @default(false)
+  parentId    String?
+  likeCount   Int        @default(0)
+  repostCount Int        @default(0)
+  replyCount  Int        @default(0)
+  createdAt   DateTime   @default(now())
+  deletedAt   DateTime?
+  author      User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent      Post?      @relation("replies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies     Post[]     @relation("replies")
+  likes       Like[]
+  reposts     Repost[]
+  tags        PostTag[]
+
+  @@index([createdAt])
+  @@index([authorId, createdAt])
+  @@index([parentId])
+}
+
+model PostTag {
+  postId String
+  /// Lowercase, without '#'.
+  tag    String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tag])
+  @@index([tag])
+}
+
+model Like {
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+}
+
+model Repost {
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+}
+
+model Follow {
+  followerId String
+  followeeId String
+  createdAt  DateTime @default(now())
+  follower   User     @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followee   User     @relation("followee", fields: [followeeId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followeeId])
+}
+
+model Subscription {
+  id           String   @id @default(cuid())
+  subscriberId String
+  creatorId    String
+  txHash       String   @unique
+  amountWei    Decimal  @db.Decimal(78, 0)
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  subscriber   User     @relation("subscriber", fields: [subscriberId], references: [id], onDelete: Cascade)
+  creator      User     @relation("creator", fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([subscriberId, creatorId, expiresAt])
+}
+
+model RoomMessage {
+  id        String    @id @default(cuid())
+  marketId  String
+  authorId  String
+  text      String
+  createdAt DateTime  @default(now())
+  market    KeyMarket @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([marketId, createdAt])
+}
+
+model RoomRead {
+  userId   String
+  marketId String
+  readAt   DateTime  @default(now())
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  market   KeyMarket @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@id([userId, marketId])
+}
+
+/// A direct-message thread between two members; aId < bId.
+model DmThread {
+  id            String      @id @default(cuid())
+  aId           String
+  bId           String
+  aReadAt       DateTime?
+  bReadAt       DateTime?
+  lastMessageAt DateTime    @default(now())
+  createdAt     DateTime    @default(now())
+  a             User        @relation("dmA", fields: [aId], references: [id], onDelete: Cascade)
+  b             User        @relation("dmB", fields: [bId], references: [id], onDelete: Cascade)
+  messages      DmMessage[]
+
+  @@unique([aId, bId])
+}
+
+model DmMessage {
+  id        String   @id @default(cuid())
+  threadId  String
+  authorId  String
+  text      String
+  createdAt DateTime @default(now())
+  thread    DmThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+}
+
+model Notification {
+  id         String           @id @default(cuid())
+  userId     String
+  type       NotificationType
+  fromUserId String?
+  /// RichText: [{ t, b? }]
+  body       Json
+  link       String?
+  createdAt  DateTime         @default(now())
+  readAt     DateTime?
+  user       User             @relation("recipient", fields: [userId], references: [id], onDelete: Cascade)
+  from       User?            @relation("actor", fields: [fromUserId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+}
+
+/// Task catalogue (definitions live in @sway/shared TASKS; this row lets ops disable a task).
+model Task {
+  id          String           @id
+  title       String
+  pts         Int
+  group       String
+  active      Boolean          @default(true)
+  completions TaskCompletion[]
+}
+
+model TaskCompletion {
+  id         String     @id @default(cuid())
+  userId     String
+  taskId     String
+  /// UTC day for daily tasks; 1970-01-01 for one-off tasks.
+  day        DateTime   @db.Date
+  status     TaskStatus
+  points     Int        @default(0)
+  attempts   Int        @default(0)
+  checkedAt  DateTime?
+  verifiedAt DateTime?
+  createdAt  DateTime   @default(now())
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task       Task       @relation(fields: [taskId], references: [id])
+
+  @@unique([userId, taskId, day])
+  @@index([status])
+}
+
+model Referral {
+  id         String         @id @default(cuid())
+  inviterId  String
+  inviteeId  String         @unique
+  status     ReferralStatus @default(pending)
+  reason     String?
+  creditedAt DateTime?
+  /// SwayKeys.setReferrer transaction.
+  onchainTx  String?
+  createdAt  DateTime       @default(now())
+  inviter    User           @relation("inviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  invitee    User           @relation("invitee", fields: [inviteeId], references: [id], onDelete: Cascade)
+
+  @@index([inviterId, creditedAt])
+}
+
+/// Append-only. Points are never edited by hand: every change is a new row with a unique reference.
+model PointsLedger {
+  id        BigInt     @id @default(autoincrement())
+  userId    String
+  kind      PointsKind
+  amount    Int
+  /// Idempotency key, e.g. "task:follow:2026-10-18" or "trade:<txHash>:<logIndex>".
+  ref       String
+  createdAt DateTime   @default(now())
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind, ref])
+  @@index([userId, createdAt])
+}
+
+model Battle {
+  id         String          @id @default(cuid())
+  aId        String
+  /// Null for an open challenge until someone accepts.
+  bId        String?
+  theme      String
+  tag        String          @default("#SwayBattle")
+  stake      Int             @default(0)
+  status     BattleStatus    @default(pending)
+  createdAt  DateTime        @default(now())
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  /// End of the 24h posting window; posts are read once at endsAt + 6h.
+  endsAt     DateTime?
+  postAId    String?
+  postBId    String?
+  erA        Float           @default(0)
+  erB        Float           @default(0)
+  scoreA     Float?
+  scoreB     Float?
+  winner     BattleWinner?
+  treasury   Int             @default(0)
+  settledAt  DateTime?
+  a          User            @relation("battleA", fields: [aId], references: [id], onDelete: Cascade)
+  b          User?           @relation("battleB", fields: [bId], references: [id], onDelete: Cascade)
+  backings   BattleBacking[]
+
+  @@index([status, endsAt])
+  @@index([aId, status])
+  @@index([bId, status])
+}
+
+model BattleBacking {
+  id        String     @id @default(cuid())
+  battleId  String
+  userId    String
+  side      BattleSide
+  amount    Int
+  payout    Int?
+  createdAt DateTime   @default(now())
+  battle    Battle     @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([battleId, userId])
+}
+
+/// Battle treasury (points). Weekly, half goes to the top three fighters.
+model TreasuryEntry {
+  id        BigInt   @id @default(autoincrement())
+  amount    Int
+  kind      String
+  ref       String   @unique
+  createdAt DateTime @default(now())
+}
+
+/// Mirror of SwayStaking for the trader's level and the Stakers leaderboard.
+model Stake {
+  id        String    @id @default(cuid())
+  userId    String    @unique
+  address   String    @unique
+  amountWei Decimal   @default(0) @db.Decimal(78, 0)
+  level     Int       @default(0)
+  unlockAt  DateTime?
+  updatedAt DateTime  @updatedAt
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Mirror of SwayKeys Claimed events.
+model EarningsClaim {
+  id          String   @id @default(cuid())
+  address     String
+  creatorWei  Decimal  @db.Decimal(78, 0)
+  holderWei   Decimal  @db.Decimal(78, 0)
+  referralWei Decimal  @db.Decimal(78, 0)
+  protocolWei Decimal  @db.Decimal(78, 0)
+  txHash      String
+  logIndex    Int
+  blockNumber BigInt
+  ts          DateTime
+
+  @@unique([txHash, logIndex])
+  @@index([address])
+}
+
+/// Wallet activity log (trades, claims, deposits, withdrawals, tips, subscriptions).
+model Activity {
+  id        String   @id @default(cuid())
+  userId    String
+  label     String
+  /// Signed: positive is money in.
+  amountWei Decimal  @db.Decimal(78, 0)
+  txHash    String?
+  /// Idempotency key for indexer-written rows.
+  ref       String?  @unique
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model GenesisSnapshot {
+  id        String         @id @default(cuid())
+  takenAt   DateTime       @unique
+  /// keccak256 of the published list, also committed onchain to GenesisPass.
+  listHash  String
+  poolUnits Decimal        @db.Decimal(78, 0)
+  published Boolean        @default(false)
+  entries   GenesisEntry[]
+}
+
+model GenesisEntry {
+  snapshotId String
+  rank       Int
+  userId     String
+  points     Int
+  wallet     String
+  units      Decimal         @db.Decimal(78, 0)
+  mintTx     String?
+  snapshot   GenesisSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([snapshotId, rank])
+  @@unique([snapshotId, userId])
+}
+
+model LaunchToken {
+  id           String    @id @default(cuid())
+  userId       String    @unique
+  symbol       String
+  name         String
+  previewOn    Boolean   @default(false)
+  tokenAddress String?   @unique
+  launchTx     String?
+  launchedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Claim or takedown requests for fan markets (brief §9).
+model ClaimRequest {
+  id        String    @id @default(cuid())
+  marketId  String
+  userId    String?
+  kind      String
+  contact   String
+  note      String?
+  status    String    @default("open")
+  createdAt DateTime  @default(now())
+  market    KeyMarket @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+/// Indexer cursor and recent block hashes for reorg detection.
+model IndexerCursor {
+  name        String   @id
+  blockNumber BigInt
+  blockHash   String
+  updatedAt   DateTime @updatedAt
+}
+
+model IndexedBlock {
+  number     BigInt   @id
+  hash       String
+  parentHash String
+  createdAt  DateTime @default(now())
+}

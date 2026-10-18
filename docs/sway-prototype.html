@@ -1,0 +1,1585 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sway — your X reach, as a market</title>
+<meta name="theme-color" content="#FFFFFF">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FFFFFF; --bg2:#F7F9F9; --bg3:#EFF3F4;
+  --line:#EFF3F4; --line2:#CFD9DE; --stroke:#EFF3F4; --stroke2:#CFD9DE; --glass:#F7F9F9; --glass2:#EFF3F4;
+  --tx:#0F1419; --tx2:#536471; --tx3:#536471;
+  --blue:#1D9BF0; --vio:#1D9BF0; --vio2:#1D9BF0; --pink:#F91880; --sky:#1D9BF0; --aqua:#00BA7C; --red:#F4212E; --warn:#A35F00; --gold:#E2B719; --purple:#7856FF;
+  --holo:#1D9BF0;
+  --hover:rgba(15,20,25,.1); --rowh:rgba(15,20,25,.03);
+  --shadow:rgba(101,119,134,.2) 0 0 15px, rgba(101,119,134,.15) 0 0 3px 1px;
+  --f:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:#fff;color:var(--tx);font-family:var(--f);font-size:15px;line-height:1.4;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;min-height:100vh;overflow-x:hidden}
+a{color:inherit;text-decoration:none;cursor:pointer}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+input,textarea,select{font:inherit;color:var(--tx)}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:8px}
+::selection{background:rgba(29,155,240,.22)}
+h1,h2,h3,h4{margin:0;letter-spacing:-.01em}
+.up{color:var(--aqua)} .dn{color:var(--red)} .t2{color:var(--tx2)} .t3{color:var(--tx3)}
+.row{display:flex;align-items:center;gap:10px}
+.between{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.clickable{cursor:pointer}
+
+/* ---------- shell ---------- */
+.app{display:grid;grid-template-columns:275px minmax(0,600px) 390px;justify-content:center;min-height:100vh}
+.sb{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;padding:2px 12px 12px 8px}
+.logo{display:flex;align-items:center;gap:8px;padding:10px 12px;font-weight:800;font-size:23px;letter-spacing:-.03em;border-radius:9999px;align-self:flex-start;transition:background .2s}
+.logo:hover{background:var(--hover)}
+.logo-mk{width:30px;height:30px;display:grid;place-items:center;flex:none;color:var(--tx)}
+.sb-nav{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:2px;scrollbar-width:none;padding:2px 0}
+.sb-nav::-webkit-scrollbar{display:none}
+.nv{position:relative;display:inline-flex;align-self:flex-start;align-items:center;gap:20px;height:50px;padding:0 22px 0 12px;border-radius:9999px;color:var(--tx);font-weight:400;font-size:20px;transition:background .2s;flex:none}
+.nv svg{width:26px;height:26px;flex:none}
+.nv:hover{background:var(--hover)}
+.nv.on{font-weight:700}
+.nv.on svg{stroke-width:2.75}
+.badge{position:absolute;top:5px;left:28px;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:var(--blue);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;border:1.5px solid #fff}
+.badge-dot{display:none}
+.nv-sep{height:1px;background:var(--line);margin:6px 12px;flex:none;align-self:stretch}
+.sb-post{margin:14px 0 12px}
+.sb-post .btn{width:90%;height:52px;font-size:17px}
+.me-chip{display:flex;align-items:center;gap:12px;padding:12px;border-radius:9999px;transition:background .2s}
+.me-chip:hover{background:var(--hover)}
+.me-chip .dots{margin-left:auto;color:var(--tx);font-weight:800;letter-spacing:1px}
+.col{min-width:0;border-left:1px solid var(--line);border-right:1px solid var(--line);min-height:100vh;padding-bottom:90px}
+.rail{position:sticky;top:0;height:100vh;overflow-y:auto;padding:0 0 40px 30px;display:flex;flex-direction:column;gap:16px;scrollbar-width:none}
+.rail::-webkit-scrollbar{display:none}
+.rail>*{flex:none}
+.rail>.search{position:sticky;top:0;z-index:10;background:#fff;padding:6px 0 4px}
+
+/* center header */
+.ch{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.86);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.ch-row{display:flex;align-items:center;gap:14px;padding:0 16px;min-height:53px}
+.ch-row h1{font-size:20px;font-weight:800}
+.ch-row .sub{color:var(--tx2);font-size:13px}
+.tabs{display:flex}
+.tab{flex:1;position:relative;height:53px;display:grid;place-items:center;color:var(--tx2);font-weight:500;font-size:15px;transition:background .2s}
+.tab:hover{background:var(--hover)}
+.tab.on{color:var(--tx);font-weight:700}
+.tab.on::after{content:"";position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:56px;height:4px;border-radius:9999px;background:var(--blue)}
+.ticker{border-top:1px solid var(--line);overflow:hidden;height:40px;display:flex;align-items:center;mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent);-webkit-mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent)}
+.tk-track{display:flex;gap:30px;width:max-content;animation:tk 80s linear infinite}
+.ticker:hover .tk-track{animation-play-state:paused}
+@keyframes tk{to{transform:translateX(-50%)}}
+.tk{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--tx2);white-space:nowrap;cursor:pointer}
+.tk b{color:var(--tx);font-weight:700}
+.tk:hover b{text-decoration:underline}
+.tk .vb-b{color:var(--aqua);font-weight:700} .tk .vb-s{color:var(--red);font-weight:700}
+.mtop{display:none}
+
+/* ---------- primitives ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:36px;padding:0 16px;border-radius:9999px;font-weight:700;font-size:15px;white-space:nowrap;transition:background .2s,border-color .2s,opacity .2s}
+.btn svg{width:17px;height:17px}
+.btn-white{background:var(--tx);color:#fff}
+.btn-white:hover{background:#272C30}
+.btn-glass{background:#fff;border:1px solid var(--line2);color:var(--tx)}
+.btn-glass:hover{background:var(--hover)}
+.btn-buy{background:var(--aqua);color:#fff}
+.btn-buy:hover{background:#00A36C}
+.btn-sell{background:var(--red);color:#fff}
+.btn-sell:hover{background:#DC1E29}
+.btn-sm{height:32px;padding:0 14px;font-size:14px}
+.btn-lg{height:52px;padding:0 24px;font-size:17px}
+.btn-block{width:100%}
+.btn[disabled]{opacity:.5;pointer-events:none}
+.glass{background:#fff;border:1px solid var(--line);border-radius:16px}
+.tag{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;border-radius:4px;font-size:12px;font-weight:600;background:rgba(29,155,240,.1);color:#1A8CD8;white-space:nowrap}
+.tag.pink{background:rgba(249,24,128,.1);color:#C4126A}
+.tag.aqua{background:rgba(0,186,124,.12);color:#00875A}
+.tag.warn{background:rgba(255,212,0,.2);color:#7A5200}
+.tag.line{background:#fff;border:1px solid var(--line2);color:var(--tx2)}
+.vb{width:18px;height:18px;color:var(--blue);flex:none;display:inline-block}
+.vb svg{width:100%;height:100%;display:block}
+.vb.off{color:var(--gold)}
+.nm{display:flex;align-items:center;gap:3px;min-width:0}
+.nm b{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hd{color:var(--tx2);font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.av{position:relative;flex:none;border-radius:50%;overflow:hidden;display:inline-grid;place-items:center;background:linear-gradient(140deg,hsl(var(--avh) 70% 62%),hsl(calc(var(--avh) + 40) 70% 46%))}
+.av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.av-ini{font-weight:700;color:#fff}
+.av.official{background:var(--tx);color:#fff}
+.field{width:100%;height:46px;background:#fff;border:1px solid var(--line2);border-radius:6px;padding:0 12px;outline:none;transition:border-color .2s,box-shadow .2s}
+.field:focus{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
+.field::placeholder{color:var(--tx2)}
+.seg{display:inline-flex;padding:3px;border-radius:9999px;background:var(--bg3);gap:2px;overflow-x:auto;scrollbar-width:none;max-width:100%}
+.seg button{height:32px;padding:0 14px;border-radius:9999px;font-weight:600;font-size:14px;color:var(--tx2)}
+.seg button.on{background:#fff;color:var(--tx);box-shadow:0 1px 2px rgba(15,20,25,.12)}
+.chip{height:32px;padding:0 14px;border-radius:9999px;border:1px solid var(--line2);background:#fff;font-size:14px;font-weight:600;color:var(--tx);white-space:nowrap;transition:background .2s}
+.chip:hover{background:var(--hover)}
+.chip.on{background:var(--tx);color:#fff;border-color:var(--tx)}
+.icon-btn{width:36px;height:36px;border-radius:9999px;display:grid;place-items:center;color:var(--tx);border:1px solid var(--line2);background:#fff;flex:none}
+.icon-btn:hover{background:var(--hover)}
+.icon-btn svg{width:18px;height:18px}
+.x-btn{width:34px;height:34px;border-radius:9999px;display:grid;place-items:center;color:var(--tx);flex:none;transition:background .2s}
+.x-btn:hover{background:var(--hover)}
+.x-btn svg{width:20px;height:20px}
+.spin{width:16px;height:16px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .7s linear infinite;display:inline-block}
+@keyframes sp{to{transform:rotate(360deg)}}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--aqua);box-shadow:0 0 0 3px rgba(0,186,124,.18);display:inline-block;flex:none}
+.pad{padding:12px 16px}
+.sec-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 16px 8px}
+.sec-h h2{font-size:20px;font-weight:800}
+.lnk{color:var(--blue);font-weight:500;font-size:15px}
+.lnk:hover{text-decoration:underline}
+.empty{padding:48px 32px;text-align:center;color:var(--tx2)}
+.empty h4{margin:14px 0 6px;font-size:22px;font-weight:800;color:var(--tx)}
+.empty-ic{width:56px;height:56px;border-radius:50%;margin:0 auto;display:grid;place-items:center;background:rgba(29,155,240,.1);color:var(--blue)}
+.empty-ic svg{width:26px;height:26px}
+.note{padding:12px 16px;border-radius:16px;background:var(--bg2);color:var(--tx2);font-size:14px}
+.stat{padding:12px 16px}
+.stat small{display:block;color:var(--tx2);font-size:13px;margin-bottom:2px}
+.stat b{font-size:20px;font-weight:800;display:block;line-height:1.2}
+.stat span{color:var(--tx2);font-size:13px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+
+/* ---------- composer / guest ---------- */
+.composer{display:flex;gap:12px;padding:12px 16px 8px;border-bottom:1px solid var(--line)}
+.composer textarea{width:100%;min-height:52px;resize:none;background:transparent;border:0;outline:none;font-size:20px;padding:10px 0 6px;line-height:1.35}
+.composer textarea::placeholder{color:var(--tx2)}
+.comp-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:8px;border-top:1px solid var(--line);margin-top:6px}
+.tools{display:flex;align-items:center;position:relative}
+.tool{width:34px;height:34px;border-radius:9999px;display:grid;place-items:center;color:var(--blue);transition:background .2s}
+.tool:hover{background:rgba(29,155,240,.1)}
+.tool svg{width:20px;height:20px}
+.vis{height:28px;margin-left:6px;background:#fff;border:1px solid var(--line2);border-radius:9999px;padding:0 10px;font-size:13px;font-weight:700;color:var(--blue);outline:none}
+.emoji-pop{position:absolute;top:40px;left:20px;z-index:20;display:grid;grid-template-columns:repeat(6,36px);gap:2px;padding:8px;border-radius:16px;background:#fff;box-shadow:var(--shadow)}
+.emoji-pop button{height:36px;border-radius:9999px;font-size:19px}
+.emoji-pop button:hover{background:var(--hover)}
+.guest{display:flex;align-items:center;gap:14px;padding:12px 16px;border-bottom:1px solid var(--line);background:rgba(29,155,240,.06)}
+.guest p{margin:0;color:var(--tx);font-size:15px;flex:1}
+
+/* ---------- posts ---------- */
+.post{display:flex;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);transition:background .2s}
+.post:hover{background:var(--rowh)}
+.post-b{flex:1;min-width:0}
+.post-h{display:flex;align-items:center;gap:4px;min-width:0}
+.post-h .hd{flex:0 1 auto}
+.post-h .nm:hover b{text-decoration:underline}
+.post-h .more{margin-left:auto;color:var(--tx2);width:34px;height:34px;border-radius:9999px;display:grid;place-items:center;flex:none;margin-top:-6px;margin-bottom:-6px}
+.post-h .more:hover{background:rgba(29,155,240,.1);color:var(--blue)}
+.pin{display:flex;align-items:center;gap:8px;color:var(--tx2);font-size:13px;font-weight:700;margin:0 0 4px 30px}
+.pin svg{width:15px;height:15px}
+.post-t{margin:2px 0 10px;font-size:15px;line-height:1.35;white-space:pre-wrap;word-wrap:break-word;color:var(--tx)}
+.post-t .mn,.post-t .ht,.post-t .lk{color:var(--blue);cursor:pointer}
+.post-t .mn:hover,.post-t .ht:hover,.post-t .lk:hover{text-decoration:underline}
+.post-a{display:flex;align-items:center;gap:6px;margin-left:-8px}
+.pa{display:inline-flex;align-items:center;gap:4px;height:34px;padding:0 8px;border-radius:9999px;color:var(--tx2);font-size:13px;min-width:62px;transition:color .2s,background .2s}
+.pa svg{width:18.75px;height:18.75px}
+.pa[data-act=reply]:hover{color:var(--blue);background:rgba(29,155,240,.1)}
+.pa[data-act=repost]:hover,.pa.rped{color:var(--aqua)}
+.pa[data-act=repost]:hover{background:rgba(0,186,124,.1)}
+.pa[data-act=like]:hover,.pa.liked{color:var(--pink)}
+.pa[data-act=like]:hover{background:rgba(249,24,128,.1)}
+.kchip{margin-left:auto;display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 4px 0 12px;border-radius:9999px;border:1px solid var(--line2);background:#fff;font-size:13px;color:var(--tx2);white-space:nowrap;transition:background .2s}
+.kchip b{color:var(--tx);font-weight:700}
+.kchip em{font-style:normal;height:24px;padding:0 11px;border-radius:9999px;background:var(--aqua);color:#fff;display:grid;place-items:center;font-weight:700;font-size:13px}
+.kchip:hover{background:var(--rowh)}
+.lockbox{position:relative;border-radius:16px;overflow:hidden;margin:6px 0 12px;border:1px solid var(--line2)}
+.lockbox .blur{padding:14px 16px;filter:blur(6px);color:var(--tx);user-select:none;min-height:70px}
+.lockbox .over{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;background:linear-gradient(90deg,rgba(255,255,255,.97),rgba(255,255,255,.82))}
+.lockbox .over .row{font-size:14px;color:var(--tx);font-weight:600}
+.lockbox .over svg{width:17px;height:17px;color:var(--blue);flex:none}
+.boost{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--tx2);margin-bottom:4px}
+.boost svg{width:14px;height:14px}
+
+/* ---------- rail ---------- */
+.search{position:relative}
+.search>svg{position:absolute;left:18px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:var(--tx2);pointer-events:none}
+.search:focus-within>svg{color:var(--blue)}
+.search .field{height:44px;border-radius:9999px;padding-left:50px;background:var(--bg3);border:1px solid transparent}
+.search .field:focus{background:#fff;border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
+.sres{position:absolute;left:0;right:0;top:calc(100% + 2px);z-index:25;border-radius:8px;background:#fff;box-shadow:var(--shadow);padding:6px 0;max-height:440px;overflow:auto}
+.sres .it{display:flex;align-items:center;gap:12px;padding:10px 16px;cursor:pointer}
+.sres .it:hover{background:var(--bg2)}
+.sres .lab{font-size:15px;font-weight:800;color:var(--tx);padding:10px 16px 4px}
+.lc{position:relative;border-radius:16px;border:1px solid var(--line);overflow:hidden;background:linear-gradient(140deg,#E3F1FD 0%,#F2F7FB 55%,#F7F9F9 100%)}
+.lc-in{position:relative;padding:16px;min-height:186px}
+.lc-k{position:relative;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--tx)}
+.lc-k svg{color:var(--blue)}
+.lc-v{position:relative;font-size:44px;font-weight:800;letter-spacing:-.03em;line-height:1;margin:12px 0 6px}
+.lc-p{position:relative;margin:0;color:var(--tx2);font-size:14px;max-width:calc(100% - 124px)}
+.lc-vp{position:absolute;right:16px;bottom:16px;width:110px;height:44px}
+.switch{position:absolute;right:16px;top:58px;width:56px;height:32px;border-radius:999px;background:var(--line2);transition:background .2s}
+.switch i{position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(15,20,25,.3);transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+.switch.on{background:var(--blue)}
+.switch.on i{transform:translateX(24px)}
+.switch-l{position:absolute;right:16px;top:94px;width:56px;text-align:center;font-size:11px;font-weight:700;color:var(--tx2)}
+.lc-dots{display:flex;gap:6px;justify-content:center;margin-top:10px}
+.lc-dots button{width:6px;height:6px;border-radius:6px;background:var(--line2);transition:width .2s,background .2s}
+.lc-dots button.on{width:18px;background:var(--blue)}
+.wd{padding:12px 16px;overflow:hidden}
+.wd-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px}
+.wd-h h3{font-size:20px;font-weight:800}
+.lt{display:flex;align-items:center;gap:12px;padding:10px 16px;margin:0 -16px;cursor:pointer;transition:background .2s}
+.lt:hover{background:var(--rowh)}
+.lt .sub{font-size:13px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lt .sub .vb-b{color:var(--aqua);font-weight:700} .lt .sub .vb-s{color:var(--red);font-weight:700}
+.lt .pr{margin-left:auto;font-weight:800;font-size:15px}
+.lt.new{animation:slidein .6s ease-out}
+@keyframes slidein{from{opacity:0;transform:translateY(-8px);background:rgba(29,155,240,.1)}to{opacity:1;transform:none}}
+.mini{display:flex;align-items:center;gap:11px;padding:8px 0;cursor:pointer}
+.mini:hover .nm b{text-decoration:underline}
+.erbar{height:6px;border-radius:9999px;background:var(--bg3);overflow:hidden;display:flex;gap:2px}
+.erbar i{display:block;height:100%;border-radius:9999px}
+.cd{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.cd div{background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:8px 4px;text-align:center}
+.cd b{display:block;font-size:20px;font-weight:800;line-height:1.15}
+.cd small{color:var(--tx2);font-size:11px}
+.rail-foot{color:var(--tx2);font-size:13px;display:flex;flex-wrap:wrap;gap:4px 12px;padding:0 16px}
+.rail-foot a:hover{text-decoration:underline}
+
+/* ---------- creator card ---------- */
+.hc{position:relative;border-radius:16px;border:1px solid var(--line);background:#fff;cursor:pointer;overflow:hidden;transition:box-shadow .2s,border-color .2s}
+.hc:hover{border-color:var(--line2);box-shadow:0 6px 20px -8px rgba(15,20,25,.18)}
+.hc-in{position:relative;padding:14px}
+.hc-sheen{display:none}
+.hc-top{display:flex;justify-content:space-between;align-items:center}
+.hc-score{display:flex;align-items:center;gap:6px;height:24px;padding:0 9px 0 6px;border-radius:999px;background:var(--bg2);border:1px solid var(--line);font-size:13px;font-weight:700}
+.hc-score i{width:11px;height:11px;border-radius:50%;background:var(--frame);display:block}
+.hc-chg{font-size:13px;font-weight:700}
+.hc-av{display:grid;place-items:center;margin:10px 0}
+.hc-name{text-align:center}
+.hc-name .nm{justify-content:center}
+.hc-name .nm b{font-size:15px}
+.hc .hd{font-size:14px}
+.hc-spark{height:40px;margin:10px 0}
+.hc-foot{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+.hc-foot div{background:var(--bg2);border-radius:10px;padding:7px 10px}
+.hc-foot small{display:block;font-size:12px;color:var(--tx2)}
+.hc-foot b{font-size:15px;font-weight:700}
+.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:12px 16px}
+
+/* ---------- user card ---------- */
+.ic{position:relative;border-radius:16px;border:1px solid var(--line);background:#fff;overflow:hidden}
+.ic::before{content:"";position:absolute;left:0;right:0;top:0;height:4px;background:var(--frame)}
+.ic-in{position:relative;padding:20px 18px 16px}
+.ic-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.ic-score{display:flex;align-items:flex-end;gap:12px;margin-top:16px}
+.ic-score .big{font-size:56px;line-height:.88;font-weight:800;letter-spacing:-.04em}
+.ic-score .of{color:var(--tx2);font-size:13px;line-height:1.3}
+.ic-vp{height:40px;margin:14px 0 12px}
+.ic-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.ic-grid div{background:var(--bg2);border-radius:12px;padding:8px 11px}
+.ic-grid small{display:block;color:var(--tx2);font-size:12px}
+.ic-grid b{font-size:15px;font-weight:700}
+.vp{display:block;width:100%;height:100%}
+.live .vp rect{transform-box:fill-box;transform-origin:center;animation:breathe 2.4s ease-in-out infinite}
+@keyframes breathe{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.55)}}
+
+/* ---------- lists ---------- */
+.tr{display:grid;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);transition:background .2s}
+.tr:hover{background:var(--rowh)}
+.tr.me{background:rgba(29,155,240,.06)}
+.tr.th{padding:10px 16px;font-size:13px;font-weight:700;color:var(--tx2);background:#fff}
+.tr.th:hover{background:#fff}
+.rk{font-weight:700;color:var(--tx2);font-size:14px}
+.num{text-align:right}
+.num b{display:block;font-weight:700;font-size:15px}
+.num small{color:var(--tx2);font-size:13px;white-space:nowrap}
+
+/* ---------- profile ---------- */
+.p-banner{position:relative;height:190px;overflow:hidden}
+.p-banner .vp{position:absolute;left:0;right:0;bottom:-6px;height:130px;opacity:.85}
+.p-body{padding:12px 16px;position:relative}
+.p-top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:-66px}
+.p-top .av-wrap{border-radius:50%;display:grid}
+.p-top .av{border:4px solid #fff}
+.p-acts{display:flex;gap:8px;padding-bottom:4px}
+.p-name{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px}
+.p-name h2{font-size:20px;font-weight:800}
+.p-bio{margin:12px 0;color:var(--tx);max-width:60ch}
+.p-meta{display:flex;flex-wrap:wrap;gap:4px 20px;font-size:15px;color:var(--tx2)}
+.p-meta b{color:var(--tx);font-weight:700}
+.price-bar{display:flex;align-items:center;gap:14px;margin:4px 16px 12px;padding:14px 16px}
+.price-bar .pv{font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
+.price-bar .acts{margin-left:auto;display:flex;gap:8px}
+.kst{display:grid;grid-template-columns:repeat(4,1fr);margin:0 16px 12px}
+.kst div{padding:12px 14px;border-right:1px solid var(--line)}
+.kst div:last-child{border-right:0}
+.kst small{display:block;color:var(--tx2);font-size:13px}
+.kst b{font-size:17px;font-weight:800}
+.chart-card{margin:0 16px 8px;padding:14px 14px 8px}
+.chart-card canvas{width:100%;height:200px;display:block;margin-top:8px}
+.legend{display:flex;gap:16px;font-size:13px;color:var(--tx2);padding:8px 2px 4px;flex-wrap:wrap}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+.ptabs{margin-top:12px;border-top:1px solid var(--line)}
+
+/* ---------- trade sheet ---------- */
+.trade{padding:4px 20px 20px}
+.tside{display:grid;grid-template-columns:1fr 1fr;padding:4px;border-radius:9999px;background:var(--bg3);margin-bottom:16px}
+.tside button{height:38px;border-radius:9999px;font-weight:700;color:var(--tx2)}
+.tside button.on.b{background:var(--aqua);color:#fff}
+.tside button.on.s{background:var(--red);color:#fff}
+.amt-l{display:flex;justify-content:space-between;font-size:13px;color:var(--tx2);margin-bottom:8px}
+.amt{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line2);border-radius:12px;padding:8px}
+.amt:focus-within{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
+.amt input{flex:1;min-width:0;background:transparent;border:0;outline:none;font-size:30px;font-weight:800;text-align:center;letter-spacing:-.02em}
+.amt button{width:40px;height:40px;border-radius:9999px;background:var(--bg3);display:grid;place-items:center;color:var(--tx)}
+.amt button:hover{background:var(--line2)}
+.amt button svg{width:16px;height:16px}
+.quick{display:flex;gap:6px;margin:10px 0 16px}
+.quick .chip{flex:1;padding:0 6px}
+.sum{border-radius:16px;background:var(--bg2);padding:14px 16px;margin-bottom:14px}
+.sum-r{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;padding:3px 0}
+.sum-r span:first-child{color:var(--tx2)}
+.sum-r.tot{padding:2px 0 6px}
+.sum-r.tot span:first-child{color:var(--tx);font-weight:700}
+.sum-r.tot b{font-size:24px;font-weight:800;letter-spacing:-.02em}
+.sum-r.tot small{color:var(--tx2);font-size:13px;margin-left:6px}
+.fees-t{display:flex;align-items:center;justify-content:space-between;width:100%;font-size:13px;color:var(--tx2);font-weight:600;padding-top:10px;margin-top:8px;border-top:1px dashed var(--line2)}
+.fees-t:hover{color:var(--tx)}
+.fees-t svg{width:15px;height:15px;transition:transform .2s}
+.fees-t.open svg{transform:rotate(180deg)}
+.fees{display:none;padding-top:6px}
+.fees.open{display:block}
+.fees .sum-r{font-size:13px}
+.wallet-r{display:flex;justify-content:space-between;font-size:13px;color:var(--tx2);margin-bottom:10px}
+.disc{font-size:12px;color:var(--tx2);margin-top:12px;text-align:center;line-height:1.45}
+
+/* ---------- room / messages ---------- */
+.room{display:flex;flex-direction:column;height:calc(100vh - 230px);min-height:380px}
+.room-msgs{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+.msg{display:flex;gap:8px;align-items:flex-end;max-width:82%}
+.msg .bub{background:var(--bg3);border-radius:22px 22px 22px 4px;padding:10px 14px;font-size:15px}
+.msg small{display:block;color:var(--tx2);font-size:12px;font-weight:600;margin-bottom:2px}
+.msg.mine{align-self:flex-end;flex-direction:row-reverse}
+.msg.mine .bub{background:var(--blue);color:#fff;border-radius:22px 22px 4px 22px}
+.msg.mine small{color:rgba(255,255,255,.8)}
+.room-in{display:flex;gap:8px;padding:8px 12px;border-top:1px solid var(--line);background:#fff}
+.room-in .field{border-radius:16px;background:var(--bg3);border-color:transparent}
+.room-in .field:focus{background:#fff}
+.thr{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);cursor:pointer;transition:background .2s}
+.thr:hover{background:var(--rowh)}
+.thr .last{color:var(--tx2);font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.thr .ud{width:10px;height:10px;border-radius:50%;background:var(--blue);flex:none}
+.grp{padding:16px 16px 6px;font-size:17px;font-weight:800;color:var(--tx)}
+
+/* ---------- notifications ---------- */
+.nt{display:flex;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);transition:background .2s}
+.nt.unread{background:rgba(29,155,240,.05)}
+.nt:hover{background:var(--rowh)}
+.nt-ic{width:40px;display:flex;justify-content:flex-end;flex:none;padding-top:2px}
+.nt-ic svg{width:28px;height:28px}
+.nt-ic.buy{color:var(--aqua)} .nt-ic.fight{color:var(--pink)} .nt-ic.pts{color:var(--purple)} .nt-ic.men{color:var(--blue)}
+.nt-b{flex:1;min-width:0}
+.nt-b p{margin:8px 0 0;font-size:15px;color:var(--tx)}
+
+/* ---------- wallet ---------- */
+.bal{position:relative;border-radius:16px;margin:12px 16px;border:1px solid var(--line);overflow:hidden;background:linear-gradient(140deg,#E3F1FD 0%,#F2F7FB 55%,#F7F9F9 100%)}
+.bal-in{position:relative;padding:20px}
+.bal-v{font-size:44px;font-weight:800;letter-spacing:-.03em;line-height:1.05;margin:8px 0 4px}
+.bal-acts{display:flex;gap:10px;margin-top:18px}
+.earn{margin:0 16px 16px;padding:16px}
+.earn-r{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);font-size:15px}
+.earn-r:last-of-type{border-bottom:0}
+.earn-r span:first-child{color:var(--tx2)}
+
+/* ---------- leaderboard ---------- */
+.podium{display:grid;grid-template-columns:1fr 1.1fr 1fr;gap:12px;align-items:end;padding:16px}
+.pod{position:relative;border-radius:16px;border:1px solid var(--line);background:#fff;overflow:hidden}
+.pod::before{content:"";position:absolute;left:0;right:0;top:0;height:4px;background:var(--frame)}
+.pod-in{padding:22px 10px 16px;text-align:center}
+.pod-rk{position:absolute;top:12px;left:12px;width:26px;height:26px;border-radius:9999px;display:grid;place-items:center;font-weight:800;font-size:13px;background:var(--bg3)}
+.pod.first .pod-rk{background:var(--tx);color:#fff}
+.pod .av{margin:4px auto 10px}
+.pod .nm{justify-content:center}
+.pod-v{font-size:18px;font-weight:800;margin-top:8px}
+.pod.first .pod-in{padding-top:28px;padding-bottom:22px}
+
+/* ---------- battles ---------- */
+.formula{margin:12px 16px;padding:16px}
+.formula code{display:block;margin-top:10px;font-family:var(--mono);font-size:12.5px;color:var(--tx);background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:9px 12px;overflow-x:auto;white-space:nowrap}
+.bt{margin:0 16px 12px;padding:16px}
+.vs{display:grid;grid-template-columns:minmax(0,1fr) 44px minmax(0,1fr);gap:8px;align-items:stretch;margin:14px 0 12px}
+.side-b{border-radius:16px;padding:14px;background:#fff;border:1px solid var(--line);display:flex;flex-direction:column;gap:12px;min-width:0}
+.side-b.lead{border-color:rgba(0,186,124,.45);background:rgba(0,186,124,.04)}
+.side-b .big{font-size:24px;font-weight:800;letter-spacing:-.02em}
+.vs-mid{display:grid;place-items:center}
+.vs-mid span{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:12px;color:var(--tx2);background:var(--bg3)}
+.backs{display:flex;gap:5px}
+.backs .chip{flex:1;padding:0;font-size:13px}
+
+/* ---------- genesis / launchpad ---------- */
+.stage{perspective:1000px;display:grid;place-items:center;padding:24px 16px 16px;position:relative}
+.glow-orb{position:absolute;inset:10% 25%;border-radius:50%;background:radial-gradient(circle,rgba(29,155,240,.18),transparent 65%);filter:blur(24px);pointer-events:none}
+.pass{position:relative;width:240px;aspect-ratio:5/7;border-radius:20px;background:#0F1419;transform-style:preserve-3d;transition:transform .25s ease-out;box-shadow:0 30px 60px -24px rgba(15,20,25,.45)}
+.pass-in{position:absolute;inset:0;border-radius:20px;overflow:hidden;padding:20px;display:flex;flex-direction:column;color:#fff;background:radial-gradient(90% 60% at 50% 0%,rgba(29,155,240,.4),transparent 60%),radial-gradient(100% 70% at 50% 110%,rgba(120,86,255,.45),transparent 60%),#0F1419}
+.pass-in::after{content:"";position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.12) 46%,transparent 62%);transform:translateX(var(--sh,-40%));pointer-events:none}
+.pass .t2,.pass .t3{color:#8B98A5}
+.pass-no{font-size:46px;font-weight:800;letter-spacing:-.04em;line-height:1;margin-top:auto}
+.pass .vp{height:80px;margin:auto 0 16px}
+.big-h{font-size:28px;line-height:1.15;letter-spacing:-.02em;font-weight:800;margin:0 0 10px}
+.perks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:0 16px 4px}
+.perk{padding:14px 16px}
+.perk b{display:block;margin-bottom:3px}
+.perk span{color:var(--tx2);font-size:14px}
+.split{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:0 16px 6px}
+.split div{padding:12px;text-align:center}
+.split small{display:block;color:var(--tx2);font-size:13px}
+.split b{font-size:16px;font-weight:800}
+.tok{margin:0 16px 16px;padding:18px}
+.tok-top{display:flex;align-items:center;gap:14px}
+.tok-sym{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:18px;background:var(--blue);color:#fff;flex:none}
+
+/* ---------- tasks ---------- */
+.task{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:12px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)}
+.task-ic{width:40px;height:40px;border-radius:50%;background:rgba(29,155,240,.1);display:grid;place-items:center;color:var(--blue)}
+.task-ic svg{width:19px;height:19px}
+.task.done .task-ic{background:rgba(0,186,124,.12);color:var(--aqua)}
+.task.lock{opacity:.45}
+.track{display:flex;gap:4px;margin:14px 0 8px}
+.track i{flex:1;height:8px;border-radius:9999px;background:var(--bg3);overflow:hidden;position:relative}
+.track i b{position:absolute;inset:0;width:var(--w,0%);background:var(--blue);border-radius:9999px}
+
+/* ---------- model ---------- */
+.sl{margin-bottom:16px}
+.sl label{display:flex;justify-content:space-between;font-size:14px;color:var(--tx2);margin-bottom:8px}
+.sl label b{color:var(--tx);font-weight:700}
+input[type=range]{width:100%;accent-color:var(--blue);height:4px}
+.bars{display:flex;flex-direction:column;gap:11px;margin-top:14px}
+.bar{font-size:14px;color:var(--tx2)}
+.bar .trk{height:6px;background:var(--bg3);border-radius:9999px;overflow:hidden;margin-top:5px}
+.bar .trk i{display:block;height:100%;background:var(--blue);border-radius:9999px}
+.code{margin:0 16px 16px;background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:16px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--tx);overflow-x:auto;white-space:pre}
+.code .k{color:#CF222E} .code .c{color:#6E7781} .code .n{color:#0550AE} .code .s{color:#8250DF}
+.params{margin:0 16px 16px}
+.params div{display:flex;justify-content:space-between;gap:16px;padding:12px 16px;border-bottom:1px solid var(--line);font-size:14px}
+.params div:last-child{border-bottom:0}
+.params span:first-child{color:var(--tx2)}
+.params span:last-child{font-family:var(--mono);font-size:12.5px;text-align:right}
+.flow{display:flex;height:40px;border-radius:12px;overflow:hidden;font-size:12.5px;font-weight:700;gap:2px;margin:0 16px 12px}
+.flow div{display:grid;place-items:center;color:#fff;white-space:nowrap;overflow:hidden}
+
+/* ---------- modal / toast / drawer ---------- */
+.ov{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;padding:16px}
+.ov.open{display:flex}
+.modal{width:100%;max-width:440px;max-height:92vh;overflow:auto;border-radius:16px;background:#fff;box-shadow:var(--shadow);animation:pop .2s ease-out}
+@keyframes pop{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
+.m-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px 8px}
+.m-h h3{font-size:20px;font-weight:800}
+.m-b{padding:4px 20px 20px}
+.grab{display:none}
+.xauth{border:1px solid var(--line);border-radius:16px;padding:16px;background:var(--bg2);margin:4px 0 16px}
+.xauth ul{margin:12px 0 0;padding-left:18px;color:var(--tx2);font-size:14px;line-height:1.7}
+.lbl{display:block;font-size:13px;color:var(--tx2);margin:0 0 6px}
+.steps{display:flex;flex-direction:column;gap:13px;margin:18px 0 6px}
+.step{display:flex;align-items:center;gap:11px;color:var(--tx2);font-weight:500}
+.step.on{color:var(--tx);font-weight:700} .step.done{color:var(--aqua)}
+.step .d{width:22px;height:22px;border-radius:50%;border:2px solid currentColor;display:grid;place-items:center;flex:none}
+.step .d svg{width:12px;height:12px}
+.toasts{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:90;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+.toast{background:var(--blue);color:#fff;font-weight:500;padding:12px 16px;border-radius:4px;font-size:15px;box-shadow:var(--shadow);animation:pop .2s ease-out;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.toast svg{width:16px;height:16px;color:#fff}
+.tabbar,.fab,.drawer,.dw-ov{display:none}
+
+/* ---------- responsive ---------- */
+@media (max-width:1280px){
+  .app{grid-template-columns:88px minmax(0,600px) 380px}
+  .sb{align-items:center;padding:2px 8px 12px}
+  .sb .logo{align-self:center}.sb .logo .wm,.sb .nv .nl,.sb .me-t,.sb .me-chip .dots,.sb-post .nl{display:none}
+  .sb .nv{width:52px;padding:0;justify-content:center;align-self:center}
+  .sb .badge{left:28px}
+  .sb-post .btn{width:52px;height:52px;padding:0}
+  .sb .me-chip{padding:6px;align-self:center}
+}
+@media (max-width:1080px){ .app{grid-template-columns:88px minmax(0,600px)} .rail{display:none} }
+@media (max-width:700px){
+  .app{grid-template-columns:minmax(0,1fr)} .sb{display:none} .col{border:0;padding-bottom:120px}
+  .mtop{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 16px;height:53px}
+  .mtop .logo{padding:0;font-size:19px;align-self:center}
+  .tabbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:60;background:rgba(255,255,255,.97);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:0 0 env(safe-area-inset-bottom);justify-content:space-around}
+  .tabbar button{position:relative;display:grid;place-items:center;height:53px;color:var(--tx);flex:1}
+  .tabbar button svg{width:26px;height:26px}
+  .tabbar button.on svg{stroke-width:2.75}
+  .tabbar .tl{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .tabbar .badge-dot{display:block;position:absolute;top:12px;left:calc(50% + 7px);width:9px;height:9px;border-radius:50%;background:var(--blue);border:1.5px solid #fff}
+  .fab{display:grid;place-items:center;position:fixed;right:16px;bottom:calc(70px + env(safe-area-inset-bottom));z-index:61;width:56px;height:56px;border-radius:50%;background:var(--blue);color:#fff;box-shadow:0 6px 16px -4px rgba(29,155,240,.55)}
+  .fab svg{width:24px;height:24px}
+  .drawer{display:flex;flex-direction:column;position:fixed;top:0;bottom:0;left:0;width:290px;max-width:84vw;z-index:85;background:#fff;box-shadow:var(--shadow);padding:12px 12px 20px;transform:translateX(-102%);transition:transform .28s cubic-bezier(.2,.8,.2,1);overflow-y:auto}
+  .drawer.open{transform:none}
+  .dw-ov{display:block;position:fixed;inset:0;z-index:84;background:rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .25s}
+  .dw-ov.open{opacity:1;pointer-events:auto}
+  .drawer .nv{align-self:stretch;font-weight:700}
+  .ov{align-items:flex-end;padding:0}
+  .modal{max-width:none!important;border-radius:16px 16px 0 0;max-height:94vh;animation:sheet .26s cubic-bezier(.2,.8,.2,1);padding-bottom:env(safe-area-inset-bottom)}
+  @keyframes sheet{from{transform:translateY(40px);opacity:.6}to{transform:none;opacity:1}}
+  .grab{display:block;width:36px;height:4px;border-radius:4px;background:var(--line2);margin:8px auto 0}
+  .toasts{bottom:140px}
+  .composer textarea{font-size:18px}
+  .comp-foot{flex-wrap:wrap;row-gap:8px}.comp-foot .row{margin-left:auto}
+  .guest{flex-wrap:wrap}
+  .kchip .k-l,.kchip .k-c{display:none}
+  .pa{min-width:0;padding:0 7px}
+  .post-a{gap:4px}
+  .cards{gap:10px}
+  .hc-in{padding:11px}.cards .hc-foot{grid-template-columns:1fr}.cards .hc-foot div:last-child{display:none}
+  .cards .hc-av .av{width:58px!important;height:58px!important}
+  .kst{grid-template-columns:repeat(2,1fr)}.kst div:nth-child(2){border-right:0}.kst div:nth-child(-n+2){border-bottom:1px solid var(--line)}
+  .price-bar{flex-wrap:wrap}.price-bar .acts{width:100%;margin-left:0}.price-bar .acts .btn{flex:1}
+  .p-banner{height:130px}.p-top{margin-top:-50px}
+  .podium{gap:8px}.pod-v{font-size:15px}.pod .hd{display:none}.pod .nm b{font-size:13px}
+  .vs{grid-template-columns:minmax(0,1fr);gap:6px}.vs-mid{height:20px}.vs-mid span{width:34px;height:34px;font-size:11.5px}
+  .grid3{gap:8px}.grid3 .stat{padding:12px}.grid3 .stat b{font-size:16px}
+  .hm{display:none!important}
+  .bal-v{font-size:38px}
+  .room{height:calc(100vh - 240px)}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sb" id="sb" aria-label="Main navigation"></aside>
+  <div class="col"><div id="ch"></div><main id="main"></main></div>
+  <aside class="rail" id="rail"></aside>
+</div>
+<nav class="tabbar" id="tabbar" aria-label="Sections"></nav>
+<button class="fab" id="fab" data-act="compose" aria-label="New post"></button>
+<div class="dw-ov" id="dwov" data-act="drawer-close"></div>
+<nav class="drawer" id="drawer" aria-label="Menu"></nav>
+<div class="ov" id="ov"><div class="modal" id="modal" role="dialog" aria-modal="true"></div></div>
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+<script>
+/* =========================================================
+   Sway v3 — prototype. Data is mock; curve + scoring math is real.
+   ========================================================= */
+const I = {
+  home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>',
+  search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+  market:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 6-7"/></svg>',
+  bell:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>',
+  chat:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>',
+  tasks:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v2h6V3M9 11h6M9 15h4"/></svg>',
+  wallet:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="3"/><path d="M3 10h18M16 15h2"/></svg>',
+  trophy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg>',
+  swords:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="m13 19 6-6M16 16l4 4M19 21l2-2"/><path d="M14.5 6.5 18 3h3v3l-3.5 3.5"/><path d="m5 14 4 4M7 17l-3 3M3 19l2 2"/></svg>',
+  gem:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20M12 21 8 9l4-6 4 6z"/></svg>',
+  bolt:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
+  rocket:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 15c-1.5 1.3-2 5-2 5s3.7-.5 5-2c.7-.8.7-2.1-.1-2.9-.8-.8-2.1-.8-2.9-.1z"/><path d="m12 15-3-3a22 22 0 0 1 2-4A13 13 0 0 1 22 2c0 2.7-.8 7.5-6 11a22 22 0 0 1-4 2z"/></svg>',
+  code:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></svg>',
+  user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
+  feather:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.2 12.2A6 6 0 0 0 11.8 3.8L5 10.6V19h8.4z"/><path d="M16 8 2 22M17.5 15H9"/></svg>',
+  x:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>',
+  heart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21.2l8.8-8.8a5.5 5.5 0 0 0 0-7.8z"/></svg>',
+  heartF:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21.2l8.8-8.8a5.5 5.5 0 0 0 0-7.8z"/></svg>',
+  repeat:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>',
+  reply:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>',
+  lock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+  key:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.3-9.3M17 6l3 3M14 9l2 2"/></svg>',
+  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  minus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg>',
+  close:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg>',
+  chev:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
+  arrowL:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>',
+  copy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
+  users:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M16 3.1a4 4 0 0 1 0 7.8M22 21a7 7 0 0 0-4-6.3"/></svg>',
+  send:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg>',
+  image:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg>',
+  smile:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg>',
+  pin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l-1 6 4 4H6l4-4z"/></svg>',
+  dots:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+  menu:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>',
+  verified:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1.8 14.6 4l3.4-.3.8 3.3 3 1.7-1.3 3.2 1.3 3.2-3 1.7-.8 3.3-3.4-.3L12 22.2 9.4 20l-3.4.3-.8-3.3-3-1.7L3.5 12 2.2 8.8l3-1.7.8-3.3 3.4.3z"/><path d="m8 12 3 3 5-6" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  telegram:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 4-18 7 6 2 2 6 3-4 5 4z"/><path d="m9 13 8-6"/></svg>',
+  flame:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a7 7 0 0 0 7-7c0-4-3-6-4-10-2 2-3 4-3 6-1-1-2-2-2-4-2 2-5 5-5 8a7 7 0 0 0 7 7z"/></svg>',
+  share:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v13"/></svg>',
+  down:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>',
+  upA:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
+  github:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5A11.5 11.5 0 0 0 8.4 22.9c.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.2 1.2a11 11 0 0 1 5.8 0C17.3 4.9 18.3 5.2 18.3 5.2c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.2c0 .3.2.7.8.6A11.5 11.5 0 0 0 12 .5z"/></svg>'
+};
+const ic = (n,s) => s ? I[n].replace('<svg',`<svg width="${s}" height="${s}"`) : I[n];
+
+/* ---------- utils ---------- */
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => [...r.querySelectorAll(s)];
+function hash(str){let h=2166136261;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function rng(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+const esc = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ETH_USD = 3420;
+const F = {
+  eth(v){ if(!v) return '0'; const a=Math.abs(v); return a>=10? v.toFixed(2) : a>=1? v.toFixed(3) : a>=0.01? v.toFixed(4) : a>=0.0001? v.toFixed(5) : v.toFixed(7); },
+  $(eth){ const v=eth*ETH_USD, a=Math.abs(v); if(a===0) return '$0'; if(a>=1e6) return '$'+(v/1e6).toFixed(2)+'M'; if(a>=1e4) return '$'+(v/1e3).toFixed(1)+'K'; if(a>=1000) return '$'+Math.round(v).toLocaleString('en-US'); if(a>=0.01) return '$'+v.toFixed(2); return '$'+v.toFixed(3); },
+  n(v){ v=+v; const a=Math.abs(v); if(a>=1e6) return (v/1e6).toFixed(a>=1e7?0:1).replace(/\.0$/,'')+'M'; if(a>=1e3) return (v/1e3).toFixed(a>=1e4?0:1).replace(/\.0$/,'')+'K'; return String(Math.round(v)); },
+  usd(v){ return '$'+(v>=1e6?(v/1e6).toFixed(2)+'M':v>=1e3?(v/1e3).toFixed(1)+'K':Math.round(v)); },
+  int(v){ return Math.round(v).toLocaleString('en-US'); },
+  pct(v){ return (v>=0?'+':'')+v.toFixed(1)+'%'; },
+  keys(v){ return (Math.round(v*100)/100).toString(); },
+  ago(m){ if(m<1) return 'now'; if(m<60) return Math.round(m)+'m'; if(m<1440) return Math.round(m/60)+'h'; return Math.round(m/1440)+'d'; }
+};
+const minsAgo = t => (Date.now()-t)/60000;
+const hueOf = h => (hash(h) % 110) + 210;
+const AV_BG = ['c0aede','b6e3f4','d1d4f9','ffd5dc','c7f0e4','e7dcff'];
+const LOGO = (s=20)=>`<svg width="${s}" height="${s}" viewBox="0 0 20 20" aria-hidden="true"><g fill="currentColor"><rect x="1" y="7" width="2.6" height="6" rx="1.3"/><rect x="5.2" y="3" width="2.6" height="14" rx="1.3"/><rect x="9.4" y="5.5" width="2.6" height="9" rx="1.3"/><rect x="13.6" y="1" width="2.6" height="18" rx="1.3"/><rect x="17" y="8" width="2.4" height="4" rx="1.2"/></g></svg>`;
+function avatar(c, size=40){
+  if(c.official) return `<span class="av official" style="width:${size}px;height:${size}px">${LOGO(Math.round(size*.5))}</span>`;
+  const ini = (c.name||c.handle).replace(/[^A-Za-z0-9 ]/g,'').split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase() || (c.handle||'?')[0].toUpperCase();
+  const style = c.claimed===false ? 'shapes' : 'notionists';
+  const url = `https://api.dicebear.com/9.x/${style}/svg?seed=${encodeURIComponent(c.handle)}&backgroundColor=${AV_BG[hash(c.handle)%AV_BG.length]}`;
+  return `<span class="av" style="width:${size}px;height:${size}px;--avh:${hueOf(c.handle)}"><span class="av-ini" style="font-size:${Math.round(size*.36)}px">${esc(ini)}</span><img src="${url}" alt="" loading="lazy" decoding="async" onerror="this.remove()"></span>`;
+}
+const vb = (v, off) => v ? `<span class="vb ${off?'off':''}" title="${off?'Official Sway account':'Verified on X'}">${I.verified}</span>` : '';
+function voiceprint(seed, score=60, bars=56, id){
+  const r = rng(hash(seed)); const gid = 'g'+String(id||hash(seed+bars).toString(36));
+  let out = ''; const w = 100/bars;
+  for(let i=0;i<bars;i++){
+    const x = i/(bars-1); const env = Math.pow(Math.sin(Math.PI*x),.8)*.78 + .22;
+    const h = Math.max(7, env*(.35+r()*.65)*(34+score*.66));
+    out += `<rect x="${(i*w+w*.22).toFixed(2)}" y="${(50-h/2).toFixed(2)}" width="${(w*.56).toFixed(2)}" height="${h.toFixed(2)}" rx="${(w*.28).toFixed(2)}" style="animation-delay:${(-(r()*2.4)).toFixed(2)}s"/>`;
+  }
+  return `<svg class="vp" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="${gid}" x1="0" x2="1"><stop offset="0" stop-color="#1D9BF0"/><stop offset=".5" stop-color="#7856FF"/><stop offset="1" stop-color="#1D9BF0"/></linearGradient></defs><g fill="url(#${gid})">${out}</g></svg>`;
+}
+let SPK = 0;
+function spark(arr, up){
+  const min=Math.min(...arr), max=Math.max(...arr), rg=(max-min)||1;
+  const d = arr.map((v,i)=>(i?'L':'M')+((i/(arr.length-1))*100).toFixed(1)+' '+(90-((v-min)/rg)*80).toFixed(1)).join(' ');
+  const col = up? '#00BA7C':'#F4212E'; const id='sp'+(SPK++);
+  return `<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:100%;display:block" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".28"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs><path d="${d} L100 100 L0 100Z" fill="url(#${id})"/><path d="${d}" fill="none" stroke="${col}" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+}
+
+/* ---------- open model ---------- */
+function scoreModel({followers, er, ppw, age, verified}){
+  const reach = Math.min(1, Math.log10(followers+1)/Math.log10(5e7));
+  const eng = 1 - Math.exp(-er*40);
+  const cons = Math.min(1, ppw/21);
+  const auth = .6*Math.min(1, age/6) + .4*(verified?1:0);
+  const raw = .35*reach + .35*eng + .10*cons + .20*auth;
+  return {score:Math.max(1,Math.round(raw*100)), value:.42*followers*Math.pow(raw,1.6)*(.6+eng), raw, parts:{reach,eng,cons,auth}};
+}
+
+/* ---------- curve ---------- */
+const CURVE = { K:0.0000175, O:2, MIN:0.01, CREATOR:.06, PROTOCOL:.02, HOLDERS:.01, REF:.01, SNIPE_MAX:10 };
+const FEE_TOTAL = CURVE.CREATOR+CURVE.PROTOCOL+CURVE.HOLDERS+CURVE.REF;
+const priceAt = s => CURVE.K*Math.pow(s+CURVE.O,2);
+const area = (a,b) => CURVE.K/3*(Math.pow(b+CURVE.O,3)-Math.pow(a+CURVE.O,3));
+function quote(c, side, amt){
+  amt = Math.max(0, +amt||0); const pf = CURVE.PROTOCOL*(1-S.levelCut);
+  const feeRate = CURVE.CREATOR+CURVE.HOLDERS+CURVE.REF+pf;
+  const base = side==='buy' ? area(c.supply, c.supply+amt) : area(c.supply-amt, c.supply);
+  return {base, creator:base*CURVE.CREATOR, protocol:base*pf, holders:base*CURVE.HOLDERS, ref:base*CURVE.REF,
+    total: side==='buy' ? base*(1+feeRate) : base*(1-feeRate), after: priceAt(side==='buy'? c.supply+amt : c.supply-amt)};
+}
+
+/* ---------- tiers ---------- */
+const TIERS = [
+  {name:'Murmur', min:0, frame:'#AAB8C2'},
+  {name:'Voice', min:50000, frame:'#7856FF'},
+  {name:'Echo', min:100000, frame:'#1D9BF0'},
+  {name:'Chorus', min:500000, frame:'#F91880'},
+  {name:'Anthem', min:2000000, frame:'linear-gradient(90deg,#1D9BF0,#7856FF,#F91880)'}
+];
+const tierOf = p => { let t=TIERS[0]; for(const x of TIERS) if(p>=x.min) t=x; return t; };
+const frameOfScore = s => s>=75? TIERS[4].frame : s>=66? TIERS[3].frame : s>=58? TIERS[2].frame : s>=48? TIERS[1].frame : TIERS[0].frame;
+
+/* ---------- seed data ---------- */
+const OFFICIAL = {name:'Sway', handle:'swaydotfam', official:true, verified:true};
+const CREATORS_SEED = [
+  ['Nova Reyes','novareyes',412000,'Onchain sleuth. I trace the wallets so you don’t have to. Holders get the addresses first.',1],
+  ['Atlas Research','atlas_rsch',621000,'Independent research desk. Long-form, cited, no shills.',1],
+  ['Mako','makotrades',254000,'Perps, memes, and the occasional humbling. Battle record 14–3.',1],
+  ['Kenji Arata','kenjionchain',186000,'Buying small builders early. Robinhood Chain maxi.',1],
+  ['Bram Okafor','bramokafor',305000,'Position sizing over picking. Frameworks in my room.',1],
+  ['Iris Chain','irischain',212000,'Markets, culture, and the people moving both.',1],
+  ['Vex Capital','vexcapital',149000,'Macro notes weekly for subscribers. Hedged into everything.',1],
+  ['Rafi Kova','rafikova',132000,'Growth for crypto founders. Replies are the whole game.',1],
+  ['Ledger Lena','ledgerlena',97000,'Security reminders nobody asked for. You’re welcome.',1],
+  ['Selene','selenedefi',88000,'DeFi yields, explained without the cope.',0],
+  ['Priya Sol','priyasol',73000,'Building dashboards on the Sway indexer. Open-source everything.',1],
+  ['Mira Lune','miralune',66000,'Art, memes, and tipping small accounts.',0],
+  ['Juno Park','junopark',57000,'Daily streaker. 31 days and counting.',0],
+  ['0xHalcyon','0xhalcyon',41000,'Grinding the Genesis board. Ask me about 1/√r.',0],
+  ['Duna','dunabuilds',28000,'Shipping a wallet in public. Week 9.',0],
+  ['Tomas Weld','tomasweld',19000,'Explainers for people who skip the docs.',0]
+];
+const FAN_SEED = {
+  crypto:[['Orbit Labs','orbitlabs',1200000],['Halo Exchange','haloexchange',2400000],['Cinder Network','cindernet',920000],['Kestrel Wallet','kestrelwallet',640000],['Quanta DAO','quantadao',310000],['Driftwood Finance','driftwoodfi',180000]],
+  football:[['Real Calder','realcalder',12100000],['FC Meridian','fcmeridian',8400000],['Teo Varga','teovarga10',5600000],['Luca Brennan','lucabrennan9',3100000],['Sporting Aurel','sportingaurel',2200000]],
+  stocks:[['Northwind Motors','northwindmtr',4800000],['Apex Silicon','apexsilicon',2900000],['Corvid Bank','corvidbank',1100000],['Lumen Air','lumenair',760000]],
+  rwa:[['Solace Treasury','solacetsy',410000],['Helix Gold Vault','helixvault',220000],['Terra Estates','terraestates',140000],['Brightwater Credit','brightwatercr',95000]]
+};
+function mkCreator(name, handle, followers, bio, verified, extra={}){
+  const r = rng(hash(handle));
+  const sm = scoreModel({followers, er:.006+r()*.045, ppw:4+r()*22, age:1+r()*11, verified:!!verified});
+  const supply = +(1 + r()*48*Math.pow(Math.log10(followers)/7,2.2) + r()*4).toFixed(2);
+  const hist = []; let p = priceAt(Math.max(1, supply*(.55+r()*.35)));
+  for(let i=0;i<40;i++){ p = p*(1+(r()-.44)*.09); hist.push(p); }
+  const now = priceAt(supply), sc = now/hist[hist.length-1]; for(let i=0;i<hist.length;i++) hist[i]*=sc;
+  return { name, handle, followers, bio, verified:!!verified, score:sm.score, value:sm.value, supply,
+    holders:Math.max(1,Math.round(supply*(.45+r()*.5))), volume:area(1,supply)*(1.4+r()*4.5), hist, change:(now/hist[hist.length-25]-1)*100,
+    claimed:true, joined:2+Math.floor(r()*40), memberNo:100+Math.floor(r()*19000), ...extra };
+}
+function mkFan(cat, name, handle, followers){
+  const c = mkCreator(name, handle, followers, '', true, {claimed:false, cat});
+  c.supply = +(1 + rng(hash(handle+'f'))()*9).toFixed(2); c.holders = Math.max(0, Math.round(c.supply*.6));
+  const sc = priceAt(c.supply)/c.hist[c.hist.length-1]; c.hist = c.hist.map(v=>v*sc);
+  c.volume = area(1,c.supply)*(2+rng(hash(handle+'v'))()*6);
+  c.escrow = c.volume*CURVE.CREATOR/(1+FEE_TOTAL);
+  c.bio = 'Fan market. This account has not joined Sway and does not run, endorse or profit from this market. The creator fee is held in escrow until the owner signs in with X.';
+  return c;
+}
+const S = {
+  user:null, eth:0.75, holdings:{}, following:new Set(), subs:new Set(), view:'home', arg:null, feedTab:'foryou',
+  exploreSort:'trending', exploreQ:'', exploreTab:'creators', mkTab:'creators', lbTab:'points', profTab:'posts', ntTab:'all',
+  trade:{side:'buy', amt:1}, showFees:false, levelCut:0, level:0, staked:0, likes:new Set(), reposts:new Set(),
+  tasks:{}, refs:0, battlePts:0, keyVolume:0, earned:{creator:0, holder:0, ref:0}, claimed:0, rooms:{}, backed:{}, myBattles:[], myTrades:[], activity:[],
+  notifs:[], threads:[], dm:null, slide:0, launch:false, model:{followers:41000, er:.022, ppw:10, age:3, verified:true}
+};
+const C = {};
+CREATORS_SEED.forEach(a=>{ const c=mkCreator(...a); C[c.handle]=c; });
+Object.entries(FAN_SEED).forEach(([cat,arr])=>arr.forEach(a=>{ const c=mkFan(cat,...a); C[c.handle]=c; }));
+const creators = () => Object.values(C).filter(c=>c.claimed && !c.isMe);
+const fans = () => Object.values(C).filter(c=>!c.claimed);
+const who = h => h===OFFICIAL.handle ? OFFICIAL : (C[h] || LBH[h] || {handle:h, name:h});
+
+let PID = 100;
+const PINNED = {id:99, author:'swaydotfam', t:19*60, vis:'public', likes:2840, rp:611, rep:402, text:
+`Shipped today on Sway:
+
+Live trades on Home, every key buy and sell as it happens
+Browse without signing in, connect X when you’re ready
+Markets in one place: Creators, Crypto, Football, Stocks and RWA
+A faster trade sheet for keys, priced in dollars
+Wallet in dollars, with every earning in one card to claim
+Launchpad: turn your reach into a token with one switch
+
+The scoring model is public. Read it on sway.fam/model`};
+const POSTS = [
+  ['novareyes','Holders room tonight: the 3 wallets that front-ran every Robinhood Chain listing this month. Charts and addresses inside.',38,'holders',412,61,88,true],
+  ['atlas_rsch','Open model update: replies now weigh 3x likes, and reach stays on a log curve so 50M followers can’t buy the board.\n\nThe formula is public. Fork it, break it, send a PR. #OpenModel',55,'public',1840,402,233,false],
+  ['makotrades','Battle accepted vs @vexcapital. Theme: one chart that explains this cycle. 24h window.\n\nBack me if you think 254K can out-engage 149K #SwayBattle',12,'public',933,140,301,false],
+  ['kenjionchain','Bought my first 2 keys of @dunabuilds at supply 4. Small builders with real replies are where the curve is cheapest.',95,'public',266,31,40,false],
+  ['ledgerlena','Daily reminder: keys are access, not equity. Buy rooms you would actually sit in.',140,'public',1205,288,74,false],
+  ['bramokafor','Draft for holders: how I size memecoin entries by liquidity depth instead of market cap. Worksheet attached.',210,'holders',540,77,92,false],
+  ['selenedefi','Staked up to Tempo. Protocol fee on my trades dropped 50% and posts can run 2,000 characters now. Worth it if you trade daily.',260,'public',178,22,35,false],
+  ['irischain','Fan market for @orbitlabs passed $1,400 in volume and they haven’t even joined. Fees sit in escrow until they claim. #FanMarkets',320,'public',689,120,97,false],
+  ['junopark','gm. 31 day streak on daily tasks. Echo tier unlocked. #SwayDaily',400,'public',301,18,64,false],
+  ['vexcapital','Weekly macro note is up for subscribers. Rates, ETH/BTC, and why I’m hedged into the snapshot.',460,'subs',210,12,19,false],
+  ['0xhalcyon','Genesis snapshot soon. Weighting is 1/√rank, so #50 still gets about 14% of what #1 gets. Grinding. #Genesis',530,'public',455,70,58,false],
+  ['priyasol','Built a small dashboard that reads key trades straight from the indexer. Open-sourcing it this weekend.',610,'public',390,66,47,false],
+  ['rafikova','If your score is low it’s usually reply rate. People talk at their followers, not with them.',720,'public',1502,377,129,false],
+  ['miralune','Tipped @tomasweld $20 for the clearest explainer of the curve I’ve read. Small accounts doing the real work.',860,'public',244,29,21,false]
+].map(([a,text,t,vis,likes,rp,rep,boost])=>({id:PID++, author:a, text, t, vis, likes, rp, rep, boost}));
+
+const SYL = ['ka','zu','mi','ro','ven','tal','sha','lo','qi','dar','nex','po','ri','sol','fen','yu','ark','bel','cy','dro'];
+const LB = (()=>{ const r=rng(777); const out=[]; const pool=creators();
+  for(let i=0;i<60;i++){
+    let h, n; if(i%5===2){ const c=pool[(i*3)%pool.length]; h=c.handle; n=c.name; }
+    else { h = SYL[Math.floor(r()*20)]+SYL[Math.floor(r()*20)]+(r()>.5?Math.floor(r()*99):'')+(r()>.6?'.eth':''); n = h.replace('.eth',''); n=n[0].toUpperCase()+n.slice(1); }
+    out.push({handle:h, name:n, pts:Math.round(3400000*Math.pow(i+1,-.62)*(.92+r()*.16)), won:Math.round(r()*42000), fees:r()*.9, staked:Math.round(900000*Math.pow(i+1,-.8))});
+  }
+  const seen=new Set(); return out.filter(x=>!seen.has(x.handle)&&seen.add(x.handle)).sort((a,b)=>b.pts-a.pts);
+})();
+const LBH = Object.fromEntries(LB.map(x=>[x.handle,x]));
+const NOW = Date.now();
+const BATTLES = [
+  {id:1, a:'makotrades', b:'vexcapital', theme:'One chart that explains this cycle', tag:'#SwayBattle', stake:12000, ends:NOW+36e5*14.2, erA:.031, erB:.026, poolA:48200, poolB:31700},
+  {id:2, a:'kenjionchain', b:'irischain', theme:'The most underrated chain of 2026', tag:'#SwayBattle', stake:5000, ends:NOW+36e5*6.7, erA:.019, erB:.024, poolA:12900, poolB:20400},
+  {id:3, a:'junopark', b:'dunabuilds', theme:'Explain keys to your mom in one post', tag:'#SwayBattle', stake:0, ends:NOW+36e5*20.1, erA:.044, erB:.051, poolA:2300, poolB:3900}
+];
+const SNAPSHOT = new Date('2026-10-27T15:00:00Z').getTime();
+
+/* live trades */
+const TRADES = [];
+function randTrade(r, at){
+  const cs = Object.values(C).filter(c=>!c.isMe); const c = cs[Math.floor(r()*cs.length)], b = LB[Math.floor(r()*LB.length)];
+  const k = +(r()<.55 ? 1 : (.1+r()*2.4)).toFixed(2), buy = r()>.28;
+  return {buyer:b.handle, c:c.handle, buy, k, eth: buy? area(c.supply, c.supply+k) : area(Math.max(1,c.supply-k), c.supply), t:at};
+}
+(()=>{ const r=rng(4242); for(let i=0;i<24;i++) TRADES.push(randTrade(r, NOW - (i*3.4+Math.random()*2)*60000)); })();
+
+/* ---------- user ---------- */
+function makeUser(handle, followers){
+  handle = handle.replace(/^@/,'').trim().toLowerCase().replace(/[^a-z0-9_]/g,'') || 'you';
+  const r = rng(hash(handle+'u'));
+  followers = followers || Math.round(Math.pow(10, 2.6 + r()*3.2));
+  const inputs = {followers, er:.008+r()*.04, ppw:3+r()*18, age:1+r()*9, verified:r()>.35};
+  const sm = scoreModel(inputs);
+  const wallet = '0x'+[...Array(40)].map((_,i)=>'0123456789abcdef'[hash(handle+i)%16]).join('');
+  return { handle, name:handle[0].toUpperCase()+handle.slice(1), followers, inputs, verified:inputs.verified, score:sm.score, value:sm.value, wallet, memberNo:19800+Math.floor(r()*900) };
+}
+function holdValue(){ let v=0; for(const [h,k] of Object.entries(S.holdings)){ const c=C[h]; if(c && !c.isMe && k>0) v+=area(c.supply-k, c.supply)*(1-FEE_TOTAL); } return v; }
+function keysHeld(){ let n=0, m=0; for(const [h,k] of Object.entries(S.holdings)){ if(k>0 && !C[h]?.isMe){ n+=k; m++; } } return {n, m}; }
+const claimable = () => S.earned.creator + S.earned.holder + S.earned.ref;
+function userPoints(){
+  if(!S.user) return 0;
+  let p = Math.min(10000, S.user.score*100);
+  Object.values(S.tasks).forEach(t=>{ if(t.done) p+=t.pts; });
+  p += S.refs*500 + S.battlePts + holdValue()*400000 + S.keyVolume*100000;
+  return Math.max(0, Math.round(p));
+}
+const ptsAtRank = r => 3.4e6*Math.pow(r,-.62);
+function myRank(){ const p=userPoints(); let r=1; for(const x of LB) if(x.pts>p) r++;
+  if(r>LB.length) r = Math.min(19800, Math.max(LB.length+1, Math.round(Math.pow(3.4e6/Math.max(p,1),1/.62)))); return r; }
+const unread = () => S.notifs.filter(n=>!n.read).length;
+const unreadDm = () => S.threads.filter(t=>t.unread).length;
+
+/* ---------- toast / modal ---------- */
+function toast(msg){ const t=document.createElement('div'); t.className='toast'; t.innerHTML=I.check+esc(msg); $('#toasts').appendChild(t); setTimeout(()=>t.remove(),2600); }
+function openModal(html){ $('#modal').innerHTML='<div class="grab"></div>'+html; $('#ov').classList.add('open'); }
+function closeModal(){ $('#ov').classList.remove('open'); $('#modal').innerHTML=''; }
+const modalOpen = () => $('#ov').classList.contains('open');
+$('#ov').addEventListener('click',e=>{ if(e.target.id==='ov') closeModal(); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(modalOpen()) closeModal(); drawer(false); closeSearch(); } });
+
+/* ---------- sidebar / drawer / tabbar ---------- */
+const NAV = [['home','Home','home'],['explore','Explore','search'],['markets','Markets','market'],['notifications','Notifications','bell'],['messages','Messages','chat'],['tasks','Tasks','tasks'],['wallet','Wallet','wallet'],
+  'sep',['leaderboard','Leaderboard','trophy'],['battles','Battles','swords'],['launchpad','Launchpad','rocket'],['genesis','Genesis pass','gem'],['model','Open model','code']];
+const navKey = () => S.view==='profile' ? (S.arg===S.user?.handle ? 'me' : '') : S.view;
+function navItems(){
+  const v = navKey();
+  return NAV.map(n=>{ if(n==='sep') return '<div class="nv-sep"></div>'; const [k,l,i]=n;
+    const b = k==='notifications'?unread():k==='messages'?unreadDm():0;
+    return `<a class="nv ${v===k?'on':''}" data-act="go" data-v="${k}" title="${l}">${I[i]}<span class="nl">${l}</span>${b?`<span class="badge">${b}</span>`:''}</a>`; }).join('') +
+    (S.user?`<a class="nv ${v==='me'?'on':''}" data-act="profile" data-h="${S.user.handle}" title="Profile">${I.user}<span class="nl">Profile</span></a>`:'');
+}
+function meChip(){
+  return S.user ? `<a class="me-chip" data-act="profile" data-h="${S.user.handle}">${avatar(S.user,42)}<div class="me-t" style="min-width:0;flex:1"><div class="nm"><b>${esc(S.user.name)}</b>${vb(S.user.verified)}</div><div class="hd">@${esc(S.user.handle)}</div></div><span class="dots">···</span></a>`
+    : `<button class="btn btn-glass btn-block" data-act="connect" style="height:48px;border-radius:14px">${I.x}<span class="nl me-t">Connect X</span></button>`;
+}
+function renderSB(){
+  $('#sb').innerHTML = `<a class="logo" data-act="go" data-v="home" aria-label="Sway home"><span class="logo-mk">${LOGO(20)}</span><span class="wm">Sway</span></a>
+    <nav class="sb-nav">${navItems()}</nav>
+    <div class="sb-post"><button class="btn btn-white btn-lg btn-block" data-act="compose" aria-label="Post">${I.feather}<span class="nl">Post</span></button></div>
+    ${meChip()}`;
+  $('#drawer').innerHTML = `<div class="between" style="margin-bottom:10px"><a class="logo" data-act="go" data-v="home" style="padding:4px 8px"><span class="logo-mk">${LOGO(20)}</span><span>Sway</span></a><button class="x-btn" data-act="drawer-close" aria-label="Close menu">${I.close}</button></div>
+    ${S.user?`<div style="padding:4px 6px 14px">${meChip()}</div>`:`<div style="padding:4px 6px 14px">${meChip()}</div>`}
+    <div style="display:flex;flex-direction:column;gap:2px">${navItems()}</div>`;
+  const v = navKey();
+  const tb = [['home','Home','home'],['explore','Explore','search'],['markets','Markets','market'],['notifications','Alerts','bell'],['wallet','Wallet','wallet']];
+  $('#tabbar').innerHTML = tb.map(([k,l,i])=>`<button class="${v===k?'on':''}" data-act="go" data-v="${k}" aria-label="${l}">${I[i]}<span class="tl">${l}</span>${k==='notifications'&&unread()?'<span class="badge-dot"></span>':''}</button>`).join('');
+  $('#fab').innerHTML = I.feather;
+}
+function drawer(open){ $('#drawer').classList.toggle('open',open); $('#dwov').classList.toggle('open',open); }
+function mtop(){
+  return `<div class="mtop"><button data-act="drawer" aria-label="Open menu">${S.user?avatar(S.user,34):`<span class="icon-btn">${I.menu}</span>`}</button>
+    <a class="logo" data-act="go" data-v="home"><span class="logo-mk">${LOGO(18)}</span>Sway</a>
+    ${S.user?`<button class="tag line" style="height:32px;padding:0 10px;font-size:13px" data-act="go" data-v="wallet">${F.$(S.eth)}</button>`:`<button class="btn btn-white btn-sm" data-act="connect">${ic('x',14)}Connect</button>`}</div>`;
+}
+
+/* ---------- center header ---------- */
+let chKey = '';
+function tickerHtml(){
+  return TRADES.slice(0,20).map(t=>{ const b=who(t.buyer), c=who(t.c); return `<span class="tk" data-act="profile" data-h="${c.handle}">${avatar(b,20)}<b>${esc(b.name)}</b><span class="${t.buy?'vb-b':'vb-s'}">${t.buy?'bought':'sold'}</span>${F.keys(t.k)} key${t.k===1?'':'s'} of <b>${esc(c.name)}</b>${F.$(t.eth)}</span>`; }).join('');
+}
+function renderCH(force){
+  const v=S.view, key = v+'|'+(S.arg||'')+'|'+(S.user?.handle||'')+'|'+(v==='messages'?S.dm:'');
+  if(!force && key===chKey){ $$('#ch [data-act=ftab]').forEach(b=>b.classList.toggle('on', b.dataset.t===S.feedTab)); return; }
+  chKey = key;
+  const titles = {explore:['Explore','Creators, tags and keys'],markets:['Markets','Every key market in one place'],notifications:['Notifications',''],messages:['Messages','Key rooms and direct messages'],tasks:['Tasks','Points become your share of the airdrop'],wallet:['Wallet','Balances shown in dollars'],leaderboard:['Leaderboard',''],battles:['Battles','Engagement decides'],launchpad:['Launchpad','Your reach, as a token'],genesis:['Genesis pass','500 soulbound passes'],model:['Open model','Public scoring and contracts']};
+  let html = mtop();
+  if(v==='home'){
+    html += `<div class="tabs" role="tablist">${[['foryou','For You'],['trending','Trending'],['following','Following'],['latest','Latest']].map(([k,l])=>`<button class="tab ${S.feedTab===k?'on':''}" role="tab" data-act="ftab" data-t="${k}">${l}</button>`).join('')}</div>
+      <div class="ticker" aria-label="Live key trades"><div class="tk-track">${tickerHtml()}${tickerHtml()}</div></div>`;
+  } else if(v==='profile'){
+    const c=C[S.arg]; html += `<div class="ch-row"><button class="x-btn" data-act="back" aria-label="Back">${I.arrowL}</button><div style="min-width:0"><h1 class="nm"><b>${esc(c?.name||'')}</b></h1><div class="sub">${c?F.$(priceAt(c.supply))+' per key':''}</div></div></div>`;
+  } else if(v==='messages' && S.dm){
+    const t=S.threads.find(x=>x.id===S.dm)||{}; const w=who(t.with||t.room||'');
+    html += `<div class="ch-row"><button class="x-btn" data-act="dmback" aria-label="Back to messages">${I.arrowL}</button>${avatar(w,34)}<div style="min-width:0"><h1 class="nm" style="font-size:17px"><b>${t.room?esc(w.name)+'’s room':esc(w.name)}</b>${vb(w.verified, w.official)}</h1><div class="sub">${t.room?`${C[t.room]?.holders||0} holders`:'@'+esc(w.handle)}</div></div></div>`;
+  } else {
+    const [t,s] = titles[v]||['',''];
+    html += `<div class="ch-row"><div><h1>${t}</h1>${s?`<div class="sub">${s}</div>`:''}</div>${v==='notifications'&&S.user&&unread()?`<button class="btn btn-glass btn-sm" style="margin-left:auto" data-act="readall">Mark all read</button>`:''}${v==='battles'?`<button class="btn btn-white btn-sm" style="margin-left:auto" data-act="challenge">${I.plus}New challenge</button>`:''}${v==='model'?`<button class="btn btn-glass btn-sm" style="margin-left:auto" data-act="repo">${I.github}MIT</button>`:''}</div>`;
+  }
+  $('#ch').innerHTML = html;
+}
+
+/* ---------- rail ---------- */
+function launchCard(){
+  if(S.slide===1) return `<div class="lc"><div class="lc-in"><div class="lc-k"><span class="dot"></span>Genesis snapshot</div>
+      <p class="lc-p" style="margin:12px 0 14px;max-width:none">Top 500 by points get a soulbound pass and a share of 5% of supply.</p><div class="cd" data-cdbox="${SNAPSHOT}"></div>
+      <a class="lnk" data-act="go" data-v="genesis" style="display:inline-block;margin-top:12px;position:relative">See the list</a></div></div>`;
+  const val = S.user ? F.usd(S.user.value) : '$?';
+  return `<div class="lc"><div class="lc-in"><div class="lc-k">${ic('rocket',15)}Sway launchpad</div>
+    <div class="lc-k" style="margin-top:14px;color:var(--tx3);font-weight:600">${S.user?'Your reach value':'What is your reach worth?'}</div>
+    <div class="lc-v">${val}</div><p class="lc-p">${S.user?'Launch it as a token with one switch.':'Connect X to see your number, then launch it as a token.'}</p>
+    <button class="switch ${S.launch?'on':''}" data-act="${S.user?'launchtoggle':'connect'}" role="switch" aria-checked="${S.launch}" aria-label="Launch your reach as a token"><i></i></button><span class="switch-l">${S.launch?'ON':'OFF'}</span>
+    <div class="lc-vp">${voiceprint(S.user?S.user.handle:'lcard', S.user?S.user.score:70, 22, 'lcv')}</div></div></div>`;
+}
+function ltItem(t, isNew){
+  const b=who(t.buyer), c=who(t.c);
+  return `<div class="lt ${isNew?'new':''}" data-act="profile" data-h="${c.handle}">${avatar(c,44)}<div style="min-width:0;flex:1"><div class="nm"><b style="font-size:15.5px">${esc(c.name)}</b>${vb(c.verified)}</div><div class="sub"><span class="${t.buy?'vb-b':'vb-s'}">${t.buy?'Bought':'Sold'}</span> by ${esc(b.name)} &nbsp;${F.ago(minsAgo(t.t))}</div></div><span class="pr">${F.$(t.eth)}</span></div>`;
+}
+function renderRail(){
+  const b=BATTLES[0], A=C[b.a], B=C[b.b], tot=b.erA+b.erB;
+  $('#rail').innerHTML = `
+    <div class="search"><label class="sr" for="rs">Search members or tags</label>${I.search}<input class="field" id="rs" placeholder="Search members or #tags" autocomplete="off"><div id="sres"></div></div>
+    <div><div id="lcard">${launchCard()}</div><div class="lc-dots">${[0,1].map(i=>`<button class="${S.slide===i?'on':''}" data-act="slide" data-i="${i}" aria-label="Slide ${i+1}"></button>`).join('')}</div></div>
+    <div class="glass wd"><div class="wd-h"><h3>Live trades</h3><span class="row t3" style="font-size:12.5px;font-weight:600;gap:7px"><span class="dot"></span>Live</span></div><div id="ltList">${TRADES.slice(0,6).map(t=>ltItem(t)).join('')}</div></div>
+    <div class="glass wd"><div class="wd-h"><h3>Live battle</h3><span class="tag pink"><span data-cd="${b.ends}"></span></span></div>
+      <div class="t2" style="font-size:13.5px;margin:4px 0 8px">${esc(b.theme)}</div>
+      ${[[A,b.erA,b.erA>=b.erB],[B,b.erB,b.erB>b.erA]].map(([c,er,l])=>`<div class="mini" data-act="profile" data-h="${c.handle}">${avatar(c,34)}<div style="flex:1;min-width:0" class="nm"><b>${esc(c.name)}</b></div><b class="${l?'up':'t2'}">${(er*100).toFixed(2)}%</b></div>`).join('')}
+      <div class="erbar" style="margin:10px 0 14px"><i style="width:${b.erA/tot*100}%;background:var(--vio)"></i><i style="width:${b.erB/tot*100}%;background:var(--pink)"></i></div>
+      <button class="btn btn-glass btn-sm btn-block" data-act="go" data-v="battles">Back a side</button></div>
+    <nav class="rail-foot"><a data-act="go" data-v="model">Open model</a><a data-act="go" data-v="genesis">Genesis</a><a data-act="go" data-v="launchpad">Launchpad</a><a data-act="go" data-v="leaderboard">Leaderboard</a><span>Robinhood Chain</span><span>Prototype</span></nav>`;
+  $('#rs').addEventListener('input', e=>searchResults(e.target.value));
+  $('#rs').addEventListener('focus', e=>{ if(e.target.value) searchResults(e.target.value); });
+  $('#rs').addEventListener('keydown', e=>{ if(e.key==='Enter'){ S.exploreQ=e.target.value.replace(/^#/,''); S.exploreTab=e.target.value.startsWith('#')?'tags':'creators'; closeSearch(); go('explore'); } });
+}
+function refreshLaunchCard(){ const el=$('#lcard'); if(el) el.innerHTML=launchCard(); $$('.lc-dots button').forEach((b,i)=>b.classList.toggle('on',i===S.slide)); tickCountdowns(); }
+const TAGS = ['SwayBattle','OpenModel','Genesis','FanMarkets','SwayDaily','RobinhoodChain','Keys','Launchpad'];
+function searchResults(q){
+  const box=$('#sres'); q=q.trim().toLowerCase(); if(!q){ box.innerHTML=''; return; }
+  const qq=q.replace(/^[@#]/,'');
+  const ppl = Object.values(C).filter(c=>c.handle.includes(qq)||c.name.toLowerCase().includes(qq)).slice(0,6);
+  const tags = TAGS.filter(t=>t.toLowerCase().includes(qq)).slice(0,3);
+  box.innerHTML = `<div class="sres">${ppl.length?'<div class="lab">Members</div>'+ppl.map(c=>`<div class="it" data-act="profile" data-h="${c.handle}">${avatar(c,36)}<div style="min-width:0;flex:1"><div class="nm"><b>${esc(c.name)}</b>${vb(c.verified)}</div><div class="hd">@${esc(c.handle)}${c.claimed?'':' &nbsp;Unclaimed'}</div></div><b style="font-size:13.5px">${F.$(priceAt(c.supply))}</b></div>`).join(''):''}
+    ${tags.length?'<div class="lab">Tags</div>'+tags.map(t=>`<div class="it" data-act="tag" data-t="${t}"><span class="icon-btn" style="width:36px;height:36px;font-weight:800;color:var(--pink)">#</span><div><b>#${t}</b><div class="hd">${F.n(400+hash(t)%9000)} posts</div></div></div>`).join(''):''}
+    ${!ppl.length&&!tags.length?`<div class="lab" style="padding:12px">No matches for “${esc(q)}”</div>`:''}</div>`;
+}
+function closeSearch(){ const b=$('#sres'); if(b) b.innerHTML=''; }
+
+/* ---------- cards ---------- */
+function holoCard(c){
+  const p = priceAt(c.supply), up = c.change>=0;
+  return `<div class="hc" data-act="profile" data-h="${c.handle}" style="--h:${hueOf(c.handle)};--frame:${frameOfScore(c.score)}">
+    <div class="hc-in"><div class="hc-top"><span class="hc-score" title="Sway score"><i></i>${c.score}</span>${c.claimed?`<span class="hc-chg ${up?'up':'dn'}">${F.pct(c.change)}</span>`:'<span class="tag warn">Unclaimed</span>'}</div>
+      <div class="hc-av">${avatar(c,72)}</div>
+      <div class="hc-name"><div class="nm"><b>${esc(c.name)}</b>${vb(c.verified)}</div><div class="hd">@${esc(c.handle)}</div></div>
+      <div class="hc-spark">${spark(c.hist.slice(-24), up)}</div>
+      <div class="hc-foot"><div><small>Key</small><b>${F.$(p)}</b></div><div><small>Holders</small><b>${c.holders}</b></div></div>
+      <button class="btn btn-glass btn-sm btn-block" data-act="trade" data-h="${c.handle}" data-side="buy">${ic('key',15)}Buy key</button>
+    </div><div class="hc-sheen"></div></div>`;
+}
+function userCard(live=false){
+  const u=S.user, pts=userPoints(), t=tierOf(pts);
+  return `<div class="ic ${live?'live':''}" style="--frame:${t.frame}"><div class="ic-in">
+    <div class="ic-top"><div class="row" style="min-width:0">${avatar(u,44)}<div style="min-width:0"><div class="nm"><b>${esc(u.name)}</b>${vb(u.verified)}</div><div class="hd">@${esc(u.handle)}</div></div></div><span class="tag">${t.name}</span></div>
+    <div class="ic-score"><div class="big">${u.score}</div><div class="of">/100<br>Sway score</div><div style="margin-left:auto;text-align:right"><div style="font-size:24px;font-weight:750;letter-spacing:-.03em">${F.usd(u.value)}</div><div class="t3" style="font-size:12px;font-weight:600">reach value</div></div></div>
+    <div class="ic-vp">${voiceprint(u.handle, u.score, 60, 'uc'+(live?'l':'s'))}</div>
+    <div class="ic-grid"><div><small>Points</small><b>${F.n(pts)}</b></div><div><small>Rank</small><b>#${F.int(myRank())}</b></div><div><small>Member</small><b>${u.memberNo}</b></div></div>
+  </div></div>`;
+}
+
+/* ---------- feed ---------- */
+function linkify(t){ return esc(t).replace(/@([a-z0-9_]+)/gi,(m,h)=>C[h.toLowerCase()]?`<span class="mn" data-act="profile" data-h="${h.toLowerCase()}">@${h}</span>`:m).replace(/#(\w+)/g,'<span class="ht" data-act="tag" data-t="$1">#$1</span>').replace(/sway\.fam\/model/g,'<span class="lk" data-act="go" data-v="model">sway.fam/model</span>'); }
+function postHtml(p, pinned){
+  const c = p.author===OFFICIAL.handle ? OFFICIAL : C[p.author]; const mine = p.author===S.user?.handle;
+  const held = (S.holdings[p.author]||0)>=1 || mine;
+  const locked = (p.vis==='holders' && !held) || (p.vis==='subs' && !S.subs.has(p.author) && !mine);
+  const liked=S.likes.has(p.id), rp=S.reposts.has(p.id);
+  const visTag = p.vis==='holders'?'<span class="tag">Holders</span>':p.vis==='subs'?'<span class="tag pink">Subscribers</span>':'';
+  const prof = c.official ? 'data-act="go" data-v="home"' : `data-act="profile" data-h="${c.handle}"`;
+  return `<article class="post" style="flex-direction:column;gap:0">
+    ${pinned?`<div class="pin">${I.pin}Pinned</div>`:''}
+    <div style="display:flex;gap:13px">
+    <a ${prof} aria-label="${esc(c.name)}">${avatar(c,44)}</a>
+    <div class="post-b">
+      ${p.boost?`<div class="boost">${I.rocket}Boosted</div>`:''}
+      <div class="post-h"><a class="nm" ${prof}><b>${esc(c.name)}</b>${vb(c.verified, c.official)}</a><span class="hd">@${esc(c.handle)} · ${F.ago(p.t)}</span>${visTag}<button class="more" data-act="more" aria-label="More">${ic('dots',18)}</button></div>
+      ${locked ? `<div class="lockbox"><div class="blur">${esc(p.text)}</div><div class="over"><span class="row">${I.lock}${p.vis==='holders'?`Hold 1 key of @${esc(c.handle)} to read`:`For @${esc(c.handle)}’s subscribers`}</span>
+          ${p.vis==='holders'?`<button class="btn btn-white btn-sm" data-act="trade" data-h="${c.handle}" data-side="buy">Unlock</button>`:`<button class="btn btn-white btn-sm" data-act="sub" data-h="${c.handle}">Subscribe</button>`}</div></div>`
+        : `<div class="post-t">${linkify(p.text)}</div>`}
+      <div class="post-a">
+        <button class="pa" data-act="reply" aria-label="Reply">${I.reply}${F.n(p.rep)}</button>
+        <button class="pa ${rp?'rped':''}" data-act="repost" data-id="${p.id}" aria-label="Repost">${I.repeat}${F.n(p.rp+(rp?1:0))}</button>
+        <button class="pa ${liked?'liked':''}" data-act="like" data-id="${p.id}" aria-label="Like">${liked?I.heartF:I.heart}${F.n(p.likes+(liked?1:0))}</button>
+        ${mine||c.official?'':`<button class="kchip" data-act="trade" data-h="${c.handle}" data-side="buy" aria-label="Buy a key of ${esc(c.name)}"><span class="k-l">Key</span><b>${F.$(priceAt(c.supply))}</b><span class="k-c ${c.change>=0?'up':'dn'}">${F.pct(c.change)}</span><em>Buy</em></button>`}
+      </div>
+    </div></div></article>`;
+}
+function composerHtml(){
+  const maxLen = S.level>=1?2000:500;
+  return `<div class="composer">${avatar(S.user,44)}<div style="flex:1;min-width:0"><textarea id="compose" maxlength="${maxLen}" rows="2" placeholder="What’s happening?"></textarea>
+    <div class="comp-foot"><div class="tools"><button class="tool" data-act="media" aria-label="Add image">${I.image}</button><button class="tool" data-act="emoji" aria-label="Add emoji">${I.smile}</button>
+      <select class="vis" id="vis" aria-label="Who can see this"><option value="public">Everyone</option><option value="holders">Key holders</option><option value="subs">Subscribers</option></select><div id="emo"></div></div>
+    <div class="row"><span class="t3" id="cnt" style="font-size:12.5px">0/${maxLen}</span><button class="btn btn-white" style="height:38px;border-radius:999px;padding:0 20px" data-act="post" id="postBtn" disabled>Post</button></div></div></div></div>`;
+}
+
+/* ---------- views ---------- */
+function viewHome(){
+  let list = POSTS.slice(); const sc = p => (p.likes+p.rp*2+p.rep*3)/(1+p.t/120)+(p.boost?400:0)+(C[p.author]?.score||60)*3;
+  if(S.feedTab==='foryou') list.sort((a,b)=>sc(b)-sc(a));
+  if(S.feedTab==='trending') list.sort((a,b)=>(b.likes+b.rp*2)-(a.likes+a.rp*2));
+  if(S.feedTab==='latest') list.sort((a,b)=>a.t-b.t);
+  if(S.feedTab==='following') list = list.filter(p=>S.following.has(p.author)||(S.holdings[p.author]||0)>0||p.author===S.user?.handle).sort((a,b)=>a.t-b.t);
+  const head = S.user ? composerHtml() : `<div class="guest"><p>You’re browsing as a guest. <b>Connect X</b> to post, trade keys and start earning points.</p><button class="btn btn-white btn-sm" data-act="connect">${ic('x',14)}Connect X</button></div>`;
+  return head + (S.feedTab==='foryou'||S.feedTab==='latest' ? postHtml(PINNED,true) : '') +
+    (list.length? list.map(p=>postHtml(p)).join('') : `<div class="empty"><div class="empty-ic">${I.users}</div><h4>Your Following tab is empty</h4>Buy a key or follow a creator and their posts land here.<div style="margin-top:16px"><button class="btn btn-white btn-sm" data-act="go" data-v="explore">Find creators</button></div></div>`);
+}
+
+function viewExplore(){
+  const q = S.exploreQ.toLowerCase().replace(/^[@#]/,'');
+  const top = `<div class="pad" style="padding-bottom:6px"><div class="search"><label class="sr" for="exq">Search</label>${I.search}<input class="field" id="exq" placeholder="Search members or #tags" value="${esc(S.exploreQ)}" autocomplete="off"></div></div>
+    <div class="tabs" style="border-bottom:1px solid var(--stroke)">${[['creators','Creators'],['tags','Tags'],['new','New members']].map(([k,l])=>`<button class="tab ${S.exploreTab===k?'on':''}" data-act="extab" data-t="${k}">${l}</button>`).join('')}</div>`;
+  if(S.exploreTab==='tags'){
+    const tags = TAGS.filter(t=>!q||t.toLowerCase().includes(q));
+    return top + tags.map((t,i)=>`<div class="tr clickable" style="grid-template-columns:28px minmax(0,1fr) auto" data-act="tag" data-t="${t}"><span class="rk">${i+1}</span><div><b style="font-size:15px">#${t}</b><div class="hd">${F.n(400+hash(t)%9000)} posts today</div></div><span class="tag line">Trending</span></div>`).join('');
+  }
+  let list = creators(); if(q) list = list.filter(c=>c.handle.includes(q)||c.name.toLowerCase().includes(q));
+  if(S.exploreTab==='new') list.sort((a,b)=>a.joined-b.joined);
+  else { const sorts = {trending:(a,b)=>b.change-a.change, volume:(a,b)=>b.volume-a.volume, price:(a,b)=>priceAt(b.supply)-priceAt(a.supply), score:(a,b)=>b.score-a.score}; list.sort(sorts[S.exploreSort]); }
+  return top + (S.exploreTab==='creators'?`<div class="row" style="padding:14px 18px 0;gap:6px;flex-wrap:wrap">${[['trending','Trending'],['volume','Volume'],['price','Price'],['score','Score']].map(([k,l])=>`<button class="chip ${S.exploreSort===k?'on':''}" data-act="exsort" data-t="${k}">${l}</button>`).join('')}</div>`:'') +
+    (list.length?`<div class="cards">${list.map(holoCard).join('')}</div>`:`<div class="empty"><div class="empty-ic">${I.search}</div><h4>No member matches “${esc(S.exploreQ)}”</h4>Try a shorter name or handle.</div>`);
+}
+
+function viewMarkets(){
+  const tabs = [['creators','Creators'],['crypto','Crypto'],['football','Football'],['stocks','Stocks'],['rwa','RWA']];
+  let list = S.mkTab==='creators' ? creators() : fans().filter(c=>c.cat===S.mkTab);
+  list.sort((a,b)=>b.volume-a.volume);
+  const vol = list.reduce((s,c)=>s+c.volume,0), hold = list.reduce((s,c)=>s+c.holders,0);
+  const cols='grid-template-columns:24px minmax(0,1fr) 90px 92px 64px';
+  return `<div class="tabs" style="border-bottom:1px solid var(--stroke)">${tabs.map(([k,l])=>`<button class="tab ${S.mkTab===k?'on':''}" data-act="mktab" data-t="${k}">${l}</button>`).join('')}</div>
+    <div class="grid3" style="padding:16px 18px"><div class="glass stat"><small>Markets</small><b>${list.length}</b></div><div class="glass stat"><small>Traded</small><b>${F.$(vol)}</b></div><div class="glass stat"><small>Holders</small><b>${F.int(hold)}</b></div></div>
+    ${S.mkTab!=='creators'?`<div style="padding:0 18px 14px"><div class="note">Fan markets: these accounts haven’t joined Sway and don’t run, endorse or profit from them. The 6% creator fee waits in escrow until the owner signs in with X.</div></div>`:''}
+    <div class="tr th" style="${cols};border-top:1px solid var(--stroke)"><span>#</span><span>Account</span><span class="num hm">Followers</span><span class="num">Key</span><span></span></div>
+    ${list.map((c,i)=>`<div class="tr clickable" style="${cols}" data-act="profile" data-h="${c.handle}"><span class="rk">${i+1}</span>
+      <div class="row" style="min-width:0">${avatar(c,42)}<div style="min-width:0"><div class="nm"><b>${esc(c.name)}</b>${vb(c.verified)}</div><div class="hd">${c.claimed?'@'+esc(c.handle):'<span style="color:var(--warn)">Unclaimed</span> &nbsp;@'+esc(c.handle)}</div></div></div>
+      <div class="num hm"><b>${F.n(c.followers)}</b></div><div class="num"><b>${F.$(priceAt(c.supply))}</b><small class="${c.change>=0?'up':'dn'}">${c.claimed?F.pct(c.change):F.eth(priceAt(c.supply))+' ETH'}</small></div>
+      <div style="text-align:right"><button class="btn btn-buy btn-sm" data-act="trade" data-h="${c.handle}" data-side="buy">Buy</button></div></div>`).join('')}`;
+}
+
+function viewProfile(h){
+  const c = C[h]; if(!c) return viewHome();
+  const isMe = !!c.isMe, held = S.holdings[h]||0, price = priceAt(c.supply), up=c.change>=0, hue=hueOf(h);
+  const frame = isMe ? tierOf(userPoints()).frame : frameOfScore(c.score);
+  let body='';
+  if(S.profTab==='posts'){ const ps = POSTS.filter(p=>p.author===h); body = ps.length? ps.map(p=>postHtml(p)).join('') : `<div class="empty"><div class="empty-ic">${I.reply}</div><h4>${isMe?'You haven’t posted yet':'No posts yet'}</h4>${isMe?'Your first post shows up here and in your holders’ feeds.':`When @${esc(h)} posts, it lands here.`}</div>`; }
+  if(S.profTab==='room') body = roomHtml(c);
+  if(S.profTab==='holders') body = holdersOf(c).map((x,i)=>`<div class="tr" style="grid-template-columns:24px minmax(0,1fr) auto"><span class="rk">${i+1}</span><div class="row" style="min-width:0">${avatar(x,36)}<div style="min-width:0"><div class="nm"><b>${esc(x.name)}</b>${x.you?'<span class="tag">You</span>':''}</div><div class="hd">@${esc(x.handle)}</div></div></div><div class="num"><b>${F.keys(x.k)}</b><small>keys</small></div></div>`).join('');
+  if(S.profTab==='trades') body = tradesOf(c).map(t=>`<div class="tr" style="grid-template-columns:minmax(0,1fr) auto"><div class="row" style="min-width:0">${avatar(t,34)}<div style="min-width:0;font-size:14px"><b>${esc(t.name)}</b> <span class="${t.buy?'up':'dn'}" style="font-weight:600">${t.buy?'bought':'sold'}</span> ${F.keys(t.k)} key${t.k===1?'':'s'}</div></div><div class="num"><b>${F.$(t.eth)}</b><small>${F.ago(t.t)}</small></div></div>`).join('');
+  return `<div class="p-banner" style="background:linear-gradient(135deg,hsl(${hue} 90% 95%),hsl(${hue+40} 85% 89%))">${voiceprint(h+'b', c.score, 90, 'pb')}</div>
+    <div class="p-body"><div class="p-top"><span class="av-wrap" style="--frame:${frame}">${avatar(c,100)}</span>
+      <div class="p-acts">${isMe?`<button class="btn btn-glass btn-sm" data-act="sharecard">${I.share}Share card</button>`
+        : c.claimed?`<button class="btn btn-glass btn-sm" data-act="dm" data-h="${h}" aria-label="Message">${ic('chat',16)}</button><button class="btn btn-glass btn-sm" data-act="tip" data-h="${h}">Tip</button><button class="btn ${S.following.has(h)?'btn-glass':'btn-white'} btn-sm" data-act="follow" data-h="${h}">${S.following.has(h)?'Following':'Follow'}</button>`
+        : `<button class="btn btn-glass btn-sm" data-act="claim" data-h="${h}">This is my account</button>`}</div></div>
+      <div class="p-name"><h2>${esc(c.name)}</h2>${vb(c.verified)}${!c.claimed?'<span class="tag warn">Unclaimed fan market</span>':''}${isMe?'<span class="tag">You</span>':''}</div>
+      <div class="hd" style="font-size:14.5px">@${esc(h)}${c.claimed?` &nbsp;Member #${c.memberNo}`:''}</div>
+      <p class="p-bio">${esc(c.bio)}</p>
+      <div class="p-meta"><span><b>${F.n(c.followers)}</b> on X</span><span><b>${c.score}</b> Sway score</span><span><b>${F.usd(c.value)}</b> reach value</span>${held&&!isMe?`<span><b>${F.keys(held)}</b> keys held by you</span>`:''}</div></div>
+    <div class="glass price-bar"><div><div class="t3" style="font-size:12.5px;font-weight:600">Key price</div><div class="row" style="gap:8px;align-items:baseline"><span class="pv">${F.$(price)}</span>${c.claimed&&!isMe?`<span class="${up?'up':'dn'}" style="font-weight:650;font-size:13.5px">${F.pct(c.change)}</span>`:''}</div><div class="t3" style="font-size:12px">${F.eth(price)} ETH</div></div>
+      <div class="acts">${isMe?`<button class="btn btn-glass" data-act="go" data-v="wallet">Earnings ${F.$(claimable())}</button>`:`<button class="btn btn-glass" data-act="trade" data-h="${h}" data-side="sell" ${held>0?'':'disabled'}>Sell</button><button class="btn btn-buy" data-act="trade" data-h="${h}" data-side="buy">Buy key</button>`}</div></div>
+    <div class="glass kst"><div><small>Supply</small><b>${F.keys(c.supply)}</b></div><div><small>Holders</small><b>${c.holders}</b></div><div><small>${c.claimed?'Volume':'In escrow'}</small><b>${F.$(c.claimed?c.volume:c.escrow)}</b></div><div><small>Creator fee</small><b>6%</b></div></div>
+    <div class="glass chart-card"><div class="between"><b style="font-size:14px">Bonding curve</b><span class="t3 hm" style="font-size:12px">price = ${CURVE.K} × (supply + ${CURVE.O})² ETH</span></div><canvas id="curve" aria-label="Bonding curve chart"></canvas>
+      <div class="legend"><span><i style="background:#1D9BF0"></i>Curve</span><span><i style="background:#0F1419"></i>Current supply</span></div></div>
+    <div class="ptabs"><div class="tabs" style="border-bottom:1px solid var(--stroke)">${[['posts','Posts'],['room','Room'],['holders','Holders'],['trades','Trades']].map(([k,l])=>`<button class="tab ${S.profTab===k?'on':''}" data-act="ptab" data-t="${k}">${l}</button>`).join('')}</div>${body}</div>`;
+}
+function holdersOf(c){
+  const r = rng(hash(c.handle+'h')); const out=[{handle:c.handle, name:c.name, k:1, you:!!c.isMe}];
+  if(c.isMe){ Object.entries(c.extraHolders||{}).forEach(([h,k])=>out.push({handle:h,name:who(h).name,k})); return out.sort((a,b)=>b.k-a.k); }
+  let left = c.supply - 1 - (S.holdings[c.handle]||0);
+  for(let i=0;i<Math.min(c.holders-1,12) && left>0.01;i++){ const p=LB[Math.floor(r()*40)]; const k=+(Math.min(left,.2+r()*left*.5)).toFixed(2); left-=k; out.push({handle:p.handle,name:p.name,k}); }
+  if(S.holdings[c.handle]>0 && S.user) out.push({handle:S.user.handle,name:S.user.name,k:S.holdings[c.handle],you:true});
+  return out.sort((a,b)=>b.k-a.k);
+}
+function tradesOf(c){
+  const live = TRADES.filter(t=>t.c===c.handle).map(t=>({handle:t.buyer,name:who(t.buyer).name,buy:t.buy,k:t.k,eth:t.eth,t:minsAgo(t.t)}));
+  const mine = S.myTrades.filter(t=>t.h===c.handle).map(t=>({...t,t:minsAgo(t.at)}));
+  const r = rng(hash(c.handle+'t')); const out=[...live,...mine];
+  if(!c.isMe) for(let i=0;i<8;i++){ const p=LB[Math.floor(r()*30)]; const k=+(.1+r()*2).toFixed(2); out.push({handle:p.handle,name:p.name,buy:r()>.35,k,eth:area(Math.max(1,c.supply-k),c.supply)*1.1,t:90+i*47+r()*30}); }
+  return out.sort((a,b)=>a.t-b.t);
+}
+function roomHtml(c){
+  const held = (S.holdings[c.handle]||0)>=1 || c.isMe;
+  if(!c.claimed) return `<div class="empty"><div class="empty-ic">${I.lock}</div><h4>The room opens when @${esc(c.handle)} claims</h4>Fan markets have no owner yet. Holders keep their keys when the account joins.</div>`;
+  if(!held) return `<div class="empty"><div class="empty-ic">${I.lock}</div><h4>Hold 1 key to enter</h4>Access is checked onchain each time you open the room. Sell your last key and the door closes.<div style="margin-top:16px"><button class="btn btn-buy" data-act="trade" data-h="${c.handle}" data-side="buy">Buy 1 key for ${F.$(quote(c,'buy',1).total)}</button></div></div>`;
+  return chatHtml(roomMsgs(c), `Message holders of @${c.handle}`, 'room:'+c.handle);
+}
+function roomMsgs(c){
+  if(!S.rooms[c.handle]) S.rooms[c.handle] = c.isMe ? [{from:c.handle,text:'Welcome to my room. Holders see everything I post here first.'}] : [
+    {from:c.handle, text:'Welcome in. Pinned: today’s notes drop at 20:00 UTC.'},{from:LB[3].handle, text:'Saw the curve move 12% after the last post, nice'},{from:c.handle, text:'Ask anything here. I answer holders first.'}];
+  return S.rooms[c.handle];
+}
+function chatHtml(msgs, ph, target){
+  return `<div class="room"><div class="room-msgs" id="msgs">${msgs.map(m=>{ const mine = S.user && m.from===S.user.handle; const w = who(m.from); return `<div class="msg ${mine?'mine':''}">${avatar(w,28)}<div class="bub"><small>${mine?'You':esc(w.name)}</small>${esc(m.text)}</div></div>`; }).join('')}</div>
+    <div class="room-in"><input class="field" id="roomIn" placeholder="${esc(ph)}" aria-label="Message" data-target="${target}"><button class="btn btn-white" style="height:44px" data-act="send" aria-label="Send">${I.send}</button></div></div>`;
+}
+
+function needUser(title, text){ return `<div class="empty"><div class="empty-ic">${I.x}</div><h4>${title}</h4>${text}<div style="margin-top:16px"><button class="btn btn-white" data-act="connect">${I.x}Connect X</button></div></div>`; }
+
+function viewNotifications(){
+  if(!S.user) return needUser('Connect X to get notified','You’ll see trades in your keys, mentions, battle challenges and verified tasks here.');
+  const f = S.ntTab==='trades' ? n=>n.type==='buy' : S.ntTab==='mentions' ? n=>n.type==='men'||n.type==='fight' : ()=>true;
+  const list = S.notifs.filter(f);
+  const icn = {buy:'key', fight:'swords', pts:'bolt', men:'chat'};
+  return `<div class="tabs" style="border-bottom:1px solid var(--stroke)">${[['all','All'],['trades','Trades'],['mentions','Mentions']].map(([k,l])=>`<button class="tab ${S.ntTab===k?'on':''}" data-act="nttab" data-t="${k}">${l}</button>`).join('')}</div>` +
+    (list.length? list.map(n=>{ const w=who(n.from||OFFICIAL.handle); return `<div class="nt ${n.read?'':'unread'} ${n.go?'clickable':''}" ${n.go?`data-act="ntgo" data-id="${n.id}"`:''}><span class="nt-ic ${n.type}">${I[icn[n.type]]}</span><div class="nt-b"><div class="row" style="gap:8px">${avatar(w,30)}<span class="t3" style="font-size:12.5px;margin-left:auto">${F.ago(minsAgo(n.at))}</span></div><p>${n.html}</p></div></div>`; }).join('')
+      : `<div class="empty"><div class="empty-ic">${I.bell}</div><h4>Nothing here yet</h4>Trades in your keys and mentions show up as they happen.</div>`);
+}
+
+function viewMessages(){
+  if(!S.user) return needUser('Connect X to message','Key rooms you hold and direct messages live here.');
+  if(S.dm){ const t=S.threads.find(x=>x.id===S.dm); if(t){ t.unread=false;
+    if(t.room){ const c=C[t.room]; return chatHtml(roomMsgs(c), `Message holders of @${c.handle}`, 'room:'+c.handle); }
+    return chatHtml(t.msgs, `Message @${t.with}`, 'dm:'+t.id); } }
+  // ensure a room thread for each key held
+  Object.entries(S.holdings).forEach(([h,k])=>{ if(k>=1 && C[h]?.claimed && !S.threads.find(t=>t.room===h)) S.threads.push({id:'r-'+h, room:h, unread:false}); });
+  const rooms = S.threads.filter(t=>t.room), dms = S.threads.filter(t=>t.with);
+  const last = t => t.room ? (roomMsgs(C[t.room]).slice(-1)[0]?.text||'') : (t.msgs.slice(-1)[0]?.text||'');
+  const row = t => { const w=who(t.room||t.with); return `<div class="thr" data-act="opendm" data-id="${t.id}">${avatar(w,46)}<div style="min-width:0;flex:1"><div class="nm"><b>${t.room?esc(w.name)+'’s room':esc(w.name)}</b>${vb(w.verified,w.official)}</div><div class="last">${esc(last(t))}</div></div>${t.unread?'<span class="ud"></span>':''}</div>`; };
+  return `<div class="grp">Key rooms</div>${rooms.length?rooms.map(row).join(''):`<div class="t3" style="padding:4px 18px 14px;font-size:13.5px">Hold 1 key of a creator to join their room.</div>`}<div class="grp">Direct messages</div>${dms.map(row).join('')}`;
+}
+
+const TASKS = [
+  {id:'follow', title:'Follow @swaydotfam on X', pts:1000, icon:'x', group:'Join checklist'},
+  {id:'repost', title:'Repost the launch post', pts:1000, icon:'repeat', group:'Join checklist'},
+  {id:'tg', title:'Join the Telegram', pts:500, icon:'telegram', group:'Join checklist', skippable:true},
+  {id:'card', title:'Share your Sway card on X', pts:2000, icon:'share', group:'Join checklist'},
+  {id:'daily', title:'Post with #SwayDaily today', pts:750, icon:'flame', group:'Daily'},
+  {id:'buykey', title:'Hold a key you didn’t mint', pts:1500, icon:'key', group:'Daily', auto:()=>keysHeld().m>0}
+];
+function viewTasks(){
+  const rules = `<div class="glass" style="margin:16px 18px;padding:18px"><h3 style="font-size:15px;margin-bottom:6px">Where points come from</h3>
+    ${[['Your Sway score','up to 10,000'],['Each verified invite','+500'],['Keys you hold','400K per ETH'],['Keys you trade','100K per ETH'],['Battles won','both stakes']].map(([a,b])=>`<div class="between" style="padding:9px 0;border-bottom:1px solid var(--stroke);font-size:13.5px"><span class="t2">${a}</span><b>${b}</b></div>`).join('')}
+    <p class="t3" style="font-size:12.5px;margin:12px 0 0">Points are never edited by hand. Full rules are in the <a class="lnk" data-act="go" data-v="model" style="text-decoration:underline">open model</a>.</p></div>`;
+  if(!S.user) return needUser('Connect X to start earning','Your score alone is worth up to 10,000 points. Tasks, invites, keys and battles add the rest.') + rules;
+  const pts = userPoints(), t = tierOf(pts), ti = TIERS.indexOf(t), next = TIERS[ti+1], prog = next? (pts-t.min)/(next.min-t.min) : 1;
+  let unlocked = true;
+  const list = TASKS.map(tk=>{ let st = S.tasks[tk.id]||{}; if(tk.auto && tk.auto() && !st.done){ S.tasks[tk.id]=st={done:true,pts:tk.pts}; }
+    const done = st.done, lock = !unlocked && tk.group==='Join checklist'; if(!done && tk.group==='Join checklist') unlocked=false;
+    return `<div class="task ${done?'done':''} ${lock?'lock':''}"><div class="task-ic">${done?I.check:I[tk.icon]}</div><div style="min-width:0"><b>${tk.title}</b><div class="t3" style="font-size:12.5px">${tk.group} &nbsp;+${F.int(tk.pts)} pts</div></div>
+      <div>${done?'<span class="tag aqua">Verified</span>':lock?'<span class="t3" style="font-size:12.5px;font-weight:600">Unlocks next</span>':st.busy?'<span class="spin" style="color:var(--vio2)"></span>':tk.auto?`<button class="btn btn-glass btn-sm" data-act="go" data-v="explore">Find a key</button>`:`<div class="row" style="gap:6px">${tk.skippable?`<button class="btn btn-glass btn-sm" data-act="skiptask" data-id="${tk.id}">Skip</button>`:''}<button class="btn btn-white btn-sm" data-act="verify" data-id="${tk.id}">Verify</button></div>`}</div></div>`; }).join('');
+  const ref = `sway.fam/i/${S.user.handle}`;
+  return `<div class="glass" style="margin:16px 18px;padding:18px"><div class="between"><div><div class="t3" style="font-size:12.5px;font-weight:600">Your points</div><div style="font-size:34px;font-weight:800;letter-spacing:-.04em">${F.int(pts)}</div></div><div style="text-align:right"><span class="tag" style="height:28px;padding:0 12px;font-size:13px">${t.name}</span><div class="t3" style="font-size:12.5px;margin-top:6px">Rank #${F.int(myRank())}</div></div></div>
+      <div class="track">${TIERS.map((x,i)=>`<i style="--w:${i<ti?100:i===ti?Math.round(prog*100):0}%"><b></b></i>`).join('')}</div>
+      <div class="between t3" style="font-size:11.5px;font-weight:600">${TIERS.map(x=>`<span>${x.name}</span>`).join('')}</div>
+      ${next?`<p class="t2" style="font-size:13px;margin:10px 0 0">${F.int(next.min-pts)} points to ${next.name}.</p>`:''}</div>
+    <div class="sec-h" style="padding-top:6px"><h2>Tasks</h2><span class="t3" style="font-size:12.5px">Checked by reading your X account</span></div>
+    <div style="border-top:1px solid var(--stroke)">${list}</div>
+    <div class="glass" style="margin:16px 18px 0;padding:18px"><h3 style="font-size:15px">Invite friends</h3><p class="t2" style="font-size:13.5px;margin:4px 0 14px">+500 when an invited account with an X checkmark joins, and they get +100. You also earn 0.5% of every key trade they make.</p>
+      <div class="row"><input class="field" readonly value="${ref}" aria-label="Your invite link"><button class="btn btn-glass" style="height:44px" data-act="copyref" data-v="${ref}">${I.copy}Copy</button></div></div>` + rules;
+}
+
+function viewWallet(){
+  if(!S.user) return needUser('Connect X to open your wallet','A Sway wallet on Robinhood Chain is created when you sign in. Balances and earnings show in dollars.');
+  const kh = keysHeld(), pv = holdValue(), cl = claimable();
+  const hold = Object.entries(S.holdings).filter(([h,k])=>k>0 && !C[h]?.isMe);
+  return `<div class="bal"><div class="bal-in"><div class="between"><span class="t2" style="font-weight:600;font-size:13.5px">Sway wallet</span><span class="tag line">${S.user.wallet.slice(0,6)}…${S.user.wallet.slice(-4)}</span></div>
+      <div class="bal-v">${F.$(S.eth+pv)}</div><div class="t3" style="font-size:13px">${F.$(S.eth)} cash &nbsp;+&nbsp; ${F.$(pv)} in keys &nbsp;on Robinhood Chain</div>
+      <div class="bal-acts"><button class="btn btn-white" style="flex:1" data-act="deposit">${I.down}Deposit</button><button class="btn btn-glass" style="flex:1" data-act="withdraw">${I.upA}Withdraw</button></div></div></div>
+    <div class="glass earn"><div class="between"><div><div class="t3" style="font-size:12.5px;font-weight:600">Earnings to claim</div><div style="font-size:30px;font-weight:800;letter-spacing:-.04em">${F.$(cl)}</div></div><button class="btn btn-buy" data-act="claim-earn" ${cl>0?'':'disabled'}>Claim</button></div>
+      <div style="margin-top:10px"><div class="earn-r"><span>Creator fees from your keys</span><b>${F.$(S.earned.creator)}</b></div><div class="earn-r"><span>Holder rewards</span><b>${F.$(S.earned.holder)}</b></div><div class="earn-r"><span>Referral share</span><b>${F.$(S.earned.ref)}</b></div></div>
+      <div class="t3" style="font-size:12.5px;margin-top:6px">Claimed so far ${F.$(S.claimed)}. Earnings are claimed from the contract, never held by the app.</div></div>
+    <div class="sec-h"><h2>Your keys</h2><span class="t3" style="font-size:13px">${F.keys(kh.n)} keys across ${kh.m} creator${kh.m===1?'':'s'}</span></div>
+    ${hold.length? hold.map(([h,k])=>{ const c=C[h], v=area(c.supply-Math.min(k,c.supply-1),c.supply)*(1-FEE_TOTAL); return `<div class="tr clickable" style="grid-template-columns:minmax(0,1fr) auto auto" data-act="profile" data-h="${h}"><div class="row" style="min-width:0">${avatar(c,40)}<div style="min-width:0"><div class="nm"><b>${esc(c.name)}</b>${vb(c.verified)}</div><div class="hd">${F.keys(k)} keys</div></div></div><div class="num"><b>${F.$(v)}</b><small class="${c.change>=0?'up':'dn'}">${F.pct(c.change)}</small></div><button class="btn btn-glass btn-sm" data-act="trade" data-h="${h}" data-side="sell">Sell</button></div>`; }).join('')
+      : `<div class="t3" style="padding:0 18px 10px;font-size:13.5px">No keys yet. <a class="lnk" data-act="go" data-v="explore" style="text-decoration:underline">Find creators</a></div>`}
+    <div class="sec-h"><h2>Activity</h2></div>
+    ${S.activity.length? S.activity.slice().reverse().map(a=>`<div class="tr" style="grid-template-columns:minmax(0,1fr) auto"><div style="min-width:0"><b style="font-size:14px">${esc(a.label)}</b><div class="hd">${F.ago(minsAgo(a.at))} ago</div></div><b class="${a.amt>=0?'up':''}">${a.amt>=0?'+':'−'}${F.$(Math.abs(a.amt))}</b></div>`).join('')
+      : `<div class="t3" style="padding:0 18px;font-size:13.5px">Trades, claims and withdrawals show up here.</div>`}`;
+}
+
+function viewLaunchpad(){
+  const u = S.user; const sym = u ? '$'+u.handle.replace(/[^a-z0-9]/g,'').slice(0,6).toUpperCase() : '$YOU';
+  return `<div class="stage" style="padding-bottom:8px"><div class="glow-orb"></div><div style="position:relative;text-align:center;max-width:440px">
+      <span class="tag aqua" style="height:28px;padding:0 12px;font-size:12.5px">${ic('rocket',14)}Launchpad on Robinhood Chain</span>
+      <h2 class="big-h" style="margin-top:16px">Turn your reach into a token with one switch.</h2>
+      <p class="t2" style="margin:0 auto 18px;max-width:40ch">Your Sway score seeds the curve. Your key holders get an allocation. You keep earning on every trade.</p>
+      <button class="switch ${S.launch?'on':''}" style="position:relative;right:auto;top:auto;width:84px;height:46px" data-act="${u?'launchtoggle':'connect'}" role="switch" aria-checked="${S.launch}" aria-label="Launch your reach as a token"><i style="width:38px;height:38px;${S.launch?'transform:translateX(38px)':''}"></i></button>
+      <div class="t3" style="font-size:12px;font-weight:700;margin-top:8px">${S.launch?'Token preview on':'Flip to preview your token'}</div></div></div>
+    <div class="glass tok" style="${S.launch?'':'opacity:.55'}"><div class="tok-top"><span class="tok-sym">${sym.slice(1,3)}</span><div style="min-width:0;flex:1"><div style="font-size:20px;font-weight:800;letter-spacing:-.03em">${sym}</div><div class="hd">${u?esc(u.name)+' token':'Your token'} &nbsp;seeded by a Sway score of ${u?u.score:'—'}</div></div><span class="tag ${S.launch?'aqua':'line'}">${S.launch?'Ready':'Preview'}</span></div>
+      <div class="grid3" style="margin-top:16px"><div class="glass stat"><small>Supply</small><b>1B</b></div><div class="glass stat"><small>Start cap</small><b>${u?F.usd(2000+u.score*60):'—'}</b></div><div class="glass stat"><small>To key holders</small><b>10%</b></div></div>
+      <div style="margin-top:14px">${[['Bonding curve, then a pool at $69K market cap','Standard graduation, no presale'],['10% airdropped to your key holders','Pro rata to keys held at launch'],['1% of every trade to you','Claimable onchain, same wallet as your keys'],['No team allocation','What’s on the curve is the whole float']].map(([a,b])=>`<div class="earn-r"><span><b style="color:var(--tx)">${a}</b><br><span class="t3" style="font-size:12.5px">${b}</span></span></div>`).join('')}</div>
+      <button class="btn btn-white btn-lg btn-block" style="margin-top:16px" data-act="${!u?'connect':S.launch?'launchgo':'launchtoggle'}">${!u?I.x+'Connect X to launch':S.launch?'Launch '+sym:'Turn on the switch first'}</button>
+      <p class="t3" style="font-size:12px;text-align:center;margin:10px 0 0">Prototype only. Launch terms are placeholders until the contract is audited.</p></div>`;
+}
+
+function viewLeaderboard(){
+  let rows = LB.map(x=>({...x}));
+  if(S.user) rows.push({handle:S.user.handle,name:S.user.name,pts:userPoints(),won:Math.max(0,S.battlePts),fees:claimable()+S.claimed,staked:S.staked,me:true});
+  const key = {points:'pts',creators:'fees',stakers:'staked',fighters:'won'}[S.lbTab];
+  rows.sort((a,b)=>b[key]-a[key]);
+  const val = {points:r=>[F.int(r.pts),'points'],creators:r=>[F.$(r.fees),'fees earned'],stakers:r=>[F.int(r.staked),'$SWAY staked'],fighters:r=>[F.int(r.won),'points won']}[S.lbTab];
+  const rankOf = r => (r.me && S.lbTab==='points') ? myRank() : rows.indexOf(r)+1;
+  const pod = rows.slice(0,3), order=[pod[1],pod[0],pod[2]], frames=[TIERS[2].frame, TIERS[4].frame, TIERS[3].frame];
+  const rest = rows.slice(3,40); const meRow = rows.find(r=>r.me); if(meRow && !rest.includes(meRow) && !pod.includes(meRow)) rest.push(meRow);
+  const cols='grid-template-columns:46px minmax(0,1fr) auto 96px';
+  return `<div class="tabs" style="border-bottom:1px solid var(--stroke)">${[['points','Points'],['creators','Creators'],['stakers','Stakers'],['fighters','Fighters']].map(([k,l])=>`<button class="tab ${S.lbTab===k?'on':''}" data-act="lbtab" data-t="${k}">${l}</button>`).join('')}</div>
+    <div class="podium">${order.map((r,i)=>{ const rk=rankOf(r); return `<div class="pod ${rk===1?'first':''}" style="--frame:${frames[i]};--h:${hueOf(r.handle)}"><div class="pod-in ${C[r.handle]?'clickable':''}" ${C[r.handle]?`data-act="profile" data-h="${r.handle}"`:''}><span class="pod-rk">${rk}</span>${avatar(r,rk===1?68:54)}<div class="nm"><b>${esc(r.name)}</b></div><div class="hd">@${esc(r.handle)}</div><div class="pod-v">${val(r)[0]}</div><div class="t3" style="font-size:12px">${val(r)[1]}</div></div></div>`; }).join('')}</div>
+    ${rest.map(r=>{ const rk=rankOf(r); return `<div class="tr ${r.me?'me':''}" style="${cols}"><span class="rk">${F.int(rk)}</span>
+      <div class="row ${C[r.handle]?'clickable':''}" style="min-width:0" ${C[r.handle]?`data-act="profile" data-h="${r.handle}"`:''}>${avatar(r,38)}<div style="min-width:0"><div class="nm"><b>${esc(r.name)}</b>${r.me?'<span class="tag">You</span>':''}</div><div class="hd">@${esc(r.handle)} &nbsp;${tierOf(r.pts).name}</div></div></div>
+      <div class="num"><b>${val(r)[0]}</b></div>
+      <div style="text-align:right">${r.me?'':`<button class="btn btn-glass btn-sm" data-act="challenge" data-h="${r.handle}">Challenge</button>`}</div></div>`; }).join('')}`;
+}
+
+function viewBattles(){
+  const all = [...S.myBattles, ...BATTLES];
+  return `<div class="glass formula"><b>Engagement rate wins, not follower count.</b><div class="t2" style="font-size:13.5px;margin-top:2px">Posts are read once from the X API six hours after the 24h window closes.</div><code>score = (likes×1 + reposts×2 + replies×3 + quotes×3 + bookmarks×2) ÷ followers</code>
+      <div class="row" style="gap:26px;margin-top:14px"><div><div class="t3" style="font-size:12px;font-weight:600">Weekly prize pool</div><b style="font-size:19px">184K pts</b></div><div><div class="t3" style="font-size:12px;font-weight:600">Treasury fee</div><b style="font-size:19px">5%</b></div><div><div class="t3" style="font-size:12px;font-weight:600">Live now</div><b style="font-size:19px">${all.length}</b></div></div></div>
+    ${all.map(battleHtml).join('')}
+    <p class="t3" style="font-size:12.5px;padding:0 18px">Winner takes both stakes minus 5%. Backers on the winning side split the losing pool by what they put in. Every Monday 00:00 UTC, half the treasury goes to the week’s top three fighters (50 / 30 / 20).</p>`;
+}
+function battleHtml(b){
+  const A=C[b.a], B=C[b.b], tot=b.erA+b.erB, lead = b.erA>=b.erB?'a':'b', mine = S.backed[b.id];
+  const side = (c,er,pool,k)=>`<div class="side-b ${lead===k?'lead':''}"><div class="row clickable" style="min-width:0" data-act="profile" data-h="${c.handle}">${avatar(c,42)}<div style="min-width:0"><div class="nm"><b>${esc(c.name)}</b>${vb(c.verified)}</div><div class="hd">${F.n(c.followers)} followers</div></div></div>
+    <div class="between"><div><div class="t3" style="font-size:12px;font-weight:600">Engagement</div><div class="big ${lead===k?'up':''}">${(er*100).toFixed(2)}%</div></div><div class="num"><small>Backed</small><b>${F.n(pool+(mine&&mine.side===k?mine.amt:0))}</b></div></div>
+    ${mine?(mine.side===k?`<span class="tag aqua" style="align-self:flex-start">You backed ${F.int(mine.amt)} pts</span>`:''):`<div class="backs">${[100,500,1000].map(v=>`<button class="chip" data-act="backside" data-b="${b.id}" data-s="${k}" data-v="${v}">${F.n(v)}</button>`).join('')}</div>`}</div>`;
+  return `<div class="glass bt"><div class="between" style="align-items:flex-start"><div style="min-width:0"><h3 style="font-size:16px">${esc(b.theme)}</h3><div class="t3" style="font-size:13px">${b.stake?F.int(b.stake)+' pts each side':'Friendly, no stake'} &nbsp;${b.tag}</div></div><span class="tag pink" style="flex:none"><span data-cd="${b.ends}"></span></span></div>
+    <div class="vs">${side(A,b.erA,b.poolA,'a')}<div class="vs-mid"><span>VS</span></div>${side(B,b.erB,b.poolB,'b')}</div>
+    <div class="erbar"><i style="width:${(b.erA/tot*100).toFixed(1)}%;background:var(--vio)"></i><i style="width:${(b.erB/tot*100).toFixed(1)}%;background:var(--pink)"></i></div></div>`;
+}
+
+function viewGenesis(){
+  const W = r => 1/Math.sqrt(r); let sum=0; for(let r=1;r<=500;r++) sum+=W(r); const sh = r => W(r)/sum*100;
+  const mr = S.user?myRank():null, inCut = mr && mr<=500;
+  return `<div class="stage" id="stage"><div class="glow-orb"></div><div class="pass" id="pass"><div class="pass-in"><div class="between"><b style="font-size:16px;letter-spacing:-.02em">Sway</b><span class="tag" style="background:rgba(255,255,255,.12);color:#fff">Genesis</span></div>
+      <div class="t3" style="font-size:12px;margin-top:4px">Soulbound on Robinhood Chain</div>${voiceprint(S.user?S.user.handle:'genesis',85,40,'pass')}
+      <div class="pass-no">${inCut?'#'+String(mr).padStart(4,'0'):S.user?'#----':'#0001'}</div><div class="t2" style="font-size:13px;margin-top:4px">${S.user?(inCut?'@'+esc(S.user.handle):'Reach the top 500 to mint'):'Founding member'}</div></div></div></div>
+    <div style="padding:0 18px 16px;text-align:center"><h2 class="big-h">Minted once to the top 500. Never sold.</h2><p class="t2" style="margin:0 auto 16px;max-width:46ch">At the snapshot the 500 members with the most points get a soulbound pass in their Sway wallet. No claim, no gas. The pass number is your rank.</p>
+      <div class="cd" data-cdbox="${SNAPSHOT}" style="max-width:400px;margin:0 auto"></div><div class="t3" style="font-size:12.5px;margin-top:8px">Snapshot on Oct 27, 2026 at 15:00 UTC</div></div>
+    ${S.user?`<div class="glass" style="margin:0 18px 16px;padding:16px 18px"><div class="between"><span class="t2" style="font-weight:600">Your projected rank</span><b style="font-size:22px;letter-spacing:-.03em">#${F.int(mr)}</b></div><div class="t3" style="font-size:13px;margin-top:2px">${inCut?`Inside the cut. Projected pool share ${sh(mr).toFixed(4)}%.`:`About ${F.int(Math.max(0,ptsAtRank(500)-userPoints()))} points to the top-500 cut. Holding keys is the fastest route at 400K points per ETH held.`}</div></div>`
+      :`<div style="padding:0 18px 16px"><button class="btn btn-white btn-lg btn-block" data-act="connect">${I.x}Connect X to get ranked</button></div>`}
+    <div class="perks"><div class="glass perk"><b>Soulbound</b><span>Can’t be transferred, approved or listed.</span></div><div class="glass perk"><b>Founder badge</b><span>Next to your name across Sway.</span></div><div class="glass perk"><b>Nothing to claim</b><span>Sent within 24 hours of the snapshot.</span></div><div class="glass perk"><b>Share by rank</b><span>5% of supply, weight 1/√rank.</span></div></div>
+    <div class="sec-h"><h2>How the pool splits</h2></div>
+    <div class="split">${[1,10,50,100,250,500].map(r=>`<div class="glass"><small>Rank ${r}</small><b>${sh(r).toFixed(3)}%</b></div>`).join('')}</div>
+    <div class="sec-h"><h2>Current top 30</h2><span class="t3" style="font-size:13px">Live until the freeze</span></div>
+    ${LB.slice(0,30).map((r,i)=>`<div class="tr" style="grid-template-columns:64px minmax(0,1fr) auto"><span class="rk">#${String(i+1).padStart(4,'0')}</span><div class="row" style="min-width:0">${avatar(r,36)}<div style="min-width:0"><div class="nm"><b>${esc(r.name)}</b></div><div class="hd">@${esc(r.handle)}</div></div></div><div class="num"><b>${sh(i+1).toFixed(4)}%</b><small>${F.n(r.pts)} pts</small></div></div>`).join('')}`;
+}
+
+function viewModel(){
+  const m = S.model;
+  return `<div style="padding:16px 18px 0"><div class="note">Every account is scored by the same published function. Nothing is weighted by hand. Plug in any profile and you get exactly what the indexer computes.</div></div>
+    <div class="glass" style="margin:16px 18px;padding:20px">
+      ${slider('followers','Followers',Math.log10(m.followers),2,7.5,.01,F.n(m.followers))}
+      ${slider('er','Engagement rate per post',m.er*100,.1,8,.1,(m.er*100).toFixed(1)+'%')}
+      ${slider('ppw','Original posts per week',m.ppw,0,40,1,m.ppw)}
+      ${slider('age','Account age',m.age,0,15,.5,m.age+' yrs')}
+      <label class="row" style="font-weight:600;font-size:13.5px;color:var(--tx2);cursor:pointer"><input type="checkbox" id="m-verified" ${m.verified?'checked':''} style="accent-color:var(--vio);width:17px;height:17px;margin:0"> Has an X checkmark</label>
+      <div style="height:1px;background:var(--stroke);margin:18px 0"></div><div id="modelOut">${modelOut()}</div></div>
+    <div class="sec-h" style="padding-top:4px"><h2>score.ts</h2><span class="t3" style="font-size:13px">Runs in the indexer and here</span></div>
+<div class="code"><span class="k">export function</span> score({ followers, er, ppw, age, verified }) {
+  <span class="k">const</span> reach = Math.min(<span class="n">1</span>, Math.log10(followers + <span class="n">1</span>) / Math.log10(<span class="n">5e7</span>));
+  <span class="k">const</span> eng   = <span class="n">1</span> - Math.exp(-er * <span class="n">40</span>);  <span class="c">// (likes + 2·reposts + 3·replies) / followers</span>
+  <span class="k">const</span> cons  = Math.min(<span class="n">1</span>, ppw / <span class="n">21</span>);
+  <span class="k">const</span> auth  = <span class="n">0.6</span> * Math.min(<span class="n">1</span>, age / <span class="n">6</span>) + <span class="n">0.4</span> * (verified ? <span class="n">1</span> : <span class="n">0</span>);
+  <span class="k">const</span> raw   = <span class="n">0.35</span>*reach + <span class="n">0.35</span>*eng + <span class="n">0.10</span>*cons + <span class="n">0.20</span>*auth;
+  <span class="k">return</span> { score: Math.round(raw * <span class="n">100</span>), value: <span class="n">0.42</span> * followers * raw ** <span class="n">1.6</span> * (<span class="n">0.6</span> + eng) };
+}</div>
+    <div class="sec-h" style="padding-top:4px"><h2>Key contract</h2><span class="t3" style="font-size:13px">SwayKeys.sol</span></div>
+    <div class="glass params"><div><span>Curve</span><span>K × (supply + ${CURVE.O})², K = ${CURVE.K}</span></div><div><span>First key</span><span>${F.eth(priceAt(1))} ETH (${F.$(priceAt(1))})</span></div><div><span>10th / 100th key</span><span>${F.$(priceAt(10))} / ${F.$(priceAt(100))}</span></div><div><span>Minimum trade</span><span>${CURVE.MIN} key</span></div><div><span>Anti-snipe</span><span>max ${CURVE.SNIPE_MAX} keys, first 5 min</span></div><div><span>Creator’s first key</span><span>can’t be sold</span></div></div>
+    <div class="sec-h" style="padding-top:4px"><h2>Where the 10% fee goes</h2></div>
+    <div class="flow"><div style="flex:6;background:#1D9BF0">Creator 6%</div><div style="flex:2;background:#7856FF">Protocol 2%</div><div style="flex:1.3;background:#00BA7C">Holders 1%</div><div style="flex:1.3;background:#F91880">Ref 1%</div></div>
+    <div style="padding:0 18px 16px"><div class="note">The 1% holder share is new compared with friend.tech: it streams to everyone holding that creator’s keys, pro rata, claimable onchain. The protocol fee goes half to $SWAY stakers and half to the treasury, and staking levels cut it by up to 75%.</div></div>
+    <div class="sec-h" style="padding-top:4px"><h2>Repository</h2></div>
+<div class="code"><span class="s">sway/</span>
+├─ contracts/  <span class="c">SwayKeys, SwayStaking, GenesisPass, FanEscrow, Launchpad</span>
+├─ scoring/    <span class="c">score.ts, the function above</span>
+├─ indexer/    <span class="c">chain mirror, 1 min refresh</span>
+├─ battles/    <span class="c">X API reader, engagement scoring</span>
+└─ web/        <span class="c">this app</span></div>`;
+}
+function modelOut(){ const sm = scoreModel(S.model); return `<div class="row" style="align-items:flex-end;gap:10px"><div><div class="t3" style="font-size:12.5px;font-weight:600">Sway score</div><div style="font-size:58px;font-weight:800;line-height:.95;letter-spacing:-.06em">${sm.score}<span class="t3" style="font-size:16px;letter-spacing:0;font-weight:600">/100</span></div></div>
+  <div style="margin-left:auto;text-align:right"><div style="font-size:22px;font-weight:750;letter-spacing:-.03em">${F.usd(sm.value)}</div><div class="t3" style="font-size:12px">reach value</div><div class="t3" style="font-size:12px">${F.int(Math.min(10000,sm.score*100))} points</div></div></div>
+  <div class="bars">${[['Reach',sm.parts.reach,'35%'],['Engagement',sm.parts.eng,'35%'],['Consistency',sm.parts.cons,'10%'],['Authenticity',sm.parts.auth,'20%']].map(([l,v,w])=>`<div class="bar"><div class="between"><span>${l} <span class="t3">weight ${w}</span></span><b style="color:var(--tx)">${Math.round(v*100)}</b></div><div class="trk"><i style="width:${Math.round(v*100)}%"></i></div></div>`).join('')}</div>`; }
+function slider(id,label,val,min,max,step,disp){ return `<div class="sl"><label for="m-${id}">${label}<b id="mv-${id}">${disp}</b></label><input type="range" id="m-${id}" min="${min}" max="${max}" step="${step}" value="${val}"></div>`; }
+
+/* ---------- trade sheet ---------- */
+function tradeBox(h){
+  const c = C[h], t = S.trade, held = S.holdings[h]||0;
+  const maxSell = Math.max(0, Math.min(held, c.supply-1));
+  if(t.side==='sell' && t.amt>maxSell) t.amt = +maxSell.toFixed(2);
+  const q = quote(c, t.side, t.amt), buy = t.side==='buy', now=priceAt(c.supply);
+  const tooMuch = buy && q.total > S.eth;
+  const bad = t.amt < CURVE.MIN || (buy ? tooMuch : t.amt>maxSell);
+  const label = !S.user ? 'Connect X to trade' : bad ? (buy ? (tooMuch?'Not enough balance':'Minimum is 0.01 key') : (maxSell<CURVE.MIN?'You have no keys to sell':'More than you hold')) : `${buy?'Buy':'Sell'} ${F.keys(t.amt)} key${t.amt===1?'':'s'} for ${F.$(q.total)}`;
+  const chg = (q.after/now-1)*100;
+  return `<div class="trade">
+    <div class="tside"><button class="b ${buy?'on':''}" data-act="tside" data-s="buy">Buy</button><button class="s ${!buy?'on':''}" data-act="tside" data-s="sell">Sell</button></div>
+    <div class="amt-l"><span>Keys</span><span>${buy?`${F.$(now)} each`:`You hold ${F.keys(held)}`}</span></div>
+    <div class="amt"><button data-act="tstep" data-v="-1" aria-label="Fewer keys">${I.minus}</button><input id="tamt" inputmode="decimal" value="${F.keys(t.amt)}" aria-label="Number of keys"><button data-act="tstep" data-v="1" aria-label="More keys">${I.plus}</button></div>
+    <div class="quick">${(buy?[0.1,0.5,1,5]:[0.1,0.5,1]).map(v=>`<button class="chip ${t.amt===v?'on':''}" data-act="tquick" data-v="${v}">${v}</button>`).join('')}${!buy?`<button class="chip ${maxSell>0&&t.amt===+maxSell.toFixed(2)?'on':''}" data-act="tquick" data-v="${maxSell.toFixed(2)}">Max</button>`:''}</div>
+    <div class="sum">
+      <div class="sum-r tot"><span>${buy?'You pay':'You receive'}</span><span><b>${F.$(q.total)}</b><small>${F.eth(q.total)} ETH</small></span></div>
+      <div class="sum-r"><span>Price after</span><span>${F.$(q.after)} <span class="${chg>=0?'up':'dn'}">${F.pct(chg)}</span></span></div>
+      <button class="fees-t ${S.showFees?'open':''}" data-act="fees" aria-expanded="${S.showFees}">Includes ${Math.round((FEE_TOTAL-CURVE.PROTOCOL*S.levelCut)*100)}% in fees${I.chev}</button>
+      <div class="fees ${S.showFees?'open':''}">
+        <div class="sum-r"><span>Curve price</span><span>${F.$(q.base)}</span></div><div class="sum-r"><span>Creator 6%</span><span>${F.$(q.creator)}</span></div>
+        <div class="sum-r"><span>Protocol 2%</span><span>${F.$(q.protocol)}</span></div><div class="sum-r"><span>Holders 1%</span><span>${F.$(q.holders)}</span></div><div class="sum-r"><span>Referral 1%</span><span>${F.$(q.ref)}</span></div></div>
+    </div>
+    <div class="wallet-r"><span>Balance</span><span>${F.$(S.eth)}</span></div>
+    <button class="btn btn-lg btn-block ${S.user?(buy?'btn-buy':'btn-sell'):'btn-white'}" data-act="${S.user?'texec':'connect'}" data-h="${h}" ${S.user&&bad?'disabled':''}>${!S.user?I.x:''}${label}</button>
+    <div class="disc">Keys open a creator’s room and holder posts. They are not shares and can lose value.</div>
+  </div>`;
+}
+function mountTrade(keepFocus){
+  const el = $('#tradeSheet'); if(!el) return; const h = S.lastTrade;
+  let pos=null, val=null; if(keepFocus){ const o=$('#tamt',el); pos=o.selectionStart; val=o.value; }
+  el.innerHTML = tradeBox(h);
+  const inp = $('#tamt', el);
+  if(keepFocus){ inp.value=val; inp.focus(); try{inp.setSelectionRange(pos,pos);}catch(e){} }
+  inp.addEventListener('input',()=>{ const v=parseFloat(inp.value.replace(',','.')); S.trade.amt = isNaN(v)?0:Math.round(v*100)/100; mountTrade(true); });
+}
+function openTrade(h, side){
+  S.lastTrade = h; S.trade = {side, amt: side==='sell' ? Math.min(1, S.holdings[h]||0) : 1}; S.showFees=false;
+  const c=C[h];
+  openModal(`<div class="m-h"><div class="row" style="min-width:0">${avatar(c,44)}<div style="min-width:0"><div class="nm"><b style="font-size:16px">${esc(c.name)}</b>${vb(c.verified)}</div><div class="hd">${F.$(priceAt(c.supply))} per key &nbsp;${c.holders} holders</div></div></div><button class="x-btn" data-act="close" aria-label="Close">${I.close}</button></div>
+    <div id="tradeSheet"></div>${S.view==='profile'&&S.arg===h?'':`<div style="padding:0 20px 20px;margin-top:-8px"><button class="btn btn-glass btn-sm btn-block" data-act="profile" data-h="${h}">Open profile</button></div>`}`);
+  mountTrade();
+}
+function logAct(label, amt){ S.activity.push({label, amt, at:Date.now()}); }
+function execTrade(h){
+  const c = C[h], t = S.trade, q = quote(c, t.side, t.amt), had = S.holdings[h]||0;
+  if(t.side==='buy'){ S.eth -= q.total; c.supply = +(c.supply+t.amt).toFixed(2); S.holdings[h] = +(had+t.amt).toFixed(2); if(had<0.0001) c.holders++; if(!c.claimed) c.escrow += q.creator; }
+  else { S.eth += q.total; c.supply = +(c.supply-t.amt).toFixed(2); S.holdings[h] = +(had-t.amt).toFixed(2); if(S.holdings[h]<0.0001){ S.holdings[h]=0; c.holders=Math.max(1,c.holders-1); } }
+  c.volume += q.base; S.keyVolume += q.base; c.hist.push(priceAt(c.supply)); c.change = (priceAt(c.supply)/c.hist[Math.max(0,c.hist.length-25)]-1)*100;
+  S.myTrades.push({h, handle:S.user.handle, name:S.user.name, buy:t.side==='buy', k:t.amt, eth:q.total, at:Date.now()});
+  logAct(`${t.side==='buy'?'Bought':'Sold'} ${F.keys(t.amt)} key${t.amt===1?'':'s'} of ${c.name}`, t.side==='buy'?-q.total:q.total);
+  pushTrade({buyer:S.user.handle, c:h, buy:t.side==='buy', k:t.amt, eth:q.base, t:Date.now()});
+  toast(`${t.side==='buy'?'Bought':'Sold'} ${F.keys(t.amt)} key${t.amt===1?'':'s'} of ${c.name}`);
+  closeModal(); render(true);
+}
+
+/* ---------- curve chart ---------- */
+function drawCurve(h){
+  const cv = $('#curve'); if(!cv) return; const c=C[h];
+  const dpr = window.devicePixelRatio||1, W = cv.clientWidth, H = cv.clientHeight; if(!W) return;
+  cv.width = W*dpr; cv.height = H*dpr; const x = cv.getContext('2d'); x.scale(dpr,dpr);
+  const pl=62, pr=8, pt=8, pb=22, iw=W-pl-pr, ih=H-pt-pb;
+  const maxS = Math.max(20, c.supply*1.8+5), maxP = priceAt(maxS);
+  const X = s => pl + s/maxS*iw, Y = p => pt + ih - p/maxP*ih;
+  x.font = '500 11px Inter, Segoe UI, sans-serif'; x.fillStyle='#536471'; x.strokeStyle='#EFF3F4'; x.lineWidth=1;
+  for(let i=0;i<=4;i++){ const p=maxP*i/4, y=Y(p); x.beginPath(); x.moveTo(pl,y); x.lineTo(W-pr,y); x.stroke(); x.textAlign='right'; x.fillText(p===0?'$0':F.$(p), pl-8, y+4); }
+  x.textAlign='center'; for(let i=0;i<=4;i++){ const s=maxS*i/4; x.fillText(Math.round(s), X(s), H-5); }
+  const g = x.createLinearGradient(0,pt,0,pt+ih); g.addColorStop(0,'rgba(29,155,240,.22)'); g.addColorStop(1,'rgba(29,155,240,0)');
+  x.beginPath(); x.moveTo(X(0),Y(0)); for(let s=0;s<=c.supply;s+=c.supply/60) x.lineTo(X(s),Y(priceAt(s))); x.lineTo(X(c.supply),Y(priceAt(c.supply))); x.lineTo(X(c.supply),Y(0)); x.closePath(); x.fillStyle=g; x.fill();
+  x.beginPath(); for(let s=0;s<=maxS;s+=maxS/140){ const px=X(s), py=Y(priceAt(s)); s?x.lineTo(px,py):x.moveTo(px,py); }
+  x.strokeStyle='#1D9BF0'; x.lineWidth=2.4; x.stroke();
+  const mx=X(c.supply), my=Y(priceAt(c.supply));
+  x.setLineDash([3,4]); x.strokeStyle='rgba(15,20,25,.3)'; x.lineWidth=1; x.beginPath(); x.moveTo(mx,my); x.lineTo(mx,Y(0)); x.stroke(); x.setLineDash([]);
+  x.beginPath(); x.arc(mx,my,9,0,Math.PI*2); x.fillStyle='rgba(29,155,240,.18)'; x.fill();
+  x.beginPath(); x.arc(mx,my,5,0,Math.PI*2); x.fillStyle='#0F1419'; x.fill(); x.lineWidth=2.5; x.strokeStyle='#fff'; x.stroke();
+}
+
+/* ---------- connect ---------- */
+function openConnect(){
+  openModal(`<div class="m-h"><h3>Connect X</h3><button class="x-btn" data-act="close" aria-label="Close">${I.close}</button></div>
+  <div class="m-b"><div class="xauth"><div class="row"><span style="width:38px;height:38px;border-radius:11px;background:#0F1419;color:#fff;display:grid;place-items:center;flex:none">${ic('x',18)}</span><div><b>Sway will read your public profile</b><div class="t3" style="font-size:12.5px">You sign in on X’s own screen</div></div></div>
+    <ul><li>Public numbers only: followers, posts, engagement</li><li>Can’t post for you or see your password</li><li>Your access token isn’t stored</li></ul></div>
+    <label class="lbl" for="cx-h">X handle (demo)</label><input class="field" id="cx-h" placeholder="@yourhandle" autocomplete="off" style="margin-bottom:12px">
+    <label class="lbl" for="cx-f">Followers (optional, demo)</label><input class="field" id="cx-f" placeholder="e.g. 65000" inputmode="numeric" style="margin-bottom:18px">
+    <button class="btn btn-white btn-lg btn-block" data-act="cxgo">${I.x}Authorize and continue</button>
+    <p class="t3" style="font-size:12px;text-align:center;margin:12px 0 0">A Sway wallet on Robinhood Chain is created for you at sign-in.</p></div>`);
+  $('#cx-h')?.focus();
+  ['#cx-h','#cx-f'].forEach(id=>$(id)?.addEventListener('keydown',e=>{ if(e.key==='Enter') runConnect(); }));
+}
+function runConnect(){
+  const h = ($('#cx-h').value||'').trim() || 'you', f = parseInt(($('#cx-f').value||'').replace(/[^0-9]/g,''))||0;
+  const steps = ['Reading your public profile','Measuring engagement on your last 50 posts','Running the open scoring model','Creating your Sway wallet','Opening your key market'];
+  $('#modal').innerHTML = `<div class="grab"></div><div class="m-h"><h3>Scoring @${esc(h.replace(/^@/,''))}</h3></div><div class="m-b"><div style="height:64px" class="live">${voiceprint(h,72,52,'scan')}</div><div class="steps">${steps.map((s,i)=>`<div class="step" id="st${i}"><span class="d"></span>${s}</div>`).join('')}</div></div>`;
+  let i=0; const tick=()=>{ if(i>0){ const p=$('#st'+(i-1)); if(p){ p.className='step done'; p.querySelector('.d').innerHTML=I.check; } }
+    if(i<steps.length){ const c=$('#st'+i); if(c){ c.className='step on'; c.querySelector('.d').innerHTML='<span class="spin" style="width:11px;height:11px;border-width:2px"></span>'; } i++; setTimeout(tick,460); } else finishConnect(h,f); };
+  tick();
+}
+function finishConnect(h,f){
+  const u = makeUser(h, f); S.user = u;
+  const me = mkCreator(u.name, u.handle, u.followers, 'New on Sway. Holders get my room.', u.verified, {isMe:true, memberNo:u.memberNo});
+  Object.assign(me, {score:u.score, value:u.value, supply:1, holders:1, volume:0, hist:Array(40).fill(priceAt(1)), change:0, extraHolders:{}});
+  C[u.handle] = me; S.holdings[u.handle] = 1;
+  const now = Date.now();
+  S.notifs = [
+    {id:1, type:'pts', from:OFFICIAL.handle, html:`Your Sway score is <b>${u.score}</b>. ${F.int(Math.min(10000,u.score*100))} points are on your balance.`, at:now-60000, go:'tasks'},
+    {id:2, type:'men', from:'atlas_rsch', html:`<b>Atlas Research</b> mentioned you: “welcome @${esc(u.handle)}, the model docs are pinned”`, at:now-3*60000, go:'home'},
+    {id:3, type:'fight', from:'makotrades', html:`<b>Mako</b> wants a friendly battle: “best one-line take this week”`, at:now-9*60000, go:'battles'}
+  ];
+  S.threads = [
+    {id:'d1', with:OFFICIAL.handle, unread:true, msgs:[{from:OFFICIAL.handle,text:`Welcome to Sway, ${u.name}. Your key market is live and your first key is locked to you, so your room always has an owner.`}]},
+    {id:'d2', with:'priyasol', unread:true, msgs:[{from:'priyasol',text:'hey! building a dashboard on the indexer, want early access?'}]}
+  ];
+  openModal(`<div class="m-h"><h3>Your Sway card is live</h3><button class="x-btn" data-act="close" aria-label="Close">${I.close}</button></div>
+    <div class="m-b">${userCard(true)}<p class="t2" style="font-size:13.5px;margin:16px 0 18px">Your key market is open at ${F.$(priceAt(1))} a key. The first key is yours and can’t be sold, so your room always has an owner.</p>
+    <div class="row"><button class="btn btn-glass btn-block" data-act="sharecard">${I.x}Share card</button><button class="btn btn-white btn-block" data-act="close">Enter Sway</button></div></div>`);
+  render(false, true);
+}
+
+/* ---------- live simulation ---------- */
+function pushTrade(t){
+  TRADES.unshift(t); if(TRADES.length>40) TRADES.pop();
+  const list = $('#ltList'); if(list){ list.innerHTML = ltItem(t,true) + TRADES.slice(1,6).map(x=>ltItem(x)).join(''); }
+}
+function simTick(){
+  const r = Math.random;
+  let t;
+  if(S.user && r()<.16){ // someone buys your key
+    const me = C[S.user.handle], b = LB[Math.floor(r()*LB.length)], k = +(r()<.6?1:(.1+r()*.9)).toFixed(2);
+    const base = area(me.supply, me.supply+k); me.supply = +(me.supply+k).toFixed(2); me.volume += base; me.hist.push(priceAt(me.supply));
+    me.extraHolders[b.handle] = +((me.extraHolders[b.handle]||0)+k).toFixed(2); me.holders = 1 + Object.keys(me.extraHolders).length;
+    S.earned.creator += base*CURVE.CREATOR;
+    t = {buyer:b.handle, c:S.user.handle, buy:true, k, eth:base, t:Date.now()};
+    S.notifs.unshift({id:Date.now(), type:'buy', from:b.handle, html:`<b>${esc(b.name)}</b> bought ${F.keys(k)} of your keys. You earned <b>${F.$(base*CURVE.CREATOR)}</b>.`, at:Date.now(), go:'wallet'});
+    renderSB(); if(S.view==='notifications') render(true);
+  } else {
+    t = randTrade(r, Date.now()); const c = C[t.c];
+    if(t.buy){ c.supply = +(c.supply+t.k).toFixed(2); } else { c.supply = +Math.max(1, c.supply-t.k).toFixed(2); }
+    c.volume += t.eth; c.hist.push(priceAt(c.supply)); c.change = (priceAt(c.supply)/c.hist[Math.max(0,c.hist.length-25)]-1)*100;
+    const held = S.holdings[t.c]||0; if(S.user && held>0 && !c.isMe) S.earned.holder += t.eth*CURVE.HOLDERS*(held/c.supply);
+    if(S.user && r()<.12) S.earned.ref += t.eth*CURVE.REF*.5; // a member you invited traded
+  }
+  pushTrade(t);
+}
+setInterval(simTick, 4200);
+
+/* ---------- render ---------- */
+const lastView = [];
+const VIEWS = {home:viewHome, explore:viewExplore, markets:viewMarkets, notifications:viewNotifications, messages:viewMessages, tasks:viewTasks, wallet:viewWallet, launchpad:viewLaunchpad, leaderboard:viewLeaderboard, battles:viewBattles, genesis:viewGenesis, model:viewModel};
+function render(keepScroll, all){
+  const y = window.scrollY;
+  $('#main').innerHTML = S.view==='profile' ? viewProfile(S.arg) : (VIEWS[S.view]||viewHome)();
+  renderCH(all); renderSB();
+  if(all || !$('#rail').innerHTML) renderRail(); else refreshLaunchCard();
+  after();
+  if(keepScroll) window.scrollTo(0,y);
+}
+function go(v, arg){
+  if(S.view!==v || S.arg!==(arg||null)) lastView.push([S.view,S.arg]);
+  S.view=v; S.arg=arg||null; if(v==='profile'){ S.profTab='posts'; } if(v!=='messages') S.dm=null;
+  drawer(false); closeSearch(); render(); window.scrollTo(0,0);
+}
+const RM = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function after(){
+  tickCountdowns();
+  if(S.view==='profile') drawCurve(S.arg);
+  const m=$('#msgs'); if(m) m.scrollTop=m.scrollHeight;
+  $('#roomIn')?.addEventListener('keydown',e=>{ if(e.key==='Enter') sendMsg(); });
+  const ta = $('#compose'); if(ta) ta.addEventListener('input',()=>{ $('#cnt').textContent=`${ta.value.length}/${ta.maxLength}`; $('#postBtn').disabled=!ta.value.trim(); ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px'; });
+  const ex = $('#exq'); if(ex) ex.addEventListener('input',()=>{ S.exploreQ=ex.value; if(ex.value.startsWith('#')) S.exploreTab='tags'; const pos=ex.selectionStart; render(true); const n=$('#exq'); n.focus(); n.setSelectionRange(pos,pos); });
+  if(S.view==='model'){
+    const upd=()=>{ $('#modelOut').innerHTML=modelOut(); const m=S.model; $('#mv-followers').textContent=F.n(m.followers); $('#mv-er').textContent=(m.er*100).toFixed(1)+'%'; $('#mv-ppw').textContent=m.ppw; $('#mv-age').textContent=m.age+' yrs'; };
+    const bind=(id,fn)=>$('#m-'+id)?.addEventListener('input',e=>{ fn(+e.target.value); upd(); });
+    bind('followers',v=>S.model.followers=Math.round(Math.pow(10,v))); bind('er',v=>S.model.er=v/100); bind('ppw',v=>S.model.ppw=v); bind('age',v=>S.model.age=v);
+    $('#m-verified')?.addEventListener('change',e=>{ S.model.verified=e.target.checked; upd(); });
+  }
+  const stage=$('#stage'), pass=$('#pass');
+  if(stage&&pass&&!RM){ stage.addEventListener('pointermove',e=>{ const r=stage.getBoundingClientRect(), px=(e.clientX-r.left)/r.width-.5, py=(e.clientY-r.top)/r.height-.5; pass.style.transform=`rotateY(${px*24}deg) rotateX(${-py*24}deg)`; pass.style.setProperty('--sh',(px*130)+'%'); }); stage.addEventListener('pointerleave',()=>{ pass.style.transform=''; }); }
+}
+function tickCountdowns(){
+  const now=Date.now();
+  $$('[data-cd]').forEach(el=>{ const d=Math.max(0,+el.dataset.cd-now)/1000, h=Math.floor(d/3600), m=Math.floor(d%3600/60), s=Math.floor(d%60); el.textContent = d<=0?'ended':`${h}h ${String(m).padStart(2,'0')}m ${String(s).padStart(2,'0')}s`; });
+  $$('[data-cdbox]').forEach(el=>{ const d=Math.max(0,+el.dataset.cdbox-now)/1000; el.innerHTML = [[Math.floor(d/86400),'days'],[Math.floor(d%86400/3600),'hours'],[Math.floor(d%3600/60),'min'],[Math.floor(d%60),'sec']].map(([v,l])=>`<div><b>${String(v).padStart(2,'0')}</b><small>${l}</small></div>`).join(''); });
+}
+setInterval(tickCountdowns,1000);
+window.addEventListener('resize',()=>{ if(S.view==='profile') drawCurve(S.arg); });
+
+/* holo tilt */
+document.addEventListener('pointermove', e=>{
+  if(RM || e.pointerType==='touch') return; const card = e.target.closest?.('.hc'); if(!card) return;
+  const r = card.getBoundingClientRect(), px=(e.clientX-r.left)/r.width, py=(e.clientY-r.top)/r.height;
+  card.classList.add('tilting'); card.style.setProperty('--ry',((px-.5)*12)+'deg'); card.style.setProperty('--rx',((.5-py)*12)+'deg');
+  card.style.setProperty('--mx',(px*100)+'%'); card.style.setProperty('--my',(py*100)+'%'); card.style.setProperty('--hx',(px*100)+'%');
+});
+document.addEventListener('pointerout', e=>{ const card=e.target.closest?.('.hc'); if(card && !card.contains(e.relatedTarget)){ card.classList.remove('tilting'); card.style.setProperty('--rx','0deg'); card.style.setProperty('--ry','0deg'); } });
+
+/* ---------- actions ---------- */
+function need(){ if(!S.user){ openConnect(); return false; } return true; }
+function sendMsg(){
+  const inp=$('#roomIn'); const v=inp.value.trim(); if(!v) return; const tg=inp.dataset.target;
+  if(tg.startsWith('room:')) S.rooms[tg.slice(5)].push({from:S.user.handle,text:v});
+  else { const t=S.threads.find(x=>x.id===tg.slice(3)); t.msgs.push({from:S.user.handle,text:v}); if(t.with==='priyasol' && t.msgs.length===2) setTimeout(()=>{ t.msgs.push({from:'priyasol',text:'amazing, sending the link to your room 🙌'}); if(S.view==='messages'&&S.dm===t.id) render(true); else { t.unread=true; renderSB(); } },1400); }
+  render(true); $('#roomIn')?.focus();
+}
+function openCompose(){
+  if(!need()) return;
+  openModal(`<div class="m-h"><h3>New post</h3><button class="x-btn" data-act="close" aria-label="Close">${I.close}</button></div><div style="padding:0 4px 8px">${composerHtml().replace('id="compose"','id="compose2"').replace('id="vis"','id="vis2"').replace('id="cnt"','id="cnt2"').replace('id="postBtn"','id="postBtn2"').replace('data-act="post"','data-act="post2"').replace('<div id="emo"></div>','').replace('style="border-bottom:1px solid var(--stroke)"','')}</div>`);
+  const ta=$('#compose2'); ta.focus(); ta.addEventListener('input',()=>{ $('#cnt2').textContent=`${ta.value.length}/${ta.maxLength}`; $('#postBtn2').disabled=!ta.value.trim(); });
+}
+function addPost(txt, vis){ POSTS.unshift({id:PID++,author:S.user.handle,text:txt,t:0,vis,likes:0,rp:0,rep:0}); S.feedTab='latest'; if(S.view!=='home') go('home'); else render(true); toast('Posted'); }
+document.addEventListener('click', e=>{
+  if(!e.target.closest('.search')) closeSearch();
+  if(!e.target.closest('#emo') && !e.target.closest('[data-act=emoji]')){ const em=$('#emo'); if(em) em.innerHTML=''; }
+  const el = e.target.closest('[data-act]'); if(!el) return;
+  const a = el.dataset.act; if(el.tagName==='A') e.preventDefault();
+  switch(a){
+    case 'go': if(modalOpen()) closeModal(); go(el.dataset.v); break;
+    case 'profile': if(modalOpen()) closeModal(); go('profile', el.dataset.h); break;
+    case 'back': { const p=lastView.pop(); if(p){ S.view=p[0]; S.arg=p[1]; render(); window.scrollTo(0,0); } else go('home'); break; }
+    case 'drawer': drawer(true); break;
+    case 'drawer-close': drawer(false); break;
+    case 'connect': drawer(false); openConnect(); break;
+    case 'cxgo': runConnect(); break;
+    case 'close': closeModal(); break;
+    case 'compose': openCompose(); break;
+    case 'ftab': S.feedTab=el.dataset.t; render(true); break;
+    case 'extab': S.exploreTab=el.dataset.t; render(true); break;
+    case 'exsort': S.exploreSort=el.dataset.t; render(true); break;
+    case 'mktab': S.mkTab=el.dataset.t; render(true); break;
+    case 'lbtab': S.lbTab=el.dataset.t; render(true); break;
+    case 'ptab': S.profTab=el.dataset.t; render(true); break;
+    case 'nttab': S.ntTab=el.dataset.t; render(true); break;
+    case 'tag': S.exploreQ='#'+el.dataset.t; S.exploreTab='tags'; closeSearch(); go('explore'); break;
+    case 'slide': S.slide=+el.dataset.i; refreshLaunchCard(); break;
+    case 'launchtoggle': S.launch=!S.launch; if(S.view==='launchpad') render(true); else if(S.launch){ go('launchpad'); } else refreshLaunchCard(); break;
+    case 'launchgo': openModal(`<div class="m-h"><h3>Launch your token?</h3><button class="x-btn" data-act="close" aria-label="Close">${I.close}</button></div><div class="m-b"><p class="t2" style="margin:0 0 16px">This is a prototype, so nothing is deployed. In the full build this signs one transaction from your Sway wallet and your token goes live on Robinhood Chain.</p><button class="btn btn-white btn-lg btn-block" data-act="launchok">Got it</button></div>`); break;
+    case 'launchok': closeModal(); toast('Launch preview saved'); break;
+    case 'trade': openTrade(el.dataset.h, el.dataset.side||'buy'); break;
+    case 'tside': S.trade.side=el.dataset.s; S.trade.amt = el.dataset.s==='sell'? Math.min(1, S.holdings[S.lastTrade]||0) : 1; mountTrade(); break;
+    case 'tstep': { let v=S.trade.amt; v = +el.dataset.v>0 ? (v<1?Math.round((v+.1)*100)/100:Math.floor(v)+1) : (v<=1?Math.max(.01,Math.round((v-.1)*100)/100):Math.ceil(v)-1); S.trade.amt=Math.max(.01,v); mountTrade(); break; }
+    case 'tquick': S.trade.amt=+el.dataset.v; mountTrade(); break;
+    case 'fees': S.showFees=!S.showFees; mountTrade(); break;
+    case 'texec': execTrade(el.dataset.h); break;
+    case 'like': if(!need()) break; { const id=+el.dataset.id; S.likes.has(id)?S.likes.delete(id):S.likes.add(id); render(true); } break;
+    case 'repost': if(!need()) break; { const id=+el.dataset.id; S.reposts.has(id)?S.reposts.delete(id):S.reposts.add(id); render(true); } break;
+    case 'reply': if(!need()) break; toast('Replies open in the full build'); break;
+    case 'more': toast('Post menu opens in the full build'); break;
+    case 'media': toast('Image upload opens in the full build'); break;
+    case 'emoji': { const em=$('#emo'); if(!em) break; em.innerHTML = em.innerHTML ? '' : `<div class="emoji-pop">${['🔥','🚀','👀','💎','🙌','😂','📈','🫡','✨','🤝','🧠','⚡'].map(x=>`<button data-act="emo" data-v="${x}">${x}</button>`).join('')}</div>`; break; }
+    case 'emo': { const ta=$('#compose'); ta.value+=el.dataset.v; ta.dispatchEvent(new Event('input')); $('#emo').innerHTML=''; ta.focus(); break; }
+    case 'post': { const ta=$('#compose'); const txt=ta.value.trim(); if(txt) addPost(txt, $('#vis').value); break; }
+    case 'post2': { const ta=$('#compose2'); const txt=ta.value.trim(); if(!txt) break; const vis=$('#vis2').value; closeModal(); addPost(txt, vis); break; }
+    case 'follow': if(!need()) break; { const h=el.dataset.h; S.following.has(h)?S.following.delete(h):S.following.add(h); render(true); } break;
+    case 'sub': if(!need()) break; { const h=el.dataset.h, cost=4/ETH_USD; if(S.eth<cost){ toast('Add funds to subscribe'); break; } S.eth-=cost; S.subs.add(h); logAct('Subscribed to '+C[h].name, -cost); render(true); toast('Subscribed for $4 a month'); } break;
+    case 'tip': if(!need()) break; { const h=el.dataset.h, cost=5/ETH_USD; if(S.eth<cost){ toast('Add funds to tip'); break; } S.eth-=cost; logAct('Tipped '+C[h].name, -cost); render(true); toast('Tipped @'+h+' $5'); } break;
+    case 'dm': if(!need()) break; { const h=el.dataset.h; let t=S.threads.find(x=>x.with===h); if(!t){ t={id:'d'+Date.now(), with:h, unread:false, msgs:[]}; S.threads.push(t); } S.dm=t.id; go('messages'); S.dm=t.id; render(); } break;
+    case 'opendm': S.dm=el.dataset.id; render(); window.scrollTo(0,0); break;
+    case 'dmback': S.dm=null; render(); break;
+    case 'send': sendMsg(); break;
+    case 'readall': S.notifs.forEach(n=>n.read=true); render(false,true); break;
+    case 'ntgo': { const n=S.notifs.find(x=>String(x.id)===el.dataset.id); if(n){ n.read=true; go(n.go); } break; }
+    case 'claim': openModal(`<div class="m-h"><h3>Claim @${esc(el.dataset.h)}</h3><button class="x-btn" data-act="close" aria-label="Close">${I.close}</button></div><div class="m-b"><p class="t2" style="margin:0 0 18px">Sign in with the X account <b style="color:var(--tx)">@${esc(el.dataset.h)}</b>. The profile, its wallet and ${F.$(C[el.dataset.h].escrow)} of escrowed creator fees become yours. Existing holders keep their keys.</p><button class="btn btn-white btn-block btn-lg" data-act="close">${I.x}Sign in as @${esc(el.dataset.h)}</button></div>`); break;
+    case 'deposit': if(!need()) break; S.eth+=100/ETH_USD; logAct('Deposit', 100/ETH_USD); render(true); toast('Added $100 in demo funds'); break;
+    case 'withdraw': if(!need()) break; openWithdraw(); break;
+    case 'wdgo': { const v=parseFloat($('#wd-a').value)||0, eth=v/ETH_USD; if(eth<=0||eth>S.eth){ toast('Enter an amount up to your balance'); break; } S.eth-=eth; logAct('Withdrawal to external wallet', -eth); closeModal(); render(true); toast(`Withdrew $${v.toFixed(2)} as USDC`); break; }
+    case 'claim-earn': { const v=claimable(); if(v<=0) break; S.eth+=v; S.claimed+=v; S.earned={creator:0,holder:0,ref:0}; logAct('Claimed earnings', v); render(true); toast(`Claimed ${F.$(v)}`); break; }
+    case 'verify': { const id=el.dataset.id, tk=TASKS.find(t=>t.id===id); S.tasks[id]={busy:true}; render(true); setTimeout(()=>{ S.tasks[id]={done:true,pts:tk.pts}; if(S.view==='tasks') render(true); S.notifs.unshift({id:Date.now(),type:'pts',from:OFFICIAL.handle,html:`Task verified on X: <b>${esc(tk.title)}</b>. +${F.int(tk.pts)} points.`,at:Date.now(),go:'tasks'}); renderSB(); toast(`Verified on X. +${F.int(tk.pts)} pts`); }, 1300); break; }
+    case 'skiptask': S.tasks[el.dataset.id]={done:true,pts:0}; render(true); break;
+    case 'copyref': navigator.clipboard?.writeText('https://'+el.dataset.v).catch(()=>{}); toast('Invite link copied'); break;
+    case 'sharecard': { if(!S.user) break; const u=S.user; const txt=`My Sway score is ${u.score}/100 and my reach is valued at ${F.usd(u.value)}. Buy my key and join my room.`; window.open('https://x.com/intent/post?text='+encodeURIComponent(txt),'_blank','noopener'); break; }
+    case 'backside': { if(!need()) break; const id=+el.dataset.b, side=el.dataset.s, v=+el.dataset.v; if(userPoints()<v){ toast('Not enough points'); break; } S.backed[id]={side,amt:v}; S.battlePts-=v; render(true); toast(`Backed with ${F.int(v)} pts`); break; }
+    case 'challenge': if(!need()) break; openChallenge(el.dataset.h); break;
+    case 'chgo': submitChallenge(); break;
+    case 'repo': toast('Repo link goes here once it’s public'); break;
+  }
+});
+function openWithdraw(){
+  openModal(`<div class="m-h"><h3>Withdraw in dollars</h3><button class="x-btn" data-act="close" aria-label="Close">${I.close}</button></div><div class="m-b">
+    <label class="lbl" for="wd-a">Amount (USD)</label><div class="amt" style="margin-bottom:6px"><input id="wd-a" inputmode="decimal" placeholder="0.00" style="font-size:28px"></div>
+    <div class="row t3" style="font-size:12.5px;justify-content:space-between;margin-bottom:14px"><span>Available ${F.$(S.eth)}</span><button class="lnk" data-act="wdmax" onclick="document.getElementById('wd-a').value=(${S.eth*ETH_USD}).toFixed(2)">Max</button></div>
+    <label class="lbl" for="wd-to">Send to</label><input class="field" id="wd-to" placeholder="0x… wallet address" style="margin-bottom:8px">
+    <p class="t3" style="font-size:12.5px;margin:0 0 16px">Paid out as USDC on Robinhood Chain. Network fee is shown before you sign.</p>
+    <button class="btn btn-white btn-lg btn-block" data-act="wdgo">Withdraw</button></div>`);
+  $('#wd-a').focus();
+}
+function openChallenge(h){
+  const max = Math.max(100, userPoints()-Math.min(10000,S.user.score*100));
+  openModal(`<div class="m-h"><h3>New challenge</h3><button class="x-btn" data-act="close" aria-label="Close">${I.close}</button></div><div class="m-b">
+    <label class="lbl" for="ch-h">Opponent</label><input class="field" id="ch-h" value="${h?'@'+esc(h):''}" placeholder="@handle, or empty for an open challenge" style="margin-bottom:14px">
+    <label class="lbl" for="ch-t">Theme</label><input class="field" id="ch-t" placeholder="e.g. Best one-line take this week" style="margin-bottom:16px">
+    <div class="sl"><label for="ch-s">Stake<b id="ch-sv">Friendly, no stake</b></label><input type="range" id="ch-s" min="0" max="${max}" step="100" value="0"></div>
+    <p class="t3" style="font-size:12.5px;margin:0 0 16px">Only earned points can be staked, not points from your score. Your stake comes back if they decline.</p>
+    <button class="btn btn-white btn-lg btn-block" data-act="chgo">Send challenge</button></div>`);
+  const s=$('#ch-s'); s.addEventListener('input',()=>{ $('#ch-sv').textContent = +s.value? F.int(+s.value)+' pts':'Friendly, no stake'; });
+}
+function submitChallenge(){
+  const opp = ($('#ch-h').value||'').replace('@','').trim().toLowerCase(), theme = $('#ch-t').value.trim()||'Best take of the week', stake=+$('#ch-s').value;
+  const pool = creators(); const b = C[opp]&&!C[opp].isMe&&C[opp].claimed ? opp : pool[Math.floor(Math.random()*pool.length)].handle;
+  S.battlePts -= stake;
+  S.myBattles.unshift({id:Date.now(), a:S.user.handle, b, theme, tag:'#SwayBattle', stake, ends:Date.now()+864e5, erA:.0001, erB:.0001, poolA:0, poolB:0});
+  closeModal(); go('battles'); toast(C[opp]?`Challenge sent to @${opp}`:'Open challenge posted');
+}
+
+render(false, true);
+</script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+node_modules/
+.pnpm-store/
+dist/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+.turbo/
+
+# env
+.env
+.env.*
+!.env.example
+
+# foundry
+contracts/out/
+contracts/cache/
+contracts/broadcast/*/31337/
+contracts/deployments/local.json
+
+# playwright
+test-results/
+playwright-report/
+
+# os / editors
+.DS_Store
+*.log
+.idea/
+.vscode/*
+!.vscode/extensions.json

@@ -1,0 +1,44 @@
+{
+  "name": "sway",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Sway: every X account gets a public reach score and a creator-key market on Robinhood Chain.",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter \"./apps/*\" dev",
+    "dev:web": "pnpm --filter @sway/web dev",
+    "dev:api": "pnpm --filter @sway/api dev",
+    "dev:workers": "pnpm --filter @sway/workers dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:contracts": "cd contracts && forge test",
+    "vectors": "pnpm --filter @sway/curve vectors",
+    "db:generate": "pnpm --filter @sway/db generate",
+    "db:migrate": "pnpm --filter @sway/db migrate:dev",
+    "db:deploy": "pnpm --filter @sway/db migrate:deploy",
+    "db:seed": "pnpm --filter @sway/db seed",
+    "chain:local": "anvil --chain-id 31337 --block-time 1",
+    "chain:deploy:local": "bash scripts/deploy-local.sh",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "prettier": "3.9.10",
+    "typescript": "5.9.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "esbuild",
+      "sharp",
+      "msgpackr-extract"
+    ]
+  }
+}
