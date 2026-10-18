@@ -64,6 +64,8 @@ enum PointsKind {
   battle_back_payout
   weekly_prize
   reorg_correction
+  /// Local demo data from prisma/seed.ts only.
+  seed
 }
 
 enum BattleStatus {
@@ -173,6 +175,9 @@ model KeyMarket {
   opened       Boolean        @default(false)
   openTx       String?
   openedAt     DateTime?
+  /// Blocks of MarketOpened / FanMarketClaimed, so a reorg can roll them back.
+  openBlock    BigInt?
+  claimBlock   BigInt?
   halted       Boolean        @default(false)
   supplyUnits  BigInt         @default(100)
   priceWei     Decimal        @default(0) @db.Decimal(78, 0)

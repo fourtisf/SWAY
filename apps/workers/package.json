@@ -9,13 +9,16 @@
     "start": "node --env-file-if-exists=../../.env dist/main.js",
     "build": "tsup",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "seed:chain": "tsx --env-file-if-exists=../../.env src/scripts/seed-chain.ts",
+    "open-fan-market": "tsx --env-file-if-exists=../../.env src/scripts/open-fan-market.ts"
   },
   "dependencies": {
     "@sway/curve": "workspace:*",
     "@sway/db": "workspace:*",
     "@sway/scoring": "workspace:*",
     "@sway/shared": "workspace:*",
+    "@sway/x": "workspace:*",
     "bullmq": "5.81.5",
     "ioredis": "5.11.1",
     "viem": "2.57.2"
