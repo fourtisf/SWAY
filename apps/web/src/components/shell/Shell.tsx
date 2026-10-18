@@ -5,7 +5,9 @@ import { setAuthRequiredHandler } from '@/lib/api';
 import { MOCK } from '@/lib/env';
 import { useLive } from '@/lib/live';
 import { useNavHistory } from '@/lib/nav';
-import { openModal, useUI } from '@/lib/store';
+import { useConfig } from '@/lib/queries';
+import { saveRef } from '@/lib/referral';
+import { openModal, toast, useUI } from '@/lib/store';
 import { Toasts, ModalHost } from '../modals/Modals';
 import { CenterHeader } from './CenterHeader';
 import { Rail } from './Rail';
@@ -19,6 +21,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const first = useRef(true);
   useLive();
   useNavHistory();
+  const apiDown = useConfig().isError;
 
   useEffect(() => {
     setAuthRequiredHandler(() => openModal({ type: 'connect' }));
@@ -40,12 +43,26 @@ export function Shell({ children }: { children: ReactNode }) {
     useUI.setState({ drawer: false, modal: m && (m.type === 'onboard' || m.type === 'card') ? m : null });
   }, [pathname]);
 
-  // The API sends people back to /?onboard=1 after X sign-in.
+  // X sign-in comes back to <path>?onboard=1 (or ?auth_error=<code>); invites may carry ?ref=<handle>.
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
+    let changed = false;
+    if (sp.get('ref')) {
+      saveRef(sp.get('ref')!);
+      sp.delete('ref');
+      changed = true;
+    }
+    if (sp.get('auth_error')) {
+      toast('Couldn’t sign in with X. Please try again.');
+      sp.delete('auth_error');
+      changed = true;
+    }
     if (sp.get('onboard') === '1') {
       openModal({ type: 'onboard' });
       sp.delete('onboard');
+      changed = true;
+    }
+    if (changed) {
       const q = sp.toString();
       router.replace(window.location.pathname + (q ? `?${q}` : ''));
     }
@@ -60,7 +77,10 @@ export function Shell({ children }: { children: ReactNode }) {
           <div id="ch">
             <CenterHeader />
           </div>
-          <main id="main">{children}</main>
+          <main id="main">
+            {apiDown && <div className="app-err">Can’t reach the Sway API right now. Retrying…</div>}
+            {children}
+          </main>
         </div>
         <Rail />
       </div>

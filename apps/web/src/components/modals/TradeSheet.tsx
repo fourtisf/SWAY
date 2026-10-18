@@ -6,16 +6,11 @@ import { useActions } from '@/lib/actions';
 import { useFormat } from '@/lib/format';
 import { useMe, useProfile, useWallet } from '@/lib/queries';
 import { closeModal, openModal } from '@/lib/store';
+import { stepAmount } from '@/lib/util';
 import { Icon } from '../icons';
 import { Avatar, Loading, Spinner, VB } from '../ui';
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
-
-/** Prototype tstep rules: ±0.1 below 1 key, whole keys above. */
-export function stepAmount(v: number, dir: 1 | -1): number {
-  const n = dir > 0 ? (v < 1 ? r2(v + 0.1) : Math.floor(v) + 1) : v <= 1 ? Math.max(0.01, r2(v - 0.1)) : Math.ceil(v) - 1;
-  return Math.max(0.01, n);
-}
 
 export function TradeSheet({ handle, side: side0 }: { handle: string; side: 'buy' | 'sell' }) {
   const { data: p } = useProfile(handle);

@@ -48,3 +48,10 @@ export const shareCardUrl = (score: number, valueUsd: string) =>
   encodeURIComponent(`My Sway score is ${score}/100 and my reach is valued at ${valueUsd}. Buy my key and join my room.`);
 
 export const plainText = (rich: Array<{ t: string }>) => rich.map((s) => s.t).join('');
+
+/** Trade sheet stepper (prototype tstep): ±0.1 below 1 key, whole keys above, never under 0.01. */
+export function stepAmount(v: number, dir: 1 | -1): number {
+  const r2 = (x: number) => Math.round(x * 100) / 100;
+  const n = dir > 0 ? (v < 1 ? r2(v + 0.1) : Math.floor(v) + 1) : v <= 1 ? Math.max(0.01, r2(v - 0.1)) : Math.ceil(v) - 1;
+  return Math.max(0.01, n);
+}

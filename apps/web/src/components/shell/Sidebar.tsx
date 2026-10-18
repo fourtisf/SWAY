@@ -41,7 +41,7 @@ export function Drawer() {
           </button>
         </div>
         <div style={{ padding: '4px 6px 14px' }}>
-          <MeChip />
+          <MeChip menuDown />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <NavItems />

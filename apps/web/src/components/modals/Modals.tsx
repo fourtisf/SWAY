@@ -3,6 +3,7 @@ import { weiToEth } from '@sway/curve';
 import { normalizeHandle, shortAddress } from '@sway/shared';
 import { useEffect, useState } from 'react';
 import { errorMessage, getApi } from '@/lib/api';
+import { loadRef } from '@/lib/referral';
 import { useActions } from '@/lib/actions';
 import { useEthUsd, useFormat } from '@/lib/format';
 import { useConfig, useMe, useProfile, useWallet } from '@/lib/queries';
@@ -163,7 +164,7 @@ function ClaimModal({ handle }: { handle: string }) {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const signIn = () => {
-    if (cfg?.auth.x) window.location.href = getApi().xStartUrl(`/${handle}`);
+    if (cfg?.auth.x) window.location.href = getApi().xStartUrl(`/${handle}`, loadRef());
     else closeModal();
   };
   const send = async () => {

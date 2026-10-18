@@ -10,6 +10,7 @@ import type { MeDTO, OnboardingStatus } from '@sway/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { errorMessage, getApi } from '@/lib/api';
+import { loadRef } from '@/lib/referral';
 import { useActions } from '@/lib/actions';
 import { MOCK } from '@/lib/env';
 import { useFormat } from '@/lib/format';
@@ -30,7 +31,7 @@ export function ConnectModal() {
   const x = cfg ? cfg.auth.x : false;
   const dev = cfg ? cfg.auth.dev : MOCK;
   const goX = () => {
-    window.location.href = getApi().xStartUrl(window.location.pathname + window.location.search);
+    window.location.href = getApi().xStartUrl(window.location.pathname + window.location.search, loadRef());
   };
   const goDev = () => openModal({ type: 'onboard', handle: h.trim() || 'you', followers: parseInt(f.replace(/[^0-9]/g, '')) || 0 });
   const onKey = (e: React.KeyboardEvent) => {
@@ -122,7 +123,7 @@ export function OnboardingModal({ handle, followers }: { handle?: string; follow
         setCur(i);
         if (i < STEPS.length) await sleep(460);
       }
-      await api.devLogin({ handle: handle || 'you', followers: followers || undefined });
+      await api.devLogin({ handle: handle || 'you', followers: followers || undefined, ref: loadRef() ?? undefined });
       await finish();
     };
 
@@ -130,7 +131,7 @@ export function OnboardingModal({ handle, followers }: { handle?: string; follow
       setErr(null);
       let who: MeDTO | null = me ?? null;
       if (handle && (!who || who.user.handle !== handle.replace(/^@/, '').toLowerCase())) {
-        who = await api.devLogin({ handle, followers: followers || undefined });
+        who = await api.devLogin({ handle, followers: followers || undefined, ref: loadRef() ?? undefined });
         chk();
         qc.setQueryData(qk.me, who);
       }
@@ -163,9 +164,10 @@ export function OnboardingModal({ handle, followers }: { handle?: string; follow
           }
         } else w = await createEmbeddedWallet(who.user.id, cfg ?? (await api.config()));
         chk();
-        const { message } = await api.walletNonce();
+        // The API fills "Address: {address}" when we send the address; replace it ourselves otherwise.
+        const { message } = await api.walletNonce({ address: w.address });
         chk();
-        const signature = await w.signMessage(message);
+        const signature = await w.signMessage(message.split('{address}').join(w.address));
         chk();
         who = await api.walletLink({ address: w.address, signature, kind: w.kind });
         chk();

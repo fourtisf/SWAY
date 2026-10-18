@@ -1,0 +1,5 @@
+# Next build folders for the dev server and mock-mode e2e/visual runs
+.next-dev/
+.next-e2e/
+test-results/
+playwright-report/

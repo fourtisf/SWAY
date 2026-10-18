@@ -335,9 +335,9 @@ export function useActions() {
 
     async readAll() {
       try {
-        await api().readAll();
+        const r = await api().readAll();
+        qc.setQueryData<MeDTO | null>(qk.me, (m) => (m ? { ...m, unreadNotifications: r.unread } : m));
         qc.invalidateQueries({ queryKey: ['notifications'] });
-        qc.invalidateQueries({ queryKey: qk.me });
       } catch (e) {
         fail(e);
       }
@@ -347,9 +347,9 @@ export function useActions() {
       if (!n.read) {
         api()
           .readOne(n.id)
-          .then(() => {
+          .then((r) => {
+            qc.setQueryData<MeDTO | null>(qk.me, (m) => (m ? { ...m, unreadNotifications: r.unread } : m));
             qc.invalidateQueries({ queryKey: ['notifications'] });
-            qc.invalidateQueries({ queryKey: qk.me });
           })
           .catch(() => null);
       }

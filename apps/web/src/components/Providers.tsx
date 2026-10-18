@@ -23,6 +23,7 @@ export function Providers({ children }: { children: ReactNode }) {
             staleTime: MOCK ? 0 : 15_000,
             refetchOnWindowFocus: !MOCK,
             retry: (n, e) => !(e instanceof ApiRequestError && e.status >= 400 && e.status < 500) && n < 2,
+            retryDelay: (n) => Math.min(10_000, 1000 * 2 ** n),
           },
         },
       }),

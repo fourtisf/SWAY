@@ -5,11 +5,13 @@
   "description": "Sway web app (Next.js 14 App Router).",
   "scripts": {
     "dev": "next dev -p 3000",
+    "dev:mock": "NEXT_PUBLIC_API_MOCK=1 NEXT_DIST_DIR=.next-dev next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "e2e:visual": "VISUAL=1 E2E_PROD=1 E2E_PORT=3200 playwright test e2e/visual.spec.ts"
   },
   "dependencies": {
     "@rainbow-me/rainbowkit": "2.2.11",

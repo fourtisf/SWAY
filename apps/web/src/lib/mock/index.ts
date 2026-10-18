@@ -13,7 +13,11 @@ let world: MockWorld | null = null;
 let simStarted = false;
 
 export function getWorld(): MockWorld {
-  if (!world) world = new MockWorld();
+  if (!world) {
+    world = new MockWorld();
+    // Design review / e2e hook: inspect the mock world or run the live simulation on demand.
+    if (typeof window !== 'undefined') (window as unknown as { __mockWorld: MockWorld }).__mockWorld = world;
+  }
   if (!simStarted && typeof window !== 'undefined') {
     simStarted = true;
     window.setInterval(() => world?.simTick(), 4200);
@@ -50,13 +54,13 @@ export function getMockApi(): SwayApi {
       };
     },
     async price() {
-      return { ethUsd: ETH_USD };
+      return { ethUsd: ETH_USD, source: 'fallback' as const };
     },
     async me() {
       await tick();
       return w.me();
     },
-    xStartUrl: (redirect) => `/api/auth/x/start?redirect=${encodeURIComponent(redirect)}`,
+    xStartUrl: (redirect, ref) => `/api/auth/x/start?redirect=${encodeURIComponent(redirect)}${ref ? `&ref=${encodeURIComponent(ref)}` : ''}`,
     xCallbackUrl: () => '/api/auth/x/callback',
     async devLogin({ handle, followers }) {
       w.login(handle, followers);
@@ -70,9 +74,9 @@ export function getMockApi(): SwayApi {
       const on = !!w.user;
       return { profile: on, engagement: on, scored: on, wallet: on, market: on, marketTx: on ? fakeHash('market') : null };
     },
-    async walletNonce() {
+    async walletNonce(body) {
       needUser(w);
-      return { nonce: 'mock', message: 'Sign in to Sway (mock)' };
+      return { nonce: 'mock', message: `Link this wallet to Sway\nAddress: ${body?.address ?? '{address}'}\nNonce: mock` };
     },
     async walletLink() {
       needUser(w);
@@ -219,13 +223,13 @@ export function getMockApi(): SwayApi {
     async readAll() {
       needUser(w);
       w.notifs.forEach((n) => (n.read = true));
-      return { ok: true };
+      return { ok: true, unread: 0 };
     },
     async readOne(id) {
       needUser(w);
       const n = w.notifs.find((x) => x.id === id);
       if (n) n.read = true;
-      return { ok: true };
+      return { ok: true, unread: w.notifs.filter((x) => !x.read).length };
     },
     async messages() {
       if (!w.user) return { rooms: [], dms: [] };

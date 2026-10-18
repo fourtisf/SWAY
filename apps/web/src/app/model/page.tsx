@@ -1,5 +1,5 @@
 'use client';
-import { CURVE, priceAt } from '@sway/curve';
+import { CURVE, priceWei, weiToEth } from '@sway/curve';
 import { score, scorePoints } from '@sway/scoring';
 import { useFormat } from '@/lib/format';
 import { useUI } from '@/lib/store';
@@ -32,6 +32,9 @@ function Slider({ id, label, val, min, max, step, disp, onChange }: { id: string
     </div>
   );
 }
+
+// Contract reference prices, exact wei (supply in units: 1 key = 100 units).
+const keyPrice = (keys: number) => weiToEth(priceWei(BigInt(keys * 100)));
 
 export default function ModelPage() {
   const m = useUI((s) => s.model);
@@ -121,13 +124,13 @@ export default function ModelPage() {
         <div>
           <span>First key</span>
           <span>
-            {F.eth(priceAt(1))} ETH ({F.$(priceAt(1))})
+            {F.eth(keyPrice(1))} ETH ({F.$(keyPrice(1))})
           </span>
         </div>
         <div>
           <span>10th / 100th key</span>
           <span>
-            {F.$(priceAt(10))} / {F.$(priceAt(100))}
+            {F.$(keyPrice(10))} / {F.$(keyPrice(100))}
           </span>
         </div>
         <div>

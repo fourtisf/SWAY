@@ -33,6 +33,7 @@ import {
   type NotificationDTO,
   type NotificationTab,
   type OnboardingStatus,
+  type PriceResponse,
   type PostDTO,
   type PostDetailResponse,
   type ProfileDTO,
@@ -46,25 +47,27 @@ import {
   type Wei,
   type WalletDTO,
   type WalletLinkBody,
+  type WalletNonceBody,
   type WalletNonceResponse,
 } from '@sway/shared';
 import { MOCK } from './env';
 
 export type Ok = { ok: true };
+export type ReadResult = { ok: true; unread: number };
 
 export interface SwayApi {
   config(): Promise<ConfigDTO>;
-  price(): Promise<{ ethUsd: number }>;
+  price(): Promise<PriceResponse>;
   /** null for guests (the API answers 401). */
   me(): Promise<MeDTO | null>;
   /** GET /api/auth/x/start is a browser navigation, not a fetch: this returns the URL to open. */
-  xStartUrl(redirect: string): string;
+  xStartUrl(redirect: string, ref?: string | null): string;
   /** GET /api/auth/x/callback is X's redirect target, handled by the API. Exposed for completeness. */
   xCallbackUrl(): string;
   devLogin(body: DevLoginBody): Promise<MeDTO>;
   logout(): Promise<Ok>;
   onboarding(): Promise<OnboardingStatus>;
-  walletNonce(): Promise<WalletNonceResponse>;
+  walletNonce(body?: WalletNonceBody): Promise<WalletNonceResponse>;
   walletLink(body: WalletLinkBody): Promise<MeDTO>;
   openMarket(): Promise<OnboardingStatus>;
 
@@ -90,8 +93,8 @@ export interface SwayApi {
   claimRequest(handle: string, body: { kind: 'claim' | 'takedown'; contact: string; note?: string }): Promise<Ok>;
 
   notifications(q: { tab: NotificationTab }): Promise<NotificationDTO[]>;
-  readAll(): Promise<Ok>;
-  readOne(id: string): Promise<Ok>;
+  readAll(): Promise<ReadResult>;
+  readOne(id: string): Promise<ReadResult>;
   messages(): Promise<MessagesResponse>;
   dmOpen(body: { handle: string }): Promise<ThreadDTO>;
   dm(id: string): Promise<DmResponse>;
@@ -211,12 +214,13 @@ export function createHttpApi(): SwayApi {
         throw e;
       }
     },
-    xStartUrl: (redirect) => `${ROUTES.xStart.split(' ')[1]}?redirect=${encodeURIComponent(redirect)}`,
+    xStartUrl: (redirect, ref) =>
+      `${ROUTES.xStart.split(' ')[1]}?redirect=${encodeURIComponent(redirect)}${ref ? `&ref=${encodeURIComponent(ref)}` : ''}`,
     xCallbackUrl: () => ROUTES.xCallback.split(' ')[1]!,
     devLogin: (body) => request('devLogin', { body }),
     logout: () => request('logout'),
     onboarding: () => request('onboarding'),
-    walletNonce: () => request('walletNonce'),
+    walletNonce: (body) => request('walletNonce', body ? { body } : {}),
     walletLink: (body) => request('walletLink', { body }),
     openMarket: () => request('openMarket'),
     feed: (query) => request('feed', { query }),

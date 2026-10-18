@@ -8,7 +8,7 @@ function Row({ t }: { t: ThreadDTO }) {
   const router = useRouter();
   const w = t.with;
   return (
-    <div className="thr" onClick={() => router.push(`/messages/${encodeURIComponent(t.id)}`)}>
+    <div className="thr" onClick={() => router.push(`/messages/${t.kind === 'room' ? `room-${w.handle}` : encodeURIComponent(t.id)}`)}>
       <Avatar u={w} size={46} />
       <div style={{ minWidth: 0, flex: 1 }}>
         <div className="nm">

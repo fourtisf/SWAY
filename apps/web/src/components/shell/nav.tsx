@@ -1,8 +1,13 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Fragment } from 'react';
-import { useMe } from '@/lib/queries';
+import { useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
+import { Fragment, useEffect, useRef, useState } from 'react';
+import { getApi } from '@/lib/api';
+import { MOCK } from '@/lib/env';
+import { socket } from '@/lib/ws';
+import { invalidateAll, qk, useMe } from '@/lib/queries';
 import { openModal, useUI } from '@/lib/store';
 import { routeOf } from '@/lib/util';
 import { Icon, Logo, type IconName } from '../icons';
@@ -66,7 +71,7 @@ export function NavItems() {
   );
 }
 
-export function MeChip() {
+export function MeChip({ menuDown = false }: { menuDown?: boolean }) {
   const me = useMe().data;
   if (!me)
     return (
@@ -77,7 +82,7 @@ export function MeChip() {
     );
   const u = me.user;
   return (
-    <Link className="me-chip" href={`/${u.handle}`} onClick={close}>
+    <Link className="me-chip" href={`/${u.handle}`} onClick={close} style={{ position: 'relative' }}>
       <Avatar u={u} size={42} />
       <div className="me-t" style={{ minWidth: 0, flex: 1 }}>
         <div className="nm">
@@ -86,8 +91,63 @@ export function MeChip() {
         </div>
         <div className="hd">@{u.handle}</div>
       </div>
-      <span className="dots">···</span>
+      <AccountMenu handle={u.handle} down={menuDown} />
     </Link>
+  );
+}
+
+/** X-style account menu behind the "···" of the me-chip: Log out @handle. */
+function AccountMenu({ handle, down }: { handle: string; down: boolean }) {
+  const [open, setOpen] = useState(false);
+  const qc = useQueryClient();
+  const router = useRouter();
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    document.addEventListener('click', onDoc);
+    return () => document.removeEventListener('click', onDoc);
+  }, [open]);
+  const logout = async () => {
+    setOpen(false);
+    try {
+      await getApi().logout();
+    } catch {
+      /* already signed out */
+    }
+    qc.setQueryData(qk.me, null);
+    await invalidateAll(qc);
+    if (!MOCK) socket.restart();
+    router.push('/');
+  };
+  return (
+    <span
+      ref={ref}
+      className="dots"
+      role="button"
+      aria-label="Account menu"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setOpen(!open);
+      }}
+    >
+      ···
+      {open && (
+        <span className="sres" style={{ ...(down ? { top: 'calc(100% + 8px)' } : { top: 'auto', bottom: 'calc(100% + 8px)' }), left: 'auto', right: 0, minWidth: 220, letterSpacing: 0, fontWeight: 700 }}>
+          <span
+            className="it"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              logout();
+            }}
+          >
+            Log out @{handle}
+          </span>
+        </span>
+      )}
+    </span>
   );
 }
 
