@@ -17,6 +17,8 @@ contracts/out/
 contracts/cache/
 contracts/broadcast/*/31337/
 contracts/deployments/local.json
+contracts/deployments/31337.json
+contracts/anvil.log
 
 # playwright
 test-results/
