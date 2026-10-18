@@ -15,7 +15,7 @@ const r2 = (v: number) => Math.round(v * 100) / 100;
 export function TradeSheet({ handle, side: side0 }: { handle: string; side: 'buy' | 'sell' }) {
   const { data: p } = useProfile(handle);
   const me = useMe().data;
-  const wallet = useWallet(!!me).data;
+  const wallet = useWallet(!!me?.wallet).data;
   const F = useFormat();
   const actions = useActions();
   const pathname = usePathname();

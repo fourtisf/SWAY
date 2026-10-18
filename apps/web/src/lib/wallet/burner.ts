@@ -38,8 +38,9 @@ export function burnerWallet(pk: Hex, config: ConfigDTO): SwayWallet {
   const chain = swayChain({ chainId: config.chainId, rpcUrl: config.rpcUrl, explorerUrl: config.explorerUrl, name: config.chainName });
   const account = privateKeyToAccount(pk);
   const transport = http(config.rpcUrl);
-  const wallet = createWalletClient({ account, chain, transport });
-  const pub = createPublicClient({ chain, transport });
+  // Poll every second (viem's default is 4s) so trades confirm quickly on 1-2s block times.
+  const wallet = createWalletClient({ account, chain, transport, pollingInterval: 1000 });
+  const pub = createPublicClient({ chain, transport, pollingInterval: 1000 });
   const keys = () => {
     if (!config.contracts.swayKeys) throw new Error('SwayKeys is not deployed on this chain yet');
     return config.contracts.swayKeys;

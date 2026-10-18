@@ -30,7 +30,7 @@ function MobileTop() {
   const me = useMe().data;
   const F = useFormat();
   const router = useRouter();
-  const w = useWallet(!!me).data;
+  const w = useWallet(!!me?.wallet).data;
   return (
     <div className="mtop">
       <button aria-label="Open menu" onClick={() => useUI.setState({ drawer: true })}>

@@ -27,6 +27,11 @@ export function Chat({ msgs, placeholder, onSend }: { msgs: MessageDTO[]; placeh
   return (
     <div className="room">
       <div className="room-msgs" id="msgs" ref={box}>
+        {!msgs.length && (
+          <div className="t3" style={{ margin: 'auto', fontSize: 14 }}>
+            No messages yet. Say hi.
+          </div>
+        )}
         {msgs.map((m) => (
           <div key={m.id} className={`msg ${m.mine ? 'mine' : ''}`}>
             <Avatar u={m.from} size={28} />

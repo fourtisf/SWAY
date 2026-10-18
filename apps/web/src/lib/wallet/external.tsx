@@ -56,7 +56,7 @@ export default function ExternalWalletRoot({ config }: { config: ConfigDTO }) {
       [{ groupName: projectId ? 'Popular' : 'Installed', wallets: projectId ? [injectedWallet, walletConnectWallet] : [injectedWallet] }],
       { appName: 'Sway', projectId: projectId || 'walletconnect-disabled' },
     );
-    return createConfig({ chains: [chain], connectors, transports: { [chain.id]: http(config.rpcUrl) }, ssr: false });
+    return createConfig({ chains: [chain], connectors, transports: { [chain.id]: http(config.rpcUrl) }, ssr: false, pollingInterval: 1000 });
   }, [config]);
   return (
     <WagmiProvider config={cfg}>

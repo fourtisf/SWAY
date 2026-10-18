@@ -95,7 +95,7 @@ function Trades({ handle }: { handle: string }) {
 function Profile({ handle }: { handle: string }) {
   const { data: c, error, isPending } = useProfile(handle);
   const me = useMe().data;
-  const wallet = useWallet(!!me && !!c?.isMe).data;
+  const wallet = useWallet(!!me?.wallet && !!c?.isMe).data;
   const F = useFormat();
   const router = useRouter();
   const a = useActions();

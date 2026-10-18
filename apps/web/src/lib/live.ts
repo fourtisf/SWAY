@@ -84,9 +84,9 @@ export function handleWsMessage(qc: QueryClient, m: WsServerMessage) {
       useUI.setState({ newTrade: key });
       const me = qc.getQueryData<MeDTO | null>(qk.me);
       if (me && (me.user.handle === t.trader.handle || me.user.handle === t.market.handle)) {
-        qc.invalidateQueries({ queryKey: qk.wallet });
-        qc.invalidateQueries({ queryKey: qk.me });
-        qc.invalidateQueries({ queryKey: qk.holders(t.market.handle) });
+        // The indexer has this trade now: holdings, room access, balances and points may have moved.
+        for (const key of [qk.wallet, qk.me, qk.tasks, qk.messages, qk.holders(t.market.handle), qk.profile(t.market.handle), qk.room(t.market.handle)])
+          qc.invalidateQueries({ queryKey: key });
       }
       break;
     }

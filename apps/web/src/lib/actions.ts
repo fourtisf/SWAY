@@ -111,7 +111,20 @@ export function useActions() {
         const k = unitsToKeys(q.units);
         toast(`${side === 'buy' ? 'Bought' : 'Sold'} ${F.keys(k)} key${k === 1 ? '' : 's'} of ${p.name}`);
         closeModal();
-        await invalidateMoney(qc, p.handle);
+        // Mined, but the API mirrors chain state through the indexer (a few blocks behind): show the new
+        // holding now, then refresh once the indexer has it.
+        const expected = BigInt(p.heldUnits) + (side === 'buy' ? q.units : -q.units);
+        qc.setQueryData<ProfileDTO>(qk.profile(p.handle), (o) => (o ? { ...o, heldUnits: expected.toString() } : o));
+        void (async () => {
+          for (let i = 0; i < 30; i++) {
+            const fresh = await api()
+              .profile(p.handle)
+              .catch(() => null);
+            if (fresh && BigInt(fresh.heldUnits) === expected) break;
+            await new Promise((r) => setTimeout(r, 1000));
+          }
+          await invalidateMoney(qc, p.handle);
+        })();
         return true;
       } catch (e) {
         fail(e);
@@ -223,6 +236,20 @@ export function useActions() {
         await sw.waitForReceipt(hash);
         toast(`Claimed ${F.$(weiToEth(w.earnings.totalWei))}`);
         await invalidateMoney(qc);
+        // "Claimed so far" comes from the indexer: refresh once it has the Claim event.
+        const before = BigInt(w.earnings.claimedWei);
+        void (async () => {
+          for (let i = 0; i < 20; i++) {
+            await new Promise((r) => setTimeout(r, 1000));
+            const fresh = await api()
+              .wallet()
+              .catch(() => null);
+            if (fresh && BigInt(fresh.earnings.claimedWei) > before) {
+              qc.setQueryData(qk.wallet, fresh);
+              break;
+            }
+          }
+        })();
       } catch (e) {
         fail(e);
       }

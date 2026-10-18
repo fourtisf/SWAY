@@ -36,6 +36,17 @@ deviates from it, and what is still open. Keep this current.
 | Mainnet guard | API and workers refuse chain 4663 unless `SWAY_ENABLE_MAINNET=1`; the deploy script needs `ALLOW_MAINNET=1` and a real `SWAY_TOKEN`. |
 | Dev auth | `DEV_AUTH=1` (never in production) reproduces the prototype's demo sign-in with its `makeUser()` numbers; dev x ids are `9·10¹⁸ + hash(handle)` so they can't collide with real X ids. |
 
+## Web
+
+| Topic | Decision |
+|---|---|
+| Styling | The prototype's `<style>` block is ported verbatim into `globals.css` (Tailwind preflight off, tokens in `tailwind.config.ts`), so screens match the prototype pixel for pixel. One fix on top: on mobile the Markets table kept the hidden Followers column's grid track and squeezed names to ~40px; `.tr.mk` drops that track. |
+| Modes | `NEXT_PUBLIC_API_MOCK=1` (`pnpm --filter @sway/web dev:mock`) swaps the API client for an in-memory adapter ported from the prototype's seed and simulation: design review and e2e need no backend. Real mode calls same-origin `/api/*` (rewritten to `API_URL`, which is baked in at build time) and the WebSocket at `NEXT_PUBLIC_WS_URL`. |
+| Wallets | One `SwayWallet` interface. Burner (viem key in localStorage, local/testnet) and external (wagmi + RainbowKit; WalletConnect only with a project id) are implemented; Privy and CDP adapters are stubs that throw until a provider is chosen. Buys send the quote + 1% (the contract refunds change); sells set `minProceeds` to 99% of the quote. |
+| Indexer lag | After a receipt the UI shows the new holding immediately and polls the profile/wallet until the mirror catches up; trade events on the WebSocket refresh the same queries. |
+| Build workaround | RainbowKit → wagmi connectors → `@base-org/account` → `@coinbase/cdp-sdk` imports optional `@x402/*` packages that aren't installed; `next.config.mjs` aliases them to empty modules. |
+| Copy | Prototype wording kept, minus demo-only phrases ("Prototype", "…in the full build"). Additions: log out, claim/takedown request form, accept/decline on challenges, empty-room hint, API-unreachable banner. |
+
 ## Open items before mainnet
 
 1. **Audit** of all contracts; publish the report, then lift the mainnet flags.
@@ -51,5 +62,7 @@ deviates from it, and what is still open. Keep this current.
 7. **Admin keys**: put the owner behind a multisig + timelock; move `OPERATOR_PRIVATE_KEY` / `ISSUER_PRIVATE_KEY`
    to a secrets manager; consider separating the operator (markets, referrers, fan claims) from the fan admin.
 8. **Launchpad**: pool venue and migration flow, airdrop root generation from the key-holder snapshot.
-9. **Phase 4** (brief §11): post detail page with threads, price chart ranges, PnL (cost basis is already
+9. **API contract polish**: `ownerAddress` on post authors (tip/subscribe fetch the profile today), cash
+   balance on `MeDTO` (the mobile top bar fetches the wallet), a profile-exists flag for leaderboard rows.
+10. **Phase 4** (brief §11): post detail page with threads, price chart ranges, PnL (cost basis is already
    mirrored per holding), OG card image, settings, creator activity bond, anti-dump fee, voice rooms.

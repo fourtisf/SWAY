@@ -534,6 +534,8 @@ input[type=range]{width:100%;accent-color:var(--blue);height:4px}
   .vs{grid-template-columns:minmax(0,1fr);gap:6px}.vs-mid{height:20px}.vs-mid span{width:34px;height:34px;font-size:11.5px}
   .grid3{gap:8px}.grid3 .stat{padding:12px}.grid3 .stat b{font-size:16px}
   .hm{display:none!important}
+  /* Not in the prototype: hiding the Followers cell left its grid track, squeezing names to ~40px. */
+  .tr.mk{grid-template-columns:24px minmax(0,1fr) 92px 64px!important}
   .bal-v{font-size:38px}
   .room{height:calc(100vh - 240px)}
 }

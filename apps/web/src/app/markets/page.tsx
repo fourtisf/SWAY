@@ -54,7 +54,7 @@ export default function MarketsPage() {
               </div>
             </div>
           )}
-          <div className="tr th" style={{ ...COLS, borderTop: '1px solid var(--stroke)' }}>
+          <div className="tr th mk" style={{ ...COLS, borderTop: '1px solid var(--stroke)' }}>
             <span>#</span>
             <span>Account</span>
             <span className="num hm">Followers</span>
@@ -64,7 +64,7 @@ export default function MarketsPage() {
           {data.markets.map((c, i) => {
             const price = weiToEth(c.priceWei);
             return (
-              <div key={c.handle} className="tr clickable" style={COLS} onClick={() => router.push(`/${c.handle}`)}>
+              <div key={c.handle} className="tr clickable mk" style={COLS} onClick={() => router.push(`/${c.handle}`)}>
                 <span className="rk">{i + 1}</span>
                 <div className="row" style={{ minWidth: 0 }}>
                   <Avatar u={c} size={42} />

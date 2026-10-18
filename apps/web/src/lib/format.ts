@@ -1,15 +1,21 @@
 'use client';
 import { makeFormat, type Format } from '@sway/shared';
+import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { DEFAULT_ETH_USD } from './env';
+import { getApi } from './api';
+import { DEFAULT_ETH_USD, MOCK } from './env';
 import { useConfig } from './queries';
 import { useUI } from './store';
 
-/** makeFormat(ethUsd) with ethUsd from /api/config, overridden by live `price` socket messages. */
+/**
+ * ETH/USD for display: live `price` socket messages first, then GET /api/price (refreshed every 60s as a
+ * fallback while the socket is down), then ConfigDTO.ethUsd.
+ */
 export function useEthUsd(): number {
   const live = useUI((s) => s.ethUsd);
   const cfg = useConfig().data;
-  return live ?? cfg?.ethUsd ?? DEFAULT_ETH_USD;
+  const polled = useQuery({ queryKey: ['price'], queryFn: () => getApi().price(), enabled: !MOCK, refetchInterval: 60_000, staleTime: 55_000 }).data;
+  return live ?? polled?.ethUsd ?? cfg?.ethUsd ?? DEFAULT_ETH_USD;
 }
 
 export function useFormat(): Format {

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Icon } from '@/components/icons';
-import { Avatar, Loading, NeedUser, VB } from '@/components/ui';
+import { Avatar, Empty, Loading, NeedUser, VB } from '@/components/ui';
 import { useActions } from '@/lib/actions';
 import { useFormat } from '@/lib/format';
 import { useMe, useWallet } from '@/lib/queries';
@@ -13,13 +13,27 @@ import { openModal } from '@/lib/store';
 
 export default function WalletPage() {
   const me = useMe();
-  const { data: w } = useWallet(!!me.data);
+  const { data: w } = useWallet(!!me.data?.wallet);
   const F = useFormat();
   const router = useRouter();
   const { claimEarnings, deposit, openTrade } = useActions();
   const [busy, setBusy] = useState(false);
   if (me.isPending) return <Loading />;
   if (!me.data) return <NeedUser title="Connect X to open your wallet" text="A Sway wallet on Robinhood Chain is created when you sign in. Balances and earnings show in dollars." />;
+  if (!me.data.wallet)
+    return (
+      <Empty
+        icon="wallet"
+        title="Finish setting up your wallet"
+        action={
+          <button className="btn btn-white" onClick={() => openModal({ type: 'onboard' })}>
+            Create my Sway wallet
+          </button>
+        }
+      >
+        Your Sway wallet on Robinhood Chain holds your keys and earnings.
+      </Empty>
+    );
   if (!w) return <Loading />;
   const cash = weiToEth(w.cashWei),
     pv = weiToEth(w.keysValueWei),
@@ -145,7 +159,7 @@ export default function WalletPage() {
             <div key={a.id} className="tr" style={{ gridTemplateColumns: 'minmax(0,1fr) auto' }}>
               <div style={{ minWidth: 0 }}>
                 <b style={{ fontSize: 14 }}>{a.label}</b>
-                <div className="hd">{F.ago(minutesSince(a.createdAt))} ago</div>
+                <div className="hd">{minutesSince(a.createdAt) < 1 ? 'now' : `${F.ago(minutesSince(a.createdAt))} ago`}</div>
               </div>
               <b className={amt >= 0 ? 'up' : ''}>
                 {amt >= 0 ? '+' : '−'}

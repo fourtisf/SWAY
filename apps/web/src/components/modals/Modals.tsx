@@ -37,7 +37,7 @@ function ComposeModal() {
 
 function WithdrawModal() {
   const me = useMe().data;
-  const w = useWallet(!!me).data;
+  const w = useWallet(!!me?.wallet).data;
   const F = useFormat();
   const ethUsd = useEthUsd();
   const { withdraw } = useActions();

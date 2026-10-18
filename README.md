@@ -51,6 +51,7 @@ pnpm test                    # every package (curve, scoring, shared, x, api, wo
 pnpm test:contracts          # forge test: unit, fuzz, invariants, differential curve vectors
 pnpm vectors                 # regenerate contracts/test/vectors/curve.json after changing curve math
 pnpm --filter @sway/web e2e  # Playwright (mock mode)
+pnpm --filter @sway/workers e2e:stack   # Phase 1 definition of done against a running local stack
 ```
 
 - `packages/curve` is the source of truth for UI money math. `contracts/test/CurveVectors.t.sol` replays 160
