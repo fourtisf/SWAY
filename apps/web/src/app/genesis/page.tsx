@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useEffect, useRef } from 'react';
 import { Icon } from '@/components/icons';
 import { Avatar, CountdownBoxes, Loading, Voiceprint } from '@/components/ui';
@@ -71,7 +72,14 @@ export default function GenesisPage() {
         <p className="t2" style={{ margin: '0 auto 16px', maxWidth: '46ch' }}>
           At the snapshot the 500 members with the most points get a soulbound pass in their Sway wallet. No claim, no gas. The pass number is your rank.
         </p>
-        <CountdownBoxes to={data.snapshotAt} style={{ maxWidth: 400, margin: '0 auto' }} />
+        {data.frozen && data.snapshotId ? (
+          <Link className="btn btn-white btn-lg" href={`/genesis/list/${data.snapshotId}`} style={{ maxWidth: 400, width: '100%' }}>
+            <Icon name="gem" />
+            See the full list
+          </Link>
+        ) : (
+          <CountdownBoxes to={data.snapshotAt} style={{ maxWidth: 400, margin: '0 auto' }} />
+        )}
         <div className="t3" style={{ fontSize: 12.5, marginTop: 8 }}>
           {snapshotLabel(data.snapshotAt)}
         </div>
@@ -128,10 +136,16 @@ export default function GenesisPage() {
         ))}
       </div>
       <div className="sec-h">
-        <h2>Current top 30</h2>
-        <span className="t3" style={{ fontSize: 13 }}>
-          {data.frozen ? 'Frozen at the snapshot' : 'Live until the freeze'}
-        </span>
+        <h2>{data.snapshotId ? 'Top 30 at the snapshot' : 'Current top 30'}</h2>
+        {data.snapshotId ? (
+          <Link className="lnk" href={`/genesis/list/${data.snapshotId}`} style={{ fontSize: 13 }}>
+            See the full list
+          </Link>
+        ) : (
+          <span className="t3" style={{ fontSize: 13 }}>
+            {data.frozen ? 'Frozen at the snapshot' : 'Live until the freeze'}
+          </span>
+        )}
       </div>
       {data.top.map((r) => (
         <div key={r.rank} className="tr" style={{ gridTemplateColumns: '64px minmax(0,1fr) auto' }}>

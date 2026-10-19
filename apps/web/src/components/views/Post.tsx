@@ -4,13 +4,13 @@ import { hueOf, minutesSince, type MarketDTO, type PostDTO } from '@sway/shared'
 import { frameOfScore } from '@sway/scoring';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties, MouseEvent, ReactNode } from 'react';
 import { useActions } from '@/lib/actions';
 import { useFormat } from '@/lib/format';
-import { toast } from '@/lib/store';
 import { Icon } from '../icons';
 import { goTag } from '../shell/Rail';
 import { Avatar, Spark, VB } from '../ui';
+import { PostMenu } from './PostMenu';
 
 /** Mentions → profiles, #tags → Explore, sway.fam/model → /model (prototype linkify()). */
 export function Linkify({ text }: { text: string }) {
@@ -49,15 +49,39 @@ export function Linkify({ text }: { text: string }) {
   return <>{out}</>;
 }
 
-export function PostItem({ p, pinned = false }: { p: PostDTO; pinned?: boolean }) {
+/** X-style image grid: 1 wide, 2 side by side, 3 = one tall + two stacked, 4 = 2×2. */
+export function MediaGrid({ media }: { media: string[] }) {
+  if (!media.length) return null;
+  return (
+    <div className={`pm pm${Math.min(4, media.length)}`}>
+      {media.slice(0, 4).map((u, i) => (
+        <a key={u + i} href={u} target="_blank" rel="noopener noreferrer" aria-label={`Image ${i + 1} of ${media.length}`}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={u} alt="" loading="lazy" decoding="async" />
+        </a>
+      ))}
+    </div>
+  );
+}
+
+/** Clicks on these never open the post page. */
+const INTERACTIVE = 'a,button,input,textarea,select,label,.mn,.ht,.lk,.pmenu,.lockbox';
+
+export function PostItem({ p, pinned = false, focus = false, thread = false }: { p: PostDTO; pinned?: boolean; focus?: boolean; thread?: boolean }) {
   const F = useFormat();
   const a = useActions();
+  const router = useRouter();
   const c = p.author;
   const prof = c.official ? '/' : `/${c.handle}`;
+  const href = `/post/${p.id}`;
   const visTag =
     p.visibility === 'holders' ? <span className="tag">Holders</span> : p.visibility === 'subs' ? <span className="tag pink">Subscribers</span> : null;
+  const open = (e: MouseEvent) => {
+    if (focus || (e.target as HTMLElement).closest(INTERACTIVE) || window.getSelection()?.toString()) return;
+    router.push(href);
+  };
   return (
-    <article className="post" style={{ flexDirection: 'column', gap: 0 }}>
+    <article className={`post ${focus ? 'focus' : ''} ${thread ? 'thread' : ''} ${focus ? '' : 'clickable'}`} style={{ flexDirection: 'column', gap: 0 }} data-post={p.id} onClick={open}>
       {pinned && (
         <div className="pin">
           <Icon name="pin" />
@@ -65,9 +89,11 @@ export function PostItem({ p, pinned = false }: { p: PostDTO; pinned?: boolean }
         </div>
       )}
       <div style={{ display: 'flex', gap: 13 }}>
-        <Link href={prof} aria-label={c.name}>
-          <Avatar u={c} size={44} />
-        </Link>
+        <div className="post-av">
+          <Link href={prof} aria-label={c.name}>
+            <Avatar u={c} size={44} />
+          </Link>
+        </div>
         <div className="post-b">
           {p.boosted && (
             <div className="boost">
@@ -81,12 +107,14 @@ export function PostItem({ p, pinned = false }: { p: PostDTO; pinned?: boolean }
               <VB v={c.verified} off={c.official} />
             </Link>
             <span className="hd">
-              @{c.handle} · {F.ago(minutesSince(p.createdAt))}
+              @{c.handle} ·{' '}
+              <Link href={href} className="pt-time" title={new Date(p.createdAt).toLocaleString()}>
+                {F.ago(minutesSince(p.createdAt))}
+              </Link>
             </span>
             {visTag}
-            <button className="more" aria-label="More" onClick={() => toast('Post menu opens soon')}>
-              <Icon name="dots" size={18} />
-            </button>
+            {p.hidden && <span className="tag warn">Hidden</span>}
+            <PostMenu p={p} />
           </div>
           {p.locked ? (
             <div className="lockbox">
@@ -108,12 +136,22 @@ export function PostItem({ p, pinned = false }: { p: PostDTO; pinned?: boolean }
               </div>
             </div>
           ) : (
-            <div className="post-t">
-              <Linkify text={p.text ?? ''} />
-            </div>
+            <>
+              {p.text ? (
+                <div className="post-t">
+                  <Linkify text={p.text} />
+                </div>
+              ) : null}
+              <MediaGrid media={p.media ?? []} />
+            </>
           )}
           <div className="post-a">
-            <button className="pa" data-act="reply" aria-label="Reply" onClick={() => a.needUser() && toast('Replies open soon')}>
+            <button
+              className="pa"
+              data-act="reply"
+              aria-label="Reply"
+              onClick={() => (focus ? document.getElementById('reply-box')?.focus() : router.push(href))}
+            >
               <Icon name="reply" />
               {F.n(p.replies)}
             </button>

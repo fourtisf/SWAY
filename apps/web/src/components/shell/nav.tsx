@@ -67,6 +67,19 @@ export function NavItems() {
           <span className="nl">Profile</span>
         </Link>
       )}
+      {/* [B] settings for members, admin for admins */}
+      {me && (
+        <Link className={`nv ${v === 'settings' ? 'on' : ''}`} href="/settings" title="Settings" onClick={close} aria-current={v === 'settings' ? 'page' : undefined}>
+          <Icon name="gear" />
+          <span className="nl">Settings</span>
+        </Link>
+      )}
+      {me?.isAdmin && (
+        <Link className={`nv ${v === 'admin' ? 'on' : ''}`} href="/admin" title="Admin" onClick={close} aria-current={v === 'admin' ? 'page' : undefined}>
+          <Icon name="shield" />
+          <span className="nl">Admin</span>
+        </Link>
+      )}
     </>
   );
 }

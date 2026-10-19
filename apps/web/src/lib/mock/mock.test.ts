@@ -1,7 +1,7 @@
 import { priceWei, quoteWei, unitsToKeys, weiToEth } from '@sway/curve';
-import { ROUTES, makeFormat } from '@sway/shared';
+import { ENGAGE_ROUTES, LAUNCH_ROUTES, ROUTES, SOCIAL_ROUTES, WALLET_ROUTES, makeFormat } from '@sway/shared';
 import { describe, expect, it } from 'vitest';
-import { ROUTE_METHODS, createHttpApi } from '../api';
+import { ENGAGE_ROUTE_METHODS, LAUNCH_ROUTE_METHODS, ROUTE_METHODS, SOCIAL_ROUTE_METHODS, WALLET_ROUTE_METHODS, createHttpApi } from '../api';
 import { mockWallet } from '../wallet/mock';
 import { getMockApi, getWorld } from './index';
 
@@ -67,5 +67,67 @@ describe('client coverage', () => {
       expect(typeof http[m], `http.${m}`).toBe('function');
       expect(typeof mock[m], `mock.${m}`).toBe('function');
     }
+    // [B] SOCIAL_ROUTES
+    for (const key of Object.keys(SOCIAL_ROUTES) as Array<keyof typeof SOCIAL_ROUTES>) {
+      const m = SOCIAL_ROUTE_METHODS[key];
+      expect(typeof http[m], `http.${m}`).toBe('function');
+      expect(typeof mock[m], `mock.${m}`).toBe('function');
+    }
+    // [A] WALLET_ROUTES
+    for (const key of Object.keys(WALLET_ROUTES) as Array<keyof typeof WALLET_ROUTES>) {
+      const m = WALLET_ROUTE_METHODS[key];
+      expect(typeof http[m], `http.${m}`).toBe('function');
+      expect(typeof mock[m], `mock.${m}`).toBe('function');
+    }
+    // [C] LAUNCH_ROUTES
+    for (const key of Object.keys(LAUNCH_ROUTES) as Array<keyof typeof LAUNCH_ROUTES>) {
+      const m = LAUNCH_ROUTE_METHODS[key];
+      expect(typeof http[m], `http.${m}`).toBe('function');
+      expect(typeof mock[m], `mock.${m}`).toBe('function');
+    }
+    // [D] ENGAGE_ROUTES
+    for (const key of Object.keys(ENGAGE_ROUTES) as Array<keyof typeof ENGAGE_ROUTES>) {
+      const m = ENGAGE_ROUTE_METHODS[key];
+      expect(typeof http[m], `http.${m}`).toBe('function');
+      expect(typeof mock[m], `mock.${m}`).toBe('function');
+    }
+  });
+});
+
+describe('[B] mock social routes', () => {
+  it('blocks, hides, threads, deletes and boosts like the API', async () => {
+    const api = getMockApi();
+    const w = getWorld();
+    await api.devLogin({ handle: 'admin_mock', followers: 1000 });
+    expect((await api.me())?.isAdmin).toBe(true);
+    const root = await api.createPost({ text: 'root', visibility: 'public' });
+    const reply = await api.createPost({ text: 'reply', visibility: 'public', parentId: root.id });
+    const nested = await api.createPost({ text: 'nested', visibility: 'public', parentId: reply.id });
+    const t = await api.post(root.id);
+    expect(t.replies.map((r) => r.text)).toEqual(['reply']);
+    expect(t.nested.map((r) => r.text)).toEqual(['nested']);
+    expect((await api.post(nested.id)).parents.map((p) => p.text)).toEqual(['root', 'reply']);
+    expect((await api.feed({ tab: 'latest' })).posts.some((p) => p.id === reply.id)).toBe(false);
+
+    await api.block('novareyes');
+    expect((await api.feed({ tab: 'latest' })).posts.some((p) => p.author.handle === 'novareyes')).toBe(false);
+    expect((await api.profile('novareyes')).blocked).toBe(true);
+    await api.block('novareyes');
+
+    const reports = await api.adminReports();
+    expect(reports.length).toBeGreaterThan(0);
+    await api.adminHidePost(root.id, { hidden: true });
+    expect((await api.feed({ tab: 'latest' })).posts.find((p) => p.id === root.id)?.hidden).toBe(true);
+
+    const q = await api.boostQuote();
+    const hash = await mockWallet(w.user!.wallet).sendEth(q.treasury!, BigInt(q.wei));
+    expect((await api.boostPost(root.id, { txHash: hash })).post.boosted).toBe(true);
+    await expect(api.boostPost(root.id, { txHash: hash })).rejects.toMatchObject({ code: 'tx_used' });
+
+    await api.deletePost(reply.id);
+    expect((await api.post(root.id)).replies).toEqual([]);
+    await expect(api.deleteAccount({ confirm: 'delete @someone' })).rejects.toMatchObject({ code: 'confirm_mismatch' });
+    await api.deleteAccount({ confirm: 'delete @admin_mock' });
+    expect(await api.me()).toBeNull();
   });
 });

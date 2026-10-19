@@ -6,7 +6,10 @@ bonding curve to enter a creator's room and read holder-only posts. The scoring 
 - Product brief: [docs/CLAUDE_CODE_BRIEF.md](docs/CLAUDE_CODE_BRIEF.md)
 - Approved UI and behavior reference: [docs/sway-prototype.html](docs/sway-prototype.html) (open it in a browser)
 
-> **Status:** Phase 1 build for testnet. Contracts are **unaudited**: mainnet (chain 4663) is blocked in the API,
+> **Status:** testnet build: Phase 1 plus the brief's Phase 2 to 4 features (several wallets, launchpad, staking,
+> Genesis list, moderation and admin, threads, price history, PnL, share cards, dark mode, watchlist alerts,
+> daily streaks, referral dashboard, web push, creator activity bond, anti-dump fee, creator airdrops). Live
+> voice rooms are not built yet. Contracts are **unaudited**: mainnet (chain 4663) is blocked in the API,
 > the workers and the deploy script until an audit report is published.
 
 ## Layout
@@ -20,7 +23,7 @@ packages/scoring  open scoring model (MIT), points/tiers, Genesis 1/√rank spli
 packages/shared   API contract (DTOs, routes, WS + bus messages), formatters, tasks, chain presets, ABIs
 packages/db       Prisma schema, migrations, client, local demo seed
 packages/x        X API v2 client: PKCE, scoring reads, task checks, battle reads, budget + backoff
-contracts/        Foundry: SwayKeys, FanEscrow, SwayStaking, GenesisPass, SwayLaunchpad (+ SwayCreatorToken)
+contracts/        Foundry: SwayKeys, FanEscrow, SwayStaking, GenesisPass, SwayLaunchpad (+ SwayCreatorToken), SwayDrops
 ```
 
 ## Run it locally
@@ -43,6 +46,10 @@ your dev wallet is funded with 0.75 ETH on the local chain.
 
 Design review without any backend: `NEXT_PUBLIC_API_MOCK=1 pnpm dev:web` runs the web app on the prototype's
 in-memory data.
+
+Web push is off until you add VAPID keys: run `node scripts/vapid-keys.mjs`, put both lines in `.env` (the API
+reads the public key, the workers sign with both) and restart. Workers health: http://localhost:4100/healthz and
+`/metrics`.
 
 ## Tests
 
@@ -67,6 +74,11 @@ stakers, half treasury; cut 10/25/50/75% by staking level), holders 1% (pro rata
 reward-per-unit accumulator), referral 1% (half each to the trader's and the creator's referrer; a missing half
 goes to protocol). The creator's first key is minted free at market open and can never be sold. Max 10 keys
 per wallet in the first 5 minutes after a market's first trade. Every earning is pulled with `claim()`.
+
+Two Phase 4 rules move fees to holders: if a creator posts nothing in their room for 7 days, their 6% goes to
+holders until they post again (activity bond), and selling within 24 hours of your last buy in that market adds
+5% of the curve price, paid to holders (anti-dump). Creators can also airdrop ETH to their holders with
+`SwayDrops` (merkle claims; unclaimed ETH goes back to the creator after the claim window).
 
 ## Deploy
 

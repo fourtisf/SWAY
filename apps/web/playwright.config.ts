@@ -27,6 +27,7 @@ export default defineConfig({
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 600_000,
-    env: { NEXT_PUBLIC_API_MOCK: '1', NEXT_DIST_DIR: prod ? '.next-e2e' : '.next-dev' },
+    // NEXT_DIST_DIR from the environment lets parallel e2e runs use separate build folders.
+    env: { NEXT_PUBLIC_API_MOCK: '1', NEXT_DIST_DIR: process.env.NEXT_DIST_DIR || (prod ? '.next-e2e' : '.next-dev') },
   },
 });

@@ -25,10 +25,13 @@ contracts/anvil.log
 
 # playwright
 test-results/
+test-results-*/
 playwright-report/
 
 # local service data
 dump.rdb
+# post images (UPLOAD_DIR default)
+/uploads/
 
 # os / editors
 .DS_Store

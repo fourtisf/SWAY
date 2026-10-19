@@ -29,6 +29,7 @@ import {
   type MemberScore,
 } from '../services/users';
 import { xClient } from '../services/xauth';
+import { bootstrapAdmin } from '../services/social';
 
 const OAUTH_TTL_S = 600;
 const oauthKey = (state: string) => `oauth:${state}`;
@@ -121,6 +122,7 @@ export async function authRoutes(app: FastifyInstance) {
         xCreatedAt: me.createdAt ? new Date(me.createdAt) : null,
       };
       const { user } = await upsertMember(prisma, profile, scored, { ref: st.ref });
+      await bootstrapAdmin(prisma, config, user.id, user.handle); // [B]
       if (refresh) await app.deps.jobs.enqueueRefreshScore(user.id).catch(() => undefined);
       await createSession(req, reply, {
         userId: user.id,
@@ -154,6 +156,7 @@ export async function authRoutes(app: FastifyInstance) {
     const ref = referralFrom(req, b.ref ?? null);
 
     const existing = await prisma.user.findUnique({ where: { handle } });
+    if (existing?.deletedAt) throw badRequest('invalid_handle', 'That account was deleted'); // [B]
     let userId: string;
     if (existing && existing.xId !== devXId(handle)) {
       // A seeded or real account: sign in as it (dev only), upgrading a fan-market placeholder to a member.
@@ -178,6 +181,7 @@ export async function authRoutes(app: FastifyInstance) {
       const { user } = await upsertMember(prisma, profile, scored, { ref });
       userId = user.id;
     }
+    await bootstrapAdmin(prisma, config, userId, handle); // [B]
     await createSession(req, reply, { userId, dev: true });
     return buildMe(prisma, await requireViewer(req));
   });

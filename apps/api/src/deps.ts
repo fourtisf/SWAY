@@ -4,6 +4,7 @@ import type { Config } from './config';
 import type { ChainClient } from './services/chain';
 import type { JobQueue } from './services/jobs';
 import type { AccessService } from './services/access';
+import type { LaunchChain } from './services/launch-chain';
 
 /** Everything buildApp needs from the outside world; tests pass fakes. */
 export interface AppDeps {
@@ -17,6 +18,8 @@ export interface AppDeps {
   jobs: JobQueue;
   /** fetch used by @sway/x (tests inject a mock). */
   xFetch?: typeof fetch;
+  /** [C] SwayLaunchpad / SwayStaking / $SWAY access; defaults to a viem client from config (tests inject a fake). */
+  launchChain?: LaunchChain;
 }
 
 export interface SessionData {

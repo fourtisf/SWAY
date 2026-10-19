@@ -4,7 +4,10 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useActions } from '@/lib/actions';
 import { useFormat } from '@/lib/format';
-import { useMe, useProfile, useWallet } from '@/lib/queries';
+import { useMe, useProfile, useWallets } from '@/lib/queries';
+import { useMemberWallets } from '@/lib/wallet';
+import { openConnectWallet } from '@/lib/wallet-actions';
+import { WalletSwitch } from '../wallet/WalletSwitch';
 import { closeModal, openModal } from '@/lib/store';
 import { stepAmount } from '@/lib/util';
 import { Icon } from '../icons';
@@ -15,7 +18,9 @@ const r2 = (v: number) => Math.round(v * 100) / 100;
 export function TradeSheet({ handle, side: side0 }: { handle: string; side: 'buy' | 'sell' }) {
   const { data: p } = useProfile(handle);
   const me = useMe().data;
-  const wallet = useWallet(!!me?.wallet).data;
+  // [A] the active wallet pays (buy) or sells its own keys; the member can switch between their wallets.
+  const { wallets, active, ready, setActive } = useMemberWallets();
+  const balances = useWallets(!!me?.wallet).data?.wallets;
   const F = useFormat();
   const actions = useActions();
   const pathname = usePathname();
@@ -49,7 +54,16 @@ export function TradeSheet({ handle, side: side0 }: { handle: string; side: 'buy
   const held = BigInt(p.heldUnits);
   const level = me?.stakingLevel ?? 0;
   const locked = 100n;
-  let maxSellU = (p.isMe ? held - locked : held) < supply - locked ? (p.isMe ? held - locked : held) : supply - locked;
+  const unitsIn = (address: string): bigint => {
+    const row = p.heldBy?.find((x) => x.address.toLowerCase() === address.toLowerCase());
+    if (row) return BigInt(row.units);
+    return p.heldBy ? 0n : held; // older API: everything sits in the account wallet
+  };
+  const inWallet = active ? unitsIn(active.address) : held;
+  // The creator's first key sits in their account wallet and can never be sold.
+  const ownLocked = p.isMe && (!active || active.account);
+  const sellableHere = ownLocked ? inWallet - locked : inWallet;
+  let maxSellU = sellableHere < supply - locked ? sellableHere : supply - locked;
   if (maxSellU < 0n) maxSellU = 0n;
   const maxSell = unitsToKeys(maxSellU);
   const buy = side === 'buy';
@@ -65,7 +79,9 @@ export function TradeSheet({ handle, side: side0 }: { handle: string; side: 'buy
   const now = weiToEth(p.priceWei);
   const total = q ? weiToEth(q.total) : 0;
   const after = q ? weiToEth(q.priceAfter) : now;
-  const cash = wallet ? BigInt(wallet.cashWei) : 0n;
+  const cashRow = active ? balances?.find((x) => x.address.toLowerCase() === active.address.toLowerCase()) : undefined;
+  const cash = cashRow ? BigInt(cashRow.cashWei) : 0n;
+  const needConnect = !!me && !!me.wallet && ready && !!active && !active.usable;
   const tooMuch = buy && !!q && q.total > cash;
   const bad = a < CURVE.MIN || (buy ? tooMuch : a > maxSell);
   const label = !me
@@ -124,7 +140,9 @@ export function TradeSheet({ handle, side: side0 }: { handle: string; side: 'buy
           </div>
           <div className="amt-l">
             <span>Keys</span>
-            <span>{buy ? `${F.$(now)} each` : `You hold ${F.keys(unitsToKeys(held))}`}</span>
+            <span>
+              {buy ? `${F.$(now)} each` : wallets.length > 1 ? `This wallet holds ${F.keys(unitsToKeys(inWallet))} of your ${F.keys(unitsToKeys(held))}` : `You hold ${F.keys(unitsToKeys(held))}`}
+            </span>
           </div>
           <div className="amt">
             <button aria-label="Fewer keys" onClick={() => set(stepAmount(a, -1))}>
@@ -183,11 +201,29 @@ export function TradeSheet({ handle, side: side0 }: { handle: string; side: 'buy
               {sum('Referral 1%', q ? weiToEth(q.referralFee) : 0)}
             </div>
           </div>
+          {me && active && (
+            <WalletSwitch
+              label={buy ? 'Pay with' : 'Sell from'}
+              wallets={wallets}
+              active={active}
+              balances={balances}
+              unitsOf={buy ? null : unitsIn}
+              onPick={(a) => {
+                setActive(a);
+                if (!buy) set(Math.min(1, unitsToKeys(unitsIn(a))));
+              }}
+            />
+          )}
           <div className="wallet-r">
             <span>Balance</span>
             <span>{F.$(weiToEth(cash))}</span>
           </div>
-          {me ? (
+          {needConnect ? (
+            <button className="btn btn-lg btn-block btn-white" onClick={() => openConnectWallet(active!.address)}>
+              <Icon name="wallet" />
+              Connect a wallet
+            </button>
+          ) : me ? (
             <button className={`btn btn-lg btn-block ${buy ? 'btn-buy' : 'btn-sell'}`} disabled={bad || busy} onClick={exec}>
               {busy ? (
                 <>

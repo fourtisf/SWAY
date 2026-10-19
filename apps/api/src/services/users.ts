@@ -71,6 +71,8 @@ export async function upsertMember(
           }
         : {}),
       ...(isNew ? { joinedAt: now, memberNo } : {}),
+      // Signing in again after deleting the account starts a fresh profile on the same X id.
+      deletedAt: null,
     };
     const user = existing
       ? await tx.user.update({ where: { id: existing.id }, data })

@@ -1,8 +1,10 @@
 'use client';
+import Link from 'next/link';
 import { useMe } from '@/lib/queries';
 import { openModal, useUI } from '@/lib/store';
 import { Icon } from '../icons';
 import { LogoLink, MeChip, NavItems } from './nav';
+import { ConnectWalletButton } from '../wallet/ConnectWalletButton'; // [A]
 
 export function compose(signedIn: boolean) {
   openModal(signedIn ? { type: 'compose' } : { type: 'connect' });
@@ -22,6 +24,7 @@ export function Sidebar() {
           <span className="nl">Post</span>
         </button>
       </div>
+      <ConnectWalletButton variant="sidebar" />
       <MeChip />
     </aside>
   );
@@ -45,6 +48,16 @@ export function Drawer() {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <NavItems />
+        </div>
+        {/* [B] legal */}
+        <div className="rail-foot dw-foot">
+          <Link href="/terms" onClick={close}>
+            Terms
+          </Link>
+          <Link href="/privacy" onClick={close}>
+            Privacy
+          </Link>
+          <span>Robinhood Chain</span>
         </div>
       </nav>
     </>

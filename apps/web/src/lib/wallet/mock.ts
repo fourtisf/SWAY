@@ -1,4 +1,7 @@
-/** Mock-mode wallet: "transactions" mutate the in-memory world, receipts resolve at once. */
+/**
+ * Mock-mode wallet: "transactions" mutate the in-memory world, receipts resolve at once. Each address trades,
+ * claims and pays from its own balance (the account wallet or one of the member's linked wallets).
+ */
 import { weiToEth } from '@sway/curve';
 import type { Address, Hex } from 'viem';
 import { getWorld } from '../mock';
@@ -8,40 +11,53 @@ import type { SwayWallet } from './types';
 let n = 0;
 const txHash = (s: string): Hex => fakeHash(`${s}:${Date.now()}:${++n}`);
 
-export function mockWallet(address: Address): SwayWallet {
+/** The Sway-wallet "private key" mock mode shows in Back up (deterministic, never a real key). */
+export const mockPrivateKey = (address: string): Hex => fakeHash('pk:' + address.toLowerCase());
+
+export function mockWallet(address: Address, kind: 'embedded' | 'external' = 'embedded'): SwayWallet {
   const w = getWorld();
+  const linked = () => w.linkedOf(address);
   return {
     address,
-    kind: 'embedded',
+    kind,
     async signMessage(msg) {
-      return fakeHash('sig:' + msg);
+      return fakeHash('sig:' + address + msg);
     },
     async buy(subject, units) {
       const c = w.bySubject(subject);
       if (!c) throw new Error('Market not found');
-      w.execTrade(c.handle, 'buy', units);
+      w.execTrade(c.handle, 'buy', units, address);
       return txHash('buy');
     },
     async sell(subject, units) {
       const c = w.bySubject(subject);
       if (!c) throw new Error('Market not found');
-      w.execTrade(c.handle, 'sell', units);
+      w.execTrade(c.handle, 'sell', units, address);
       return txHash('sell');
     },
     async claim() {
-      const v = w.claimable();
+      const l = linked();
+      const v = l ? l.earnedHolder : w.earned.creator + w.earned.holder + w.earned.ref;
       if (v <= 0) throw new Error('Nothing to claim');
-      w.eth += v;
-      w.claimed += v;
-      w.earned = { creator: 0, holder: 0, ref: 0 };
+      if (l) {
+        l.eth += v;
+        l.claimed += v;
+        l.earnedHolder = 0;
+      } else {
+        w.eth += v;
+        w.claimed += v;
+        w.earned = { creator: 0, holder: 0, ref: 0 };
+      }
       const h = txHash('claim');
       w.log('Claimed earnings', v, h);
       return h;
     },
     async sendEth(to, wei) {
       const eth = weiToEth(wei);
-      if (eth > w.eth + 1e-12) throw new Error('Not enough balance');
-      w.eth -= eth;
+      const l = linked();
+      if (eth > (l ? l.eth : w.eth) + 1e-12) throw new Error('Not enough balance');
+      if (l) l.eth -= eth;
+      else w.eth -= eth;
       const h = txHash('send');
       w.txs.set(h, { to, eth });
       return h;

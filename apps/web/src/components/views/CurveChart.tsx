@@ -2,6 +2,7 @@
 import { priceAt } from '@sway/curve';
 import type { Format } from '@sway/shared';
 import { useEffect, useRef } from 'react';
+import { THEME_EVENT, chartColors } from '@/lib/chart-colors';
 
 /** Bonding-curve canvas (prototype drawCurve()); float priceAt is fine for a chart. */
 export function CurveChart({ supply, F }: { supply: number; F: Format }) {
@@ -29,9 +30,10 @@ export function CurveChart({ supply, F }: { supply: number; F: Format }) {
         maxP = priceAt(maxS);
       const X = (s: number) => pl + (s / maxS) * iw,
         Y = (p: number) => pt + ih - (p / maxP) * ih;
+      const col = chartColors(cv);
       x.font = '500 11px Inter, Segoe UI, sans-serif';
-      x.fillStyle = '#536471';
-      x.strokeStyle = '#EFF3F4';
+      x.fillStyle = col.label;
+      x.strokeStyle = col.grid;
       x.lineWidth = 1;
       for (let i = 0; i <= 4; i++) {
         const p = (maxP * i) / 4,
@@ -72,7 +74,7 @@ export function CurveChart({ supply, F }: { supply: number; F: Format }) {
       const mx = X(supply),
         my = Y(priceAt(supply));
       x.setLineDash([3, 4]);
-      x.strokeStyle = 'rgba(15,20,25,.3)';
+      x.strokeStyle = col.guide;
       x.lineWidth = 1;
       x.beginPath();
       x.moveTo(mx, my);
@@ -85,17 +87,21 @@ export function CurveChart({ supply, F }: { supply: number; F: Format }) {
       x.fill();
       x.beginPath();
       x.arc(mx, my, 5, 0, Math.PI * 2);
-      x.fillStyle = '#0F1419';
+      x.fillStyle = col.ink;
       x.fill();
       x.lineWidth = 2.5;
-      x.strokeStyle = '#fff';
+      x.strokeStyle = col.ring;
       x.stroke();
     };
     draw();
     window.addEventListener('resize', draw);
+    window.addEventListener(THEME_EVENT, draw);
     // Redraw once Inter has loaded so axis labels use it.
     document.fonts?.ready.then(draw).catch(() => null);
-    return () => window.removeEventListener('resize', draw);
+    return () => {
+      window.removeEventListener('resize', draw);
+      window.removeEventListener(THEME_EVENT, draw);
+    };
   }, [supply, F]);
   return <canvas id="curve" ref={ref} aria-label="Bonding curve chart" />;
 }

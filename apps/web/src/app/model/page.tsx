@@ -1,6 +1,7 @@
 'use client';
 import { CURVE, priceWei, weiToEth } from '@sway/curve';
 import { score, scorePoints } from '@sway/scoring';
+import Link from 'next/link';
 import { useFormat } from '@/lib/format';
 import { useUI } from '@/lib/store';
 
@@ -158,7 +159,11 @@ export default function ModelPage() {
       <div style={{ padding: '0 18px 16px' }}>
         <div className="note">
           The 1% holder share is new compared with friend.tech: it streams to everyone holding that creator’s keys, pro rata, claimable onchain. The protocol fee goes half to $SWAY stakers and half to the
-          treasury, and staking levels cut it by up to 75%.
+          treasury, and{' '}
+          <Link className="lnk" href="/staking" style={{ fontSize: 'inherit' }}>
+            staking levels
+          </Link>{' '}
+          cut it by up to 75%.
         </div>
       </div>
       <div className="sec-h" style={{ paddingTop: 4 }}>

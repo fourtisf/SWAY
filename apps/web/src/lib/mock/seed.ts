@@ -113,6 +113,13 @@ export interface SeedPost {
   boost: boolean;
   /** ms timestamp, set when the seed is built. */
   at: number;
+  /* [B] */
+  media?: string[];
+  parentId?: string | null;
+  hidden?: boolean;
+  deleted?: boolean;
+  /** ms timestamp of the end of a paid boost. */
+  boostedUntil?: number;
 }
 
 export const PINNED_TEXT = `Shipped today on Sway:

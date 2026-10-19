@@ -13,7 +13,19 @@ export type Modal =
   | { type: 'deposit' }
   | { type: 'challenge'; handle?: string }
   | { type: 'claim'; handle: string }
-  | { type: 'launch' };
+  | { type: 'launch' }
+  /* [A] wallets: connect/add a wallet; Sway wallet backup and import; rename and remove a linked wallet. */
+  | { type: 'wallets'; purpose: 'add' | 'reconnect'; address?: string }
+  | { type: 'walletBackup'; address: string }
+  | { type: 'walletImport' }
+  | { type: 'walletRename'; address: string }
+  | { type: 'walletRemove'; address: string }
+  /* [B] post menu: boost confirm sheet, report a post or an account, delete confirm. */
+  | { type: 'boost'; postId: string }
+  | { type: 'report'; postId?: string; handle: string }
+  | { type: 'deletePost'; postId: string }
+  // [D] creator airdrop to holders
+  | { type: 'drop' };
 
 export type ProfileTab = 'posts' | 'room' | 'holders' | 'trades';
 

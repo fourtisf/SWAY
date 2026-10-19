@@ -16,7 +16,8 @@ export function getViewer(req: FastifyRequest): Promise<Viewer | null> {
     req.viewerCache = id
       ? req.server.deps.prisma.user
           .findUnique({ where: { id }, include: { wallet: true, market: true } })
-          .then((u) => (u ? { user: u, wallet: u.wallet, market: u.market } : null))
+          // A deleted account's sessions are revoked; treat any straggler as a guest.
+          .then((u) => (u && !u.deletedAt ? { user: u, wallet: u.wallet, market: u.market } : null))
       : Promise.resolve(null);
   }
   return req.viewerCache;

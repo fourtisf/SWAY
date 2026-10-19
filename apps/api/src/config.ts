@@ -2,8 +2,10 @@
  * Environment, validated with zod (see /.env.example). Fails fast on bad values and refuses Robinhood Chain
  * mainnet unless SWAY_ENABLE_MAINNET=1: the contracts are unaudited (brief §12).
  */
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import { z } from 'zod';
-import { LOCAL_CHAIN_ID, ROBINHOOD_MAINNET_ID, swayChain } from '@sway/shared';
+import { BOOST_USD_DEFAULT, LOCAL_CHAIN_ID, normalizeHandle, ROBINHOOD_MAINNET_ID, swayChain } from '@sway/shared';
 import type { Address } from '@sway/shared';
 
 const blank = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? undefined : v);
@@ -57,6 +59,7 @@ const EnvSchema = z.object({
   GENESIS_PASS_ADDRESS: optAddr,
   FAN_ESCROW_ADDRESS: optAddr,
   LAUNCHPAD_ADDRESS: optAddr,
+  DROPS_ADDRESS: optAddr,
   OPERATOR_PRIVATE_KEY: z.preprocess(
     blank,
     z
@@ -64,6 +67,11 @@ const EnvSchema = z.object({
       .regex(/^0x[0-9a-fA-F]{64}$/, 'must be a 0x-prefixed 32-byte hex key')
       .optional(),
   ),
+
+  /** Web push: browsers get the public key; the workers sign with the private one. */
+  VAPID_PUBLIC_KEY: optStr,
+  /** host:port push receivers allowed besides the browser push services (local tests only). */
+  PUSH_DEV_HOSTS: optStr,
 
   EMBEDDED_WALLET_PROVIDER: z.preprocess(blank, z.enum(['privy', 'cdp', 'burner']).default('burner')),
   WALLETCONNECT_PROJECT_ID: optStr,
@@ -80,6 +88,22 @@ const EnvSchema = z.object({
   RATE_LIMIT_X_MAX: num(10),
   /** Delay before a dev user's task is marked verified (DEV_AUTH only). */
   DEV_VERIFY_DELAY_MS: num(1200),
+
+  /* [B] social, moderation, account & admin */
+  /** Where post images are stored (default <repo>/uploads). */
+  UPLOAD_DIR: optStr,
+  /** Price of a 24h post boost in USD. */
+  BOOST_USD: num(BOOST_USD_DEFAULT),
+  /** Boost payments go here; defaults to SwayKeys.treasury(). */
+  TREASURY_ADDRESS: optAddr,
+  /** Comma-separated X handles made admins at every sign-in. */
+  ADMIN_HANDLES: optStr,
+
+  /* [A] wallets & funding */
+  /** Wei the operator sends once to a qualifying member's account wallet on a non-local chain. 0 = off. */
+  GAS_DRIP_WEI: z.preprocess(blank, z.string().trim().regex(/^\d{1,30}$/, 'must be a wei amount').default('0')),
+  /** Testnet faucet page shown in the Deposit modal. */
+  FAUCET_URL: z.preprocess(blank, z.string().url().optional()),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
@@ -121,17 +145,35 @@ export interface Config {
     genesisPass: Address | null;
     fanEscrow: Address | null;
     launchpad: Address | null;
+    drops: Address | null;
   };
   operatorKey: `0x${string}` | null;
+  push: { publicKey: string | null; devHosts: string[] };
   wallets: { embedded: 'privy' | 'cdp' | 'burner'; walletConnectProjectId: string | null };
   ethUsdFallback: number;
   snapshotAt: Date;
   genesisMinScore: number;
   rateLimit: { max: number; authMax: number; xMax: number };
   devVerifyDelayMs: number;
+  /* [B] */
+  uploadDir: string;
+  boostUsd: number;
+  treasury: Address | null;
+  adminHandles: string[];
+  /* [A] */
+  gasDripWei: bigint;
+  faucetUrl: string | null;
 }
 
 export class ConfigError extends Error {}
+
+/** The pnpm workspace root (dev runs from apps/api, builds from apps/api/dist). */
+function repoRoot(): string {
+  for (let dir = process.cwd(); ; dir = path.dirname(dir)) {
+    if (existsSync(path.join(dir, 'pnpm-workspace.yaml'))) return dir;
+    if (path.dirname(dir) === dir) return process.cwd();
+  }
+}
 
 const DEFAULT_SECRET = 'change-me-to-a-long-random-string';
 const lower = (a?: string): Address | null => (a ? (a.toLowerCase() as Address) : null);
@@ -200,8 +242,13 @@ export function loadConfig(
       genesisPass: lower(e.GENESIS_PASS_ADDRESS),
       fanEscrow: lower(e.FAN_ESCROW_ADDRESS),
       launchpad: lower(e.LAUNCHPAD_ADDRESS),
+      drops: lower(e.DROPS_ADDRESS),
     },
     operatorKey: (e.OPERATOR_PRIVATE_KEY as `0x${string}` | undefined) ?? null,
+    push: {
+      publicKey: e.VAPID_PUBLIC_KEY ?? null,
+      devHosts: e.NODE_ENV === 'production' ? [] : (e.PUSH_DEV_HOSTS ?? '').split(',').map((h) => h.trim()).filter(Boolean),
+    },
     wallets: {
       embedded: e.EMBEDDED_WALLET_PROVIDER,
       walletConnectProjectId: e.WALLETCONNECT_PROJECT_ID ?? null,
@@ -211,5 +258,16 @@ export function loadConfig(
     genesisMinScore: e.GENESIS_MIN_SCORE,
     rateLimit: { max: e.RATE_LIMIT_MAX, authMax: e.RATE_LIMIT_AUTH_MAX, xMax: e.RATE_LIMIT_X_MAX },
     devVerifyDelayMs: e.DEV_VERIFY_DELAY_MS,
+    /* [B] */
+    uploadDir: path.resolve(e.UPLOAD_DIR ?? path.join(repoRoot(), 'uploads')),
+    boostUsd: e.BOOST_USD,
+    treasury: lower(e.TREASURY_ADDRESS),
+    adminHandles: (e.ADMIN_HANDLES ?? '')
+      .split(',')
+      .map((h) => normalizeHandle(h))
+      .filter(Boolean),
+    /* [A] */
+    gasDripWei: BigInt(e.GAS_DRIP_WEI),
+    faucetUrl: e.FAUCET_URL ?? null,
   };
 }

@@ -63,13 +63,38 @@ export const useBattles = () => useQuery({ queryKey: qk.battles, queryFn: () => 
 export const useGenesis = () => useQuery({ queryKey: qk.genesis, queryFn: () => api().genesis() });
 export const useLaunchpad = () => useQuery({ queryKey: qk.launchpad, queryFn: () => api().launchpad() });
 
+/* [A] wallets & funding */
+export const qkWallets = ['wallets'] as const;
+/** Every wallet of the member with its balance and earnings (GET /api/wallets). */
+export const useWallets = (enabled: boolean) => useQuery({ queryKey: qkWallets, queryFn: () => api().wallets(), enabled });
+
+/* [C] launchpad, staking & genesis */
+export const qkLaunch = {
+  token: (h: string) => ['launchToken', h] as const,
+  airdrops: ['airdrops'] as const,
+  staking: ['staking'] as const,
+  genesisList: (id: string) => ['genesisList', id] as const,
+};
+export const useLaunchToken = (h: string) =>
+  useQuery({ queryKey: qkLaunch.token(h), queryFn: () => api().launchToken(h), enabled: !!h, retry: false });
+export const useAirdrops = (enabled: boolean) => useQuery({ queryKey: qkLaunch.airdrops, queryFn: () => api().launchAirdrops(), enabled });
+export const useStaking = () => useQuery({ queryKey: qkLaunch.staking, queryFn: () => api().staking() });
+/** id 'latest' resolves to the newest snapshot. */
+export const useGenesisList = (id: string) =>
+  useQuery({
+    queryKey: qkLaunch.genesisList(id),
+    queryFn: () => (id === 'latest' ? api().genesisLatest() : api().genesisSnapshot(id)),
+    enabled: !!id,
+    retry: false,
+  });
+
 /** Everything that depends on who is signed in (after login/logout). */
 export function invalidateAll(qc: QueryClient) {
   return qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== 'config' });
 }
 
 /** After a trade, claim or transfer: balances, holdings, rooms and points move. */
-const GLOBAL_MONEY = new Set(['me', 'wallet', 'tasks', 'messages', 'leaderboard', 'genesis', 'feed', 'profilePosts']);
+const GLOBAL_MONEY = new Set(['me', 'wallet', 'wallets', 'tasks', 'messages', 'leaderboard', 'genesis', 'feed', 'profilePosts']);
 const PER_HANDLE = new Set(['profile', 'room', 'holders', 'profileTrades']);
 export function invalidateMoney(qc: QueryClient, handle?: string) {
   return qc.invalidateQueries({

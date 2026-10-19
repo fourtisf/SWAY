@@ -23,6 +23,16 @@ import { notificationRoutes } from './routes/notifications';
 import { taskRoutes } from './routes/tasks';
 import { rankingRoutes } from './routes/rankings';
 import { battleRoutes } from './routes/battles';
+// [A] wallets & funding
+import { walletsRoutes } from './routes/wallets';
+// [B] social, moderation, account & admin
+import { socialRoutes } from './routes/social';
+import { adminRoutes } from './routes/admin';
+// [C] launchpad, staking & genesis
+import { launchRoutes } from './routes/launch';
+import { genesisRoutes } from './routes/genesis';
+// [D] engagement & creator drops
+import { engageRoutes } from './routes/engage';
 
 /** JSON that never throws on BigInt (wei and units go out as decimal strings). */
 export const jsonReplacer = (_k: string, v: unknown) => (typeof v === 'bigint' ? v.toString() : v);
@@ -70,7 +80,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   await app.register(cors, {
     origin: [config.webUrl],
     credentials: true,
-    methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   });
   await setupSession(app);
   await app.register(rateLimit, {
@@ -102,6 +112,16 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
       await taskRoutes(api);
       await rankingRoutes(api);
       await battleRoutes(api);
+      // [A] wallets & funding
+      await walletsRoutes(api);
+      // [B] social, moderation, account & admin
+      await socialRoutes(api);
+      await adminRoutes(api);
+      // [C] launchpad, staking & genesis
+      await launchRoutes(api);
+      await genesisRoutes(api);
+      // [D] engagement & creator drops
+      await engageRoutes(api);
     },
     { prefix: '/api' },
   );

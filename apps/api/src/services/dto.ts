@@ -43,18 +43,19 @@ export function addressRef(address: string, fanEscrow?: string | null): UserRef 
   return { handle: s, name: s, avatarUrl: null, verified: false, official: false, claimed: true };
 }
 
-/** Lowercase address → member (via Wallet). */
+/** Lowercase address → member (via Wallet, or LinkedWallet for a member's extra wallets). */
 export async function membersByAddress(
   prisma: PrismaClient,
   addresses: string[],
 ): Promise<Map<string, User & { market: KeyMarket | null }>> {
   const uniq = [...new Set(addresses.map((a) => a.toLowerCase()))];
   if (!uniq.length) return new Map();
-  const wallets = await prisma.wallet.findMany({
-    where: { address: { in: uniq } },
-    include: { user: { include: { market: true } } },
-  });
-  return new Map(wallets.map((w) => [w.address, w.user]));
+  const include = { user: { include: { market: true } } } as const;
+  const [wallets, linked] = await Promise.all([
+    prisma.wallet.findMany({ where: { address: { in: uniq } }, include }),
+    prisma.linkedWallet.findMany({ where: { address: { in: uniq } }, include }),
+  ]);
+  return new Map([...linked, ...wallets].map((w) => [w.address, w.user]));
 }
 
 export type TradeRow = Trade & { market: KeyMarket & { user: User } };

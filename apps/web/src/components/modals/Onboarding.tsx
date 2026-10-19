@@ -1,13 +1,15 @@
 'use client';
 /**
  * Connect X → "Scoring @handle" steps → "Your Sway card is live".
- * Real mode: X OAuth (or dev login), GET /api/onboarding for steps 1-3, embedded wallet + nonce/sign/link for
- * step 4, POST /api/onboarding/market + polling for step 5. Mock mode keeps the prototype's 460ms animation.
+ * Real mode: X OAuth (or dev login), GET /api/onboarding for steps 1-3; step 4 asks "Create a Sway wallet" or
+ * "Connect a wallet" (the picker), then nonce/sign/link makes it the account wallet; POST /api/onboarding/market
+ * + polling for step 5. Mock mode keeps the prototype's 460ms animation and the same step-4 choice.
  */
 import { priceWei, weiToEth } from '@sway/curve';
 import { tierOf } from '@sway/scoring';
 import type { MeDTO, OnboardingStatus } from '@sway/shared';
 import { useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { errorMessage, getApi } from '@/lib/api';
 import { loadRef } from '@/lib/referral';
@@ -16,7 +18,10 @@ import { MOCK } from '@/lib/env';
 import { useFormat } from '@/lib/format';
 import { invalidateAll, qk, useConfig, useMe } from '@/lib/queries';
 import { closeModal, openModal } from '@/lib/store';
-import { createEmbeddedWallet, useExternalWallet, type SwayWallet } from '@/lib/wallet';
+import { createEmbeddedWallet, linkWallet } from '@/lib/wallet';
+import { useWalletCatalog } from '@/lib/wallet/catalog';
+import { LogoBox } from '../wallet/WalletLogo';
+import { WalletPickerBody } from '../wallet/WalletPicker';
 import { socket } from '@/lib/ws';
 import { Icon } from '../icons';
 import { Avatar, Spinner, VB, Voiceprint } from '../ui';
@@ -87,21 +92,39 @@ export function ConnectModal() {
           </>
         )}
         <p className="t3" style={{ fontSize: 12, textAlign: 'center', margin: '12px 0 0' }}>
-          A Sway wallet on Robinhood Chain is created for you at sign-in.
+          Next, create a Sway wallet on Robinhood Chain or connect your own.
+        </p>
+        {/* [B] */}
+        <p className="t3 legal-note">
+          By continuing you agree to the{' '}
+          <Link className="lnk" href="/terms">
+            Terms
+          </Link>{' '}
+          and the{' '}
+          <Link className="lnk" href="/privacy">
+            Privacy Policy
+          </Link>
+          .
         </p>
       </div>
     </>
   );
 }
 
+type WalletDecision = { kind: 'create' } | { kind: 'linked'; me: MeDTO; name: string };
+
 export function OnboardingModal({ handle, followers }: { handle?: string; followers?: number }) {
   const qc = useQueryClient();
   const cfg = useConfig().data;
   const me = useMe().data;
+  const apps = useWalletCatalog();
   const [cur, setCur] = useState(0);
   const [err, setErr] = useState<string | null>(null);
   const [run, setRun] = useState(0);
-  const useOwn = useRef(false);
+  /** Step 4: waiting for the member's choice ('ask'), or the wallet picker is open. */
+  const [choice, setChoice] = useState<'ask' | 'picker' | null>(null);
+  const [walletStep, setWalletStep] = useState<string | null>(null);
+  const decide = useRef<((d: WalletDecision) => void) | null>(null);
   const shown = (handle || me?.user.handle || 'you').replace(/^@/, '');
 
   useEffect(() => {
@@ -116,14 +139,47 @@ export function OnboardingModal({ handle, followers }: { handle?: string; follow
       if (!MOCK) socket.restart();
       if (!dead) openModal({ type: 'card' });
     };
+    const ask = () =>
+      new Promise<WalletDecision>((resolve) => {
+        decide.current = resolve;
+        setChoice('ask');
+      });
+    const wallet = async (who: MeDTO): Promise<MeDTO> => {
+      const d = await ask();
+      chk();
+      setChoice(null);
+      if (d.kind === 'linked') {
+        setWalletStep(`Linking ${d.name}`);
+        return d.me;
+      }
+      setWalletStep(null);
+      if (MOCK) {
+        await sleep(460);
+        return who;
+      }
+      const w = await createEmbeddedWallet(who.user.id, cfg ?? (await api.config()));
+      chk();
+      return linkWallet(w, { as: 'account', connector: 'sway' });
+    };
 
     const mock = async () => {
-      for (let i = 0; i <= STEPS.length; i++) {
+      for (let i = 0; i < 3; i++) {
+        if (dead) return;
+        setCur(i);
+        await sleep(460);
+      }
+      let who = await api.devLogin({ handle: handle || 'you', followers: followers || undefined, ref: loadRef() ?? undefined });
+      chk();
+      qc.setQueryData(qk.me, who);
+      setCur(3);
+      who = await wallet(who);
+      chk();
+      qc.setQueryData(qk.me, who);
+      for (let i = 4; i <= STEPS.length; i++) {
         if (dead) return;
         setCur(i);
         if (i < STEPS.length) await sleep(460);
       }
-      await api.devLogin({ handle: handle || 'you', followers: followers || undefined, ref: loadRef() ?? undefined });
       await finish();
     };
 
@@ -148,28 +204,10 @@ export function OnboardingModal({ handle, followers }: { handle?: string; follow
         await sleep(1500);
         st = await api.onboarding();
       }
-      // Step 4: wallet.
+      // Step 4: the account wallet, made here or connected.
       setCur(3);
       if (!st.wallet) {
-        let w: SwayWallet | null = null;
-        if (useOwn.current) {
-          w = useExternalWallet.getState().wallet;
-          if (!w) {
-            useExternalWallet.getState().openConnect?.();
-            for (let i = 0; i < 240 && !w && !dead; i++) {
-              await sleep(500);
-              w = useExternalWallet.getState().wallet;
-            }
-            if (!w) throw new Error('Connect a wallet to continue');
-          }
-        } else w = await createEmbeddedWallet(who.user.id, cfg ?? (await api.config()));
-        chk();
-        // The API fills "Address: {address}" when we send the address; replace it ourselves otherwise.
-        const { message } = await api.walletNonce({ address: w.address });
-        chk();
-        const signature = await w.signMessage(message.split('{address}').join(w.address));
-        chk();
-        who = await api.walletLink({ address: w.address, signature, kind: w.kind });
+        who = await wallet(who);
         chk();
         qc.setQueryData(qk.me, who);
       }
@@ -189,13 +227,39 @@ export function OnboardingModal({ handle, followers }: { handle?: string; follow
       await finish();
     };
 
-    (MOCK ? mock() : real()).catch((e) => e !== CANCEL && !dead && setErr(errorMessage(e)));
+    (MOCK ? mock() : real()).catch((e) => {
+      if (e === CANCEL || dead) return;
+      setChoice(null);
+      setErr(errorMessage(e));
+    });
     return () => {
       dead = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [run]);
 
+  if (choice === 'picker')
+    return (
+      <>
+        <div className="m-h">
+          <h3>Connect a wallet</h3>
+        </div>
+        <div className="m-b">
+          <WalletPickerBody
+            purpose="account"
+            onBack={() => setChoice('ask')}
+            onDone={(r) => {
+              if (r.how === 'linked') decide.current?.({ kind: 'linked', me: r.me, name: r.name });
+            }}
+          />
+        </div>
+      </>
+    );
+
+  const steps = STEPS.map((s, i) => (i === 3 ? (walletStep ?? (choice ? 'Set up your wallet' : s)) : s));
+  // Privy / CDP embedded wallets are stubs until a provider is chosen: only wallet apps work then.
+  const embeddedOk = MOCK || !cfg || cfg.wallets.embedded === 'burner';
+  const stack = (['metaMask', 'coinbaseWallet', 'rabby'] as const).flatMap((id) => (apps[id]?.icon ? [apps[id]!] : []));
   return (
     <>
       <div className="m-h">
@@ -206,13 +270,35 @@ export function OnboardingModal({ handle, followers }: { handle?: string; follow
           <Voiceprint seed={handle || shown} score={72} bars={52} id="scan" />
         </div>
         <div className="steps">
-          {STEPS.map((s, i) => (
-            <div key={s} className={`step ${i < cur ? 'done' : i === cur ? 'on' : ''}`} id={`st${i}`}>
-              <span className="d">{i < cur ? <Icon name="check" /> : i === cur ? <Spinner size={11} /> : null}</span>
+          {steps.map((s, i) => (
+            <div key={i} className={`step ${i < cur ? 'done' : i === cur ? 'on' : ''}`} id={`st${i}`}>
+              <span className="d">{i < cur ? <Icon name="check" /> : i === cur && !choice ? <Spinner size={11} /> : null}</span>
               {s}
             </div>
           ))}
         </div>
+        {choice === 'ask' && (
+          <div className="ob-choice">
+            <button className="wopt" disabled={!embeddedOk} onClick={() => decide.current?.({ kind: 'create' })}>
+              <LogoBox logo={{ kind: 'sway' }} size={38} />
+              <span className="wopt-t">
+                <b>Create a Sway wallet</b>
+                <small>{embeddedOk ? 'Made in this browser in a second. No extension.' : 'Not available on this server yet'}</small>
+              </span>
+              {embeddedOk && <span className="tag">Recommended</span>}
+            </button>
+            <button className="wopt" onClick={() => setChoice('picker')}>
+              <span className="wstack">
+                {stack.length ? stack.map((m) => <LogoBox key={m.id} logo={{ kind: 'img', src: m.icon!, bg: m.iconBackground, name: m.name }} size={26} />) : <LogoBox logo={{ kind: 'generic', name: 'Wallet' }} size={26} />}
+              </span>
+              <span className="wopt-t">
+                <b>Connect a wallet</b>
+                <small>MetaMask, Coinbase, Rabby, WalletConnect and more</small>
+              </span>
+              <Icon name="chev" className="wopt-go" />
+            </button>
+          </div>
+        )}
         {err && (
           <>
             <p className="t2" style={{ fontSize: 13.5, color: 'var(--red)', margin: '14px 0 12px' }}>
@@ -227,17 +313,6 @@ export function OnboardingModal({ handle, followers }: { handle?: string; follow
               </button>
             </div>
           </>
-        )}
-        {!MOCK && cur === 3 && !useOwn.current && (
-          <button
-            className="lnk ob-alt"
-            onClick={() => {
-              useOwn.current = true;
-              setRun(run + 1);
-            }}
-          >
-            Use my own wallet instead
-          </button>
         )}
       </div>
     </>

@@ -55,6 +55,7 @@ test('signed-in desktop home and wallet', async ({ page }) => {
   await page.locator('.sb').getByRole('button', { name: 'Connect X' }).click();
   await page.fill('#cx-h', 'demo');
   await page.locator('.modal').getByRole('button', { name: 'Authorize and continue' }).click();
+  await page.locator('.modal').getByRole('button', { name: 'Create a Sway wallet' }).click({ timeout: 20_000 });
   await expect(page.locator('.modal')).toContainText('Your Sway card is live', { timeout: 20_000 });
   await page.screenshot({ path: `${OUT}/desktop-card-live-1440.png` });
   await page.getByRole('button', { name: 'Enter Sway' }).click();

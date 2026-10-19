@@ -11,6 +11,7 @@ import { openModal, toast, useUI } from '@/lib/store';
 import { routeOf } from '@/lib/util';
 import { Icon, Logo } from '../icons';
 import { Avatar, VB } from '../ui';
+import { ConnectWalletButton, useNeedsWallet } from '../wallet/ConnectWalletButton'; // [A]
 
 const TITLES: Record<string, [string, string]> = {
   explore: ['Explore', 'Creators, tags and keys'],
@@ -24,13 +25,36 @@ const TITLES: Record<string, [string, string]> = {
   launchpad: ['Launchpad', 'Your reach, as a token'],
   genesis: ['Genesis pass', '500 soulbound passes'],
   model: ['Open model', 'Public scoring and contracts'],
+  staking: ['Staking', 'Stake $SWAY for lower fees'],
+  // [B]
+  settings: ['Settings', 'Your account and your data'],
+  admin: ['Admin', 'Moderation and operations'],
+  terms: ['Terms of Service', 'Template: counsel review pending'],
+  privacy: ['Privacy Policy', 'Template: counsel review pending'],
 };
+
+/** [B] Pages you reach from somewhere else get a Back button (post page, share card). */
+function BackHeader({ title, sub }: { title: string; sub?: string }) {
+  const back = useGoBack();
+  return (
+    <div className="ch-row">
+      <button className="x-btn" aria-label="Back" onClick={() => back()}>
+        <Icon name="arrowL" />
+      </button>
+      <div style={{ minWidth: 0 }}>
+        <h1>{title}</h1>
+        {sub ? <div className="sub">{sub}</div> : null}
+      </div>
+    </div>
+  );
+}
 
 function MobileTop() {
   const me = useMe().data;
   const F = useFormat();
   const router = useRouter();
   const w = useWallet(!!me?.wallet).data;
+  const needWallet = useNeedsWallet();
   return (
     <div className="mtop">
       <button aria-label="Open menu" onClick={() => useUI.setState({ drawer: true })}>
@@ -48,7 +72,9 @@ function MobileTop() {
         </span>
         Sway
       </Link>
-      {me ? (
+      {me && needWallet ? (
+        <ConnectWalletButton variant="mobile" />
+      ) : me ? (
         <button className="tag line" style={{ height: 32, padding: '0 10px', fontSize: 13 }} onClick={() => router.push('/wallet')}>
           {F.$(w ? weiToEth(w.cashWei) : 0)}
         </button>
@@ -198,6 +224,10 @@ export function CenterHeader() {
         <ProfileHeader handle={arg} />
       ) : view === 'messages' && arg ? (
         <ThreadHeader id={arg} />
+      ) : view === 'post' ? (
+        <BackHeader title="Post" />
+      ) : view === 'card' && arg ? (
+        <BackHeader title="Sway card" sub={'@' + arg} />
       ) : (
         <TitleHeader view={view} />
       )}

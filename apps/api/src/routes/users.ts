@@ -20,9 +20,11 @@ import { badRequest, conflict, forbidden, notFound, unavailable } from '../error
 import type { Viewer } from '../deps';
 import { addressRef, membersByAddress, messageDTO, TRADE_INCLUDE, tradeDTOs, userRef } from '../services/dto';
 import { marketDtoForUser, marketStats, oneKeyTotalWei, priceHistory } from '../services/markets';
-import { postDTOs, POST_INCLUDE } from '../services/feed';
+import { postDTOs, POST_INCLUDE, visiblePosts } from '../services/feed';
+import { blockedEitherWay } from '../services/social';
 import { publish } from '../services/bus';
 import { getEthUsd } from '../services/price';
+import { memberAddresses } from '../services/access';
 
 const SUB_DAYS = 30;
 const DAY_MS = 24 * 3600 * 1000;
@@ -51,21 +53,32 @@ export async function userRoutes(app: FastifyInstance) {
             where: { subscriberId: v.user.id, creatorId: u.id, expiresAt: { gt: new Date() } },
           })
         : null,
+      // [A] the viewer's units across all of their wallets
       v?.wallet && m
-        ? prisma.holding.findUnique({
-            where: { marketId_address: { marketId: m.id, address: v.wallet.address } },
-          })
-        : null,
+        ? memberAddresses(prisma, v.user.id).then((addrs) =>
+            prisma.holding.findMany({
+              where: { marketId: m.id, address: { in: addrs }, units: { gt: 0n } },
+              orderBy: { units: 'desc' },
+            }),
+          )
+        : [],
     ]);
     const unclaimed = !!m && !m.claimed;
+    // [B] blocks and deleted accounts
+    const blocked = v
+      ? !!(await prisma.block.findUnique({ where: { blockerId_blockedId: { blockerId: v.user.id, blockedId: u.id } } }))
+      : false;
     return {
       ...marketDtoForUser(u, m ? stats?.get(m.id) : undefined),
       bio: u.bio,
-      ownerAddress: !unclaimed && u.wallet ? (u.wallet.address as Address) : null,
+      ownerAddress: !unclaimed && !u.deletedAt && u.wallet ? (u.wallet.address as Address) : null,
+      blocked,
+      deleted: !!u.deletedAt,
       isMe: v?.user.id === u.id,
       following: !!follow,
       subscribed: !!sub,
-      heldUnits: (held?.units ?? 0n).toString(),
+      heldUnits: held.reduce((s, h) => s + h.units, 0n).toString(),
+      heldBy: held.map((h) => ({ address: h.address as Address, units: h.units.toString() })),
       history,
     };
   });
@@ -73,13 +86,15 @@ export async function userRoutes(app: FastifyInstance) {
   app.get('/users/:handle/posts', async (req): Promise<PostDTO[]> => {
     const { handle } = params(HandleParams, req);
     const u = await userByHandle(req, handle, {});
+    const v = await getViewer(req);
+    // [B] hidden posts only for admins and the author; nothing from an account the viewer blocked
     const posts = await prisma.post.findMany({
-      where: { authorId: u.id, deletedAt: null, parentId: null },
+      where: { AND: [await visiblePosts(prisma, v), { authorId: u.id, parentId: null }] },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 50,
       include: POST_INCLUDE,
     });
-    return postDTOs(ctx, await getViewer(req), posts);
+    return postDTOs(ctx, v, posts);
   });
 
   app.get('/users/:handle/holders', async (req): Promise<HolderDTO[]> => {
@@ -92,18 +107,34 @@ export async function userRoutes(app: FastifyInstance) {
       orderBy: { units: 'desc' },
       take: 200,
     });
-    const members = await membersByAddress(
-      prisma,
-      rows.map((r) => r.address),
-    );
-    return rows.map((r) => {
+    const [members, mine] = await Promise.all([
+      membersByAddress(
+        prisma,
+        rows.map((r) => r.address),
+      ),
+      v ? memberAddresses(prisma, v.user.id) : ([] as string[]),
+    ]);
+    // [A] One row per member: units in all of their wallets add up.
+    const out = new Map<string, HolderDTO & { n: bigint }>();
+    for (const r of rows) {
       const m = members.get(r.address);
-      return {
+      const key = m ? `u:${m.id}` : `a:${r.address}`;
+      const row = out.get(key);
+      if (row) {
+        row.n += r.units;
+        row.you ||= mine.includes(r.address);
+        continue;
+      }
+      out.set(key, {
         ...(m ? userRef(m, m.market) : addressRef(r.address, config.contracts.fanEscrow)),
-        units: r.units.toString(),
-        you: !!v?.wallet && v.wallet.address === r.address,
-      };
-    });
+        units: '0',
+        you: mine.includes(r.address),
+        n: r.units,
+      });
+    }
+    return [...out.values()]
+      .sort((a, b) => (b.n > a.n ? 1 : b.n < a.n ? -1 : 0))
+      .map(({ n, ...h }) => ({ ...h, units: n.toString() }));
   });
 
   app.get('/users/:handle/trades', async (req): Promise<TradeDTO[]> => {
@@ -191,6 +222,11 @@ export async function userRoutes(app: FastifyInstance) {
     const u = await userByHandle(req, handle, {});
     if (u.id === v.user.id) throw badRequest('self', 'You can’t follow yourself');
     const key = { followerId: v.user.id, followeeId: u.id };
+    // [B] no new follows across a block or of a deleted account (unfollowing always works)
+    if (!(await prisma.follow.count({ where: key }))) {
+      if (u.deletedAt) throw notFound(`No account @${handle}`, 'user_not_found');
+      if (await blockedEitherWay(prisma, v.user.id, u.id)) throw forbidden('blocked', 'You can’t follow this account');
+    }
     const removed = await prisma.follow.deleteMany({ where: key });
     if (removed.count) return { following: false };
     await prisma.follow.createMany({ data: [key], skipDuplicates: true });
@@ -217,7 +253,7 @@ export async function userRoutes(app: FastifyInstance) {
     if (tx.status === 'pending')
       throw conflict('tx_pending', 'The payment is not confirmed yet. Try again in a moment.');
     if (tx.status === 'reverted') throw badRequest('tx_reverted', 'That payment reverted');
-    if (tx.from !== v.wallet!.address)
+    if (!(await memberAddresses(prisma, v.user.id)).includes(tx.from))
       throw forbidden('tx_not_yours', 'That payment was not sent from your wallet');
     if (tx.to !== creatorWallet.toLowerCase())
       throw badRequest('wrong_recipient', 'That payment did not go to this creator');
@@ -233,6 +269,7 @@ export async function userRoutes(app: FastifyInstance) {
     if (u.id === v.user.id) throw badRequest('self', 'You can’t pay yourself');
     if (!u.wallet || (u.market && !u.market.claimed))
       throw conflict('no_owner', `@${handle} hasn’t claimed this account yet`);
+    if (u.deletedAt) throw conflict('deleted', 'This account was deleted'); // [B]
     const { txHash } = body(z.object({ txHash: TxHash }), req);
     return { v, u, wallet: u.wallet, txHash };
   }

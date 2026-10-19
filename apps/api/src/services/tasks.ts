@@ -21,7 +21,7 @@ import { notFound, conflict, unprocessable, badRequest } from '../errors';
 import { notify, officialUserId } from './notify';
 import { appendLedger } from './points';
 import { sessionXToken, xClient } from './xauth';
-import { ACCESS_UNITS } from './access';
+import { ACCESS_UNITS, memberAddresses } from './access';
 
 const DONE: ReadonlySet<string> = new Set(['verified', 'trusted', 'skipped']);
 export const dayKey = (d: Date): string => d.toISOString().slice(0, 10);
@@ -135,22 +135,22 @@ async function markPending(deps: AppDeps, user: User, def: TaskDef, day: Date): 
   await deps.jobs.enqueueVerifyTask({ userId: user.id, taskId: def.id, day: dayKey(day) });
 }
 
-/** Holds ≥ 1 key of a market that isn't theirs (Holding mirror). */
+/** Holds ≥ 1 key of a market that isn't theirs (Holding mirror), summed across all of their wallets. */
 export async function holdsOthersKey(
   prisma: PrismaClient,
   user: User,
   wallet: string | null,
 ): Promise<boolean> {
-  if (!wallet) return false;
-  const h = await prisma.holding.findFirst({
-    where: {
-      address: wallet.toLowerCase(),
-      units: { gte: ACCESS_UNITS },
-      market: { userId: { not: user.id } },
-    },
-    select: { id: true },
+  const addrs = await memberAddresses(prisma, user.id);
+  if (wallet && !addrs.includes(wallet.toLowerCase())) addrs.push(wallet.toLowerCase());
+  if (!addrs.length) return false;
+  const rows = await prisma.holding.findMany({
+    where: { address: { in: addrs }, units: { gt: 0n }, market: { userId: { not: user.id } } },
+    select: { marketId: true, units: true },
   });
-  return !!h;
+  const units = new Map<string, bigint>();
+  for (const r of rows) units.set(r.marketId, (units.get(r.marketId) ?? 0n) + r.units);
+  return [...units.values()].some((u) => u >= ACCESS_UNITS);
 }
 
 /** Completes the auto task when the mirror shows a key the member didn't mint. */

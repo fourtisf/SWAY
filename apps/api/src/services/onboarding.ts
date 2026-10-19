@@ -135,7 +135,7 @@ export const DEV_WELCOME_ETH = '0.75';
 /** Local chain + DEV_AUTH: the operator funds a freshly linked wallet (the prototype's starting balance). */
 export async function fundDevWallet(
   deps: AppDeps,
-  wallet: Wallet,
+  wallet: Pick<Wallet, 'address' | 'userId'>,
   wei: bigint,
   label: string,
   log: FastifyBaseLogger,

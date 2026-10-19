@@ -6,20 +6,31 @@ import { userRef } from './dto';
 
 export const ROOM_UNITS = 100n;
 
-/** Markets whose room the viewer is in: their own, plus every claimed market where they hold ≥ 1 key (mirror). */
+/** [A] One wallet, every wallet of the member, or none, as a lowercase list. */
+const addressList = (wallets: string | string[] | null): string[] =>
+  (Array.isArray(wallets) ? wallets : wallets ? [wallets] : []).map((w) => w.toLowerCase());
+
+/**
+ * Markets whose room the viewer is in: their own, plus every claimed market where they hold ≥ 1 key (mirror),
+ * summed across all of their wallets.
+ */
 export async function roomMarkets(
   prisma: PrismaClient,
   userId: string,
-  wallet: string | null,
+  wallets: string | string[] | null,
 ): Promise<Array<KeyMarket & { user: User }>> {
-  const held = wallet
+  const addrs = addressList(wallets);
+  const rows = addrs.length
     ? await prisma.holding.findMany({
-        where: { address: wallet.toLowerCase(), units: { gte: ROOM_UNITS } },
-        select: { marketId: true },
+        where: { address: { in: addrs }, units: { gt: 0n } },
+        select: { marketId: true, units: true },
       })
     : [];
+  const units = new Map<string, bigint>();
+  for (const r of rows) units.set(r.marketId, (units.get(r.marketId) ?? 0n) + r.units);
+  const held = [...units].filter(([, u]) => u >= ROOM_UNITS).map(([id]) => id);
   return prisma.keyMarket.findMany({
-    where: { claimed: true, OR: [{ userId }, { id: { in: held.map((h) => h.marketId) } }] },
+    where: { claimed: true, OR: [{ userId }, { id: { in: held } }] },
     include: { user: true },
   });
 }
@@ -27,9 +38,9 @@ export async function roomMarkets(
 export async function roomThreads(
   prisma: PrismaClient,
   userId: string,
-  wallet: string | null,
+  wallets: string | string[] | null,
 ): Promise<ThreadDTO[]> {
-  const markets = await roomMarkets(prisma, userId, wallet);
+  const markets = await roomMarkets(prisma, userId, wallets);
   if (!markets.length) return [];
   const ids = markets.map((m) => m.id);
   const [lasts, reads] = await Promise.all([
@@ -94,22 +105,25 @@ export async function dmThreads(prisma: PrismaClient, userId: string): Promise<T
   return threads.map((t) => dmThreadDTO(t, userId, t.messages[0]?.text ?? null));
 }
 
-/** Unread DM threads plus unread rooms (the Messages badge). */
+/** Unread DM threads plus unread rooms (the Messages badge). Keys count across all of the member's wallets. */
 export async function unreadMessages(
   prisma: PrismaClient,
   userId: string,
-  wallet: string | null,
+  wallets: string | string[] | null,
 ): Promise<number> {
+  const addrs = addressList(wallets);
   const [dm] = await prisma.$queryRaw<Array<{ n: number }>>(Prisma.sql`
     SELECT count(*)::int AS n FROM "DmThread" t
     WHERE EXISTS (SELECT 1 FROM "DmMessage" m WHERE m."threadId" = t.id AND m."authorId" <> ${userId})
       AND ((t."aId" = ${userId} AND (t."aReadAt" IS NULL OR t."lastMessageAt" > t."aReadAt"))
-        OR (t."bId" = ${userId} AND (t."bReadAt" IS NULL OR t."lastMessageAt" > t."bReadAt")))`);
+        OR (t."bId" = ${userId} AND (t."bReadAt" IS NULL OR t."lastMessageAt" > t."bReadAt")))
+      AND NOT EXISTS (SELECT 1 FROM "Block" bl WHERE bl."blockerId" = ${userId}
+        AND bl."blockedId" = CASE WHEN t."aId" = ${userId} THEN t."bId" ELSE t."aId" END)`);
   const [rooms] = await prisma.$queryRaw<Array<{ n: number }>>(Prisma.sql`
     SELECT count(*)::int AS n FROM "KeyMarket" k
     WHERE k.claimed
-      AND (k."userId" = ${userId} OR EXISTS (
-        SELECT 1 FROM "Holding" h WHERE h."marketId" = k.id AND h.address = ${wallet?.toLowerCase() ?? ''} AND h.units >= ${ROOM_UNITS}))
+      AND (k."userId" = ${userId} OR (
+        SELECT COALESCE(SUM(h.units), 0) FROM "Holding" h WHERE h."marketId" = k.id AND h.address = ANY(${addrs}::text[])) >= ${ROOM_UNITS})
       AND EXISTS (
         SELECT 1 FROM "RoomMessage" rm WHERE rm."marketId" = k.id AND rm."authorId" <> ${userId}
           AND rm."createdAt" > COALESCE((SELECT rr."readAt" FROM "RoomRead" rr WHERE rr."userId" = ${userId} AND rr."marketId" = k.id), 'epoch'::timestamp))`);

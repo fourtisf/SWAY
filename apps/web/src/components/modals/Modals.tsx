@@ -1,17 +1,22 @@
 'use client';
 import { weiToEth } from '@sway/curve';
-import { normalizeHandle, shortAddress } from '@sway/shared';
+import { normalizeHandle } from '@sway/shared';
 import { useEffect, useState } from 'react';
 import { errorMessage, getApi } from '@/lib/api';
 import { loadRef } from '@/lib/referral';
 import { useActions } from '@/lib/actions';
-import { useEthUsd, useFormat } from '@/lib/format';
-import { useConfig, useMe, useProfile, useWallet } from '@/lib/queries';
+import { useFormat } from '@/lib/format';
+import { useConfig, useMe, useProfile } from '@/lib/queries';
 import { closeModal, toast, useUI, type Modal } from '@/lib/store';
 import { Icon } from '../icons';
 import { Composer } from './Composer';
 import { CardModal, ConnectModal, OnboardingModal } from './Onboarding';
 import { TradeSheet } from './TradeSheet';
+import { LaunchSheet } from '../launch/LaunchSheet'; // [C]
+import { BoostSheet, DeletePostModal, ReportModal } from './Social'; // [B]
+// [A] wallets & funding
+import { BackupModal, ConnectWalletModal, DepositModal, ImportModal, RemoveModal, RenameModal, WithdrawModal } from '../wallet/WalletModals';
+import { DropModal } from '../engage/Drops'; // [D]
 
 function Head({ title }: { title: string }) {
   return (
@@ -30,88 +35,6 @@ function ComposeModal() {
       <Head title="New post" />
       <div style={{ padding: '0 4px 8px' }}>
         <Composer inModal onPosted={closeModal} />
-      </div>
-    </>
-  );
-}
-
-function WithdrawModal() {
-  const me = useMe().data;
-  const w = useWallet(!!me?.wallet).data;
-  const F = useFormat();
-  const ethUsd = useEthUsd();
-  const { withdraw } = useActions();
-  const [amt, setAmt] = useState('');
-  const [to, setTo] = useState('');
-  const [busy, setBusy] = useState(false);
-  const cash = w ? BigInt(w.cashWei) : 0n;
-  return (
-    <>
-      <Head title="Withdraw in dollars" />
-      <div className="m-b">
-        <label className="lbl" htmlFor="wd-a">
-          Amount (USD)
-        </label>
-        <div className="amt" style={{ marginBottom: 6 }}>
-          <input id="wd-a" inputMode="decimal" placeholder="0.00" style={{ fontSize: 28 }} autoFocus value={amt} onChange={(e) => setAmt(e.target.value)} />
-        </div>
-        <div className="row t3" style={{ fontSize: 12.5, justifyContent: 'space-between', marginBottom: 14 }}>
-          <span>Available {F.$(weiToEth(cash))}</span>
-          <button className="lnk" onClick={() => setAmt((weiToEth(cash) * ethUsd).toFixed(2))}>
-            Max
-          </button>
-        </div>
-        <label className="lbl" htmlFor="wd-to">
-          Send to
-        </label>
-        <input className="field" id="wd-to" placeholder="0x… wallet address" style={{ marginBottom: 8 }} value={to} onChange={(e) => setTo(e.target.value.trim())} />
-        <p className="t3" style={{ fontSize: 12.5, margin: '0 0 16px' }}>
-          Paid out as USDC on Robinhood Chain. Network fee is shown before you sign.
-        </p>
-        <button
-          className="btn btn-white btn-lg btn-block"
-          disabled={busy}
-          onClick={async () => {
-            setBusy(true);
-            await withdraw(parseFloat(amt) || 0, to, cash);
-            setBusy(false);
-          }}
-        >
-          Withdraw
-        </button>
-      </div>
-    </>
-  );
-}
-
-function DepositModal() {
-  const me = useMe().data;
-  const cfg = useConfig().data;
-  const addr = me?.wallet?.address ?? '';
-  return (
-    <>
-      <Head title="Deposit" />
-      <div className="m-b">
-        <p className="t2" style={{ margin: '0 0 14px' }}>
-          Send ETH on {cfg?.chainName || 'Robinhood Chain'} to your Sway wallet. It shows up here in dollars once it lands.
-        </p>
-        <div className="row">
-          <input className="field" readOnly value={addr} aria-label="Your Sway wallet address" />
-          <button
-            className="btn btn-glass"
-            style={{ height: 44 }}
-            onClick={() => {
-              navigator.clipboard?.writeText(addr).catch(() => null);
-              toast('Address copied');
-            }}
-          >
-            <Icon name="copy" />
-            Copy
-          </button>
-        </div>
-        <p className="t3" style={{ fontSize: 12.5, margin: '10px 0 0' }}>
-          {addr ? shortAddress(addr) : ''} only accepts ETH on this network.
-        </p>
       </div>
     </>
   );
@@ -226,28 +149,6 @@ function ClaimModal({ handle }: { handle: string }) {
   );
 }
 
-function LaunchModal() {
-  return (
-    <>
-      <Head title="Launch your token?" />
-      <div className="m-b">
-        <p className="t2" style={{ margin: '0 0 16px' }}>
-          The launchpad contract isn’t live yet, so nothing is deployed. Once it is, this signs one transaction from your Sway wallet and your token goes live on Robinhood Chain.
-        </p>
-        <button
-          className="btn btn-white btn-lg btn-block"
-          onClick={() => {
-            closeModal();
-            toast('Launch preview saved');
-          }}
-        >
-          Got it
-        </button>
-      </div>
-    </>
-  );
-}
-
 function Body({ m }: { m: Modal }) {
   switch (m.type) {
     case 'trade':
@@ -269,7 +170,28 @@ function Body({ m }: { m: Modal }) {
     case 'claim':
       return <ClaimModal handle={m.handle} />;
     case 'launch':
-      return <LaunchModal />;
+      return <LaunchSheet />; // [C]
+    // [B] post menu
+    case 'boost':
+      return <BoostSheet postId={m.postId} />;
+    case 'report':
+      return <ReportModal postId={m.postId} handle={m.handle} />;
+    case 'deletePost':
+      return <DeletePostModal postId={m.postId} />;
+    // [A] wallets
+    case 'wallets':
+      return <ConnectWalletModal purpose={m.purpose} address={m.address} />;
+    case 'walletBackup':
+      return <BackupModal address={m.address} />;
+    case 'walletImport':
+      return <ImportModal />;
+    case 'walletRename':
+      return <RenameModal address={m.address} />;
+    case 'walletRemove':
+      return <RemoveModal address={m.address} />;
+    // [D]
+    case 'drop':
+      return <DropModal />;
   }
 }
 

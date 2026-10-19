@@ -1,7 +1,8 @@
 /**
- * Room and holder-only post access (brief §4): onchain SwayKeys.balanceOf(subject, wallet) ≥ 100 units, cached
- * in Redis for 60s (`acc:<subject>:<wallet>` → units). Market owners always have access. Unclaimed fan markets
- * have no room. Subscriber access is an unexpired Subscription row.
+ * Room and holder-only post access (brief §4): onchain SwayKeys.balanceOf(subject, wallet) summed over every
+ * wallet of the member (account + linked) ≥ 100 units, each balance cached in Redis for 60s
+ * (`acc:<subject>:<wallet>` → units). Market owners always have access. Unclaimed fan markets have no room.
+ * Subscriber access is an unexpired Subscription row.
  */
 import type { Redis } from 'ioredis';
 import type { KeyMarket, PrismaClient } from '@sway/db';
@@ -15,10 +16,34 @@ export const accessKey = (subject: string, holder: string) =>
 
 export interface AccessViewer {
   userId: string;
+  /** The account wallet. A viewer without one has no linked wallets either (linking needs it). */
   wallet: string | null;
+  /** Every wallet of the member, account first; looked up when omitted. */
+  wallets?: string[];
 }
 
 type MarketLike = Pick<KeyMarket, 'id' | 'subject' | 'userId' | 'claimed'>;
+
+/**
+ * Lowercase addresses of every wallet of a member: the account wallet first, then linked wallets oldest
+ * first. Keys held across all of them count together everywhere access or holdings are checked.
+ */
+export async function memberAddresses(
+  prisma: Pick<PrismaClient, 'wallet' | 'linkedWallet'>,
+  userId: string,
+): Promise<string[]> {
+  const [account, linked] = await Promise.all([
+    prisma.wallet.findUnique({ where: { userId }, select: { address: true } }),
+    prisma.linkedWallet.findMany({
+      where: { userId },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      select: { address: true },
+    }),
+  ]);
+  const out = account ? [account.address.toLowerCase()] : [];
+  for (const l of linked) if (!out.includes(l.address.toLowerCase())) out.push(l.address.toLowerCase());
+  return out;
+}
 
 export class AccessService {
   constructor(
@@ -65,7 +90,18 @@ export class AccessService {
     return out;
   }
 
-  /** Holder access per market id for a viewer (owner → true, unclaimed fan market → false). */
+  /** Units per subject summed across several wallets (each read through the per-wallet cache). */
+  async balancesAcross(wallets: string[], subjects: string[]): Promise<Map<string, bigint>> {
+    const out = new Map<string, bigint>();
+    const per = await Promise.all([...new Set(wallets.map((w) => w.toLowerCase()))].map((w) => this.balances(w, subjects)));
+    for (const m of per) for (const [s, v] of m) out.set(s, (out.get(s) ?? 0n) + v);
+    return out;
+  }
+
+  /**
+   * Holder access per market id for a viewer (owner → true, unclaimed fan market → false). Units across all
+   * of the member's wallets count together.
+   */
   async holderAccess(viewer: AccessViewer | null, markets: MarketLike[]): Promise<Map<string, boolean>> {
     const out = new Map<string, boolean>();
     const toCheck: MarketLike[] = [];
@@ -75,8 +111,9 @@ export class AccessService {
       else toCheck.push(m);
     }
     if (toCheck.length && viewer?.wallet) {
-      const bals = await this.balances(
-        viewer.wallet,
+      const wallets = viewer.wallets ?? (await memberAddresses(this.prisma, viewer.userId));
+      const bals = await this.balancesAcross(
+        wallets.length ? wallets : [viewer.wallet],
         toCheck.map((m) => m.subject),
       );
       for (const m of toCheck) out.set(m.id, (bals.get(m.subject.toLowerCase()) ?? 0n) >= ACCESS_UNITS);

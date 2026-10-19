@@ -103,7 +103,7 @@ export const STREAK_CAP_DAYS = 7;
 export const streakPoints = (day: number): number => Math.max(0, Math.min(day, STREAK_CAP_DAYS)) * STREAK_POINTS_PER_DAY;
 
 /** UTC day key "YYYY-MM-DD". */
-export const utcDay = (d: Date | number = Date.now()): string => new Date(d).toISOString().slice(0, 10);
+export const utcDayKey = (d: Date | number = Date.now()): string => new Date(d).toISOString().slice(0, 10);
 
 /**
  * Next streak length for a check-in on `today`: continues when the last check-in was yesterday (UTC), stays
@@ -111,6 +111,6 @@ export const utcDay = (d: Date | number = Date.now()): string => new Date(d).toI
  */
 export function nextStreak(lastDay: string | null | undefined, days: number, today: string): { days: number; already: boolean } {
   if (lastDay === today) return { days, already: true };
-  const y = utcDay(Date.parse(`${today}T00:00:00Z`) - 86_400_000);
+  const y = utcDayKey(Date.parse(`${today}T00:00:00Z`) - 86_400_000);
   return { days: lastDay === y ? days + 1 : 1, already: false };
 }

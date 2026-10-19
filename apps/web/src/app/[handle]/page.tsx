@@ -1,5 +1,5 @@
 'use client';
-import { CURVE, unitsToKeys, weiToEth } from '@sway/curve';
+import { unitsToKeys, weiToEth } from '@sway/curve';
 import { frameOfScore, tierOf } from '@sway/scoring';
 import { hueOf, minutesSince } from '@sway/shared';
 import { useParams, useRouter } from 'next/navigation';
@@ -7,12 +7,13 @@ import { useState, type CSSProperties } from 'react';
 import { Icon } from '@/components/icons';
 import { Avatar, Empty, Loading, Tabs, VB, Voiceprint } from '@/components/ui';
 import { RoomView } from '@/components/views/Chat';
-import { CurveChart } from '@/components/views/CurveChart';
+import { BlockedNote, ChartCard, ProfileMenu } from '@/components/views/ProfileExtras'; // [B]
 import { PostItem } from '@/components/views/Post';
 import { useActions } from '@/lib/actions';
 import { useFormat } from '@/lib/format';
 import { useHolders, useMe, useProfile, useProfilePosts, useProfileTrades, useWallet } from '@/lib/queries';
 import { openModal, type ProfileTab } from '@/lib/store';
+import { useSocialActions } from '@/lib/social';
 
 function Posts({ handle, isMe }: { handle: string; isMe: boolean }) {
   const { data } = useProfilePosts(handle);
@@ -130,8 +131,14 @@ function Profile({ handle }: { handle: string }) {
                 <Icon name="share" />
                 Share card
               </button>
+            ) : c.deleted ? null : c.blocked ? (
+              <>
+                <ProfileMenu c={c} />
+                <BlockedButton handle={handle} />
+              </>
             ) : c.claimed ? (
               <>
+                <ProfileMenu c={c} />
                 <button className="btn btn-glass btn-sm" aria-label="Message" onClick={() => a.dm(handle)}>
                   <Icon name="chat" size={16} />
                 </button>
@@ -229,25 +236,8 @@ function Profile({ handle }: { handle: string }) {
           <b>6%</b>
         </div>
       </div>
-      <div className="glass chart-card">
-        <div className="between">
-          <b style={{ fontSize: 14 }}>Bonding curve</b>
-          <span className="t3 hm" style={{ fontSize: 12 }}>
-            price = {CURVE.K} × (supply + {CURVE.O})² ETH
-          </span>
-        </div>
-        <CurveChart supply={unitsToKeys(c.supplyUnits)} F={F} />
-        <div className="legend">
-          <span>
-            <i style={{ background: '#1D9BF0' }} />
-            Curve
-          </span>
-          <span>
-            <i style={{ background: '#0F1419' }} />
-            Current supply
-          </span>
-        </div>
-      </div>
+      <ChartCard c={c} />
+      {c.blocked && <BlockedNote handle={handle} />}
       <div className="ptabs">
         <Tabs<ProfileTab>
           items={[
@@ -259,12 +249,29 @@ function Profile({ handle }: { handle: string }) {
           value={tab}
           onChange={setTab}
         />
-        {tab === 'posts' && <Posts handle={handle} isMe={isMe} />}
+        {tab === 'posts' &&
+          (c.blocked ? (
+            <Empty icon="block" title={`You blocked @${handle}`} action={<BlockedButton handle={handle} />}>
+              Unblock to see their posts again.
+            </Empty>
+          ) : (
+            <Posts handle={handle} isMe={isMe} />
+          ))}
         {tab === 'room' && <RoomView handle={handle} />}
         {tab === 'holders' && <Holders handle={handle} />}
         {tab === 'trades' && <Trades handle={handle} />}
       </div>
     </>
+  );
+}
+
+/** [B] */
+function BlockedButton({ handle }: { handle: string }) {
+  const s = useSocialActions();
+  return (
+    <button className="btn btn-glass btn-sm danger-t" onClick={() => s.block(handle)}>
+      Unblock
+    </button>
   );
 }
 

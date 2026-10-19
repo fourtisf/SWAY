@@ -18,6 +18,8 @@ export async function systemRoutes(app: FastifyInstance) {
       auth: { x: config.x.enabled, dev: config.devAuth },
       wallets: config.wallets,
       mainnet: config.chain.isMainnet,
+      /* [A] */
+      faucetUrl: config.faucetUrl,
     };
   });
 

@@ -35,6 +35,7 @@ describe('config', () => {
       'contracts',
       'ethUsd',
       'explorerUrl',
+      'faucetUrl',
       'mainnet',
       'rpcUrl',
       'snapshotAt',

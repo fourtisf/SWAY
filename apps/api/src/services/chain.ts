@@ -88,6 +88,12 @@ export interface ChainClient {
   claimFanMarket(subject: Address, newOwner: Address): Promise<OperatorTxResult>;
   /** Dev faucet: operator sends ETH. */
   sendEth(to: Address, value: bigint): Promise<OperatorTxResult>;
+  /* [B] */
+  /** SwayKeys.treasury(), where boost payments go; null without contracts. */
+  treasury(): Promise<Address | null>;
+  /** Fan admin writes (the operator is fan admin on local chains): takedowns and admin-opened fan markets. */
+  setMarketHalted(subject: Address, halted: boolean): Promise<OperatorTxResult>;
+  openFanMarket(xId: bigint): Promise<OperatorTxResult>;
 }
 
 export class ChainUnavailable extends ChainError {
@@ -262,8 +268,12 @@ export class ViemChainClient implements ChainClient {
   }
 
   private async operatorWrite(
-    functionName: 'openMarket' | 'claimFanMarket',
-    args: readonly [Address, bigint] | readonly [Address, Address],
+    functionName: 'openMarket' | 'claimFanMarket' | 'setMarketHalted' | 'openFanMarket',
+    args:
+      | readonly [Address, bigint]
+      | readonly [Address, Address]
+      | readonly [Address, boolean]
+      | readonly [bigint],
   ): Promise<OperatorTxResult> {
     if (!this.operatorEnabled || !this.wallet || !this.account) throw new ChainUnavailable('Operator');
     return withRedisLock(this.redis, OPERATOR_LOCK_KEY, async () => {
@@ -300,6 +310,25 @@ export class ViemChainClient implements ChainClient {
 
   claimFanMarket(subject: Address, newOwner: Address): Promise<OperatorTxResult> {
     return this.operatorWrite('claimFanMarket', [subject, newOwner] as const);
+  }
+
+  /* [B] */
+  async treasury(): Promise<Address | null> {
+    if (!this.keysEnabled) return null;
+    const t = (await this.pub.readContract({
+      address: this.keys!,
+      abi: swayKeysAbi,
+      functionName: 'treasury',
+    })) as Address;
+    return /^0x0{40}$/i.test(t) ? null : (t.toLowerCase() as Address);
+  }
+
+  setMarketHalted(subject: Address, halted: boolean): Promise<OperatorTxResult> {
+    return this.operatorWrite('setMarketHalted', [subject, halted] as const);
+  }
+
+  openFanMarket(xId: bigint): Promise<OperatorTxResult> {
+    return this.operatorWrite('openFanMarket', [xId] as const);
   }
 
   async sendEth(to: Address, value: bigint): Promise<OperatorTxResult> {

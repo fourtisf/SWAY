@@ -25,7 +25,8 @@ import { useEthUsd, useFormat } from './format';
 import { invalidateMoney, qk, useMe } from './queries';
 import { closeModal, openModal, toast, useUI } from './store';
 import { shareCardUrl } from './util';
-import { useExternalWallet, useSwayWallet, type SwayWallet } from './wallet';
+import { useMemberWallets, useSwayWallet, type SwayWallet } from './wallet';
+import { openConnectWallet } from './wallet-actions';
 import { weiToEth } from '@sway/curve';
 
 const api = () => getApi();
@@ -50,7 +51,8 @@ export function useActions() {
   const me = useMe().data ?? null;
   const F = useFormat();
   const ethUsd = useEthUsd();
-  const { wallet, status } = useSwayWallet();
+  const { wallet, status, address: activeAddress } = useSwayWallet();
+  const { wallets: memberWallets } = useMemberWallets();
 
   const needUser = (): boolean => {
     if (!me) openModal({ type: 'connect' });
@@ -61,18 +63,16 @@ export function useActions() {
     if (!needUser()) return null;
     if (wallet) return wallet;
     if (status === 'none') openModal({ type: 'onboard' });
-    else if (status === 'needs-external') {
-      const oc = useExternalWallet.getState().openConnect;
-      if (oc) oc();
-      else toast('Connect your wallet to continue');
-    } else if (status === 'missing-key') toast('Your Sway wallet key isn’t on this device');
-    else toast('Embedded wallets aren’t available yet. Use your own wallet.');
+    // [A] the active wallet isn't usable in this browser: connect it (or import its key), or add another.
+    else openConnectWallet(activeAddress ?? undefined);
     return null;
   };
 
+  /** Cash of the active wallet (the one that pays). */
   const cash = async (): Promise<bigint> => {
     const w = await qc.fetchQuery({ queryKey: qk.wallet, queryFn: () => api().wallet(), staleTime: 5_000 });
-    return BigInt(w.cashWei);
+    const mine = w.wallets?.find((x) => x.address.toLowerCase() === activeAddress?.toLowerCase());
+    return BigInt(mine?.cashWei ?? w.cashWei);
   };
 
   /** Pays a creator's owner wallet in ETH, then tells the API (tip / subscribe). */
@@ -97,6 +97,7 @@ export function useActions() {
   return {
     me,
     needUser,
+    needWallet, // [B] boosts pay through the active wallet
     openTrade: (handle: string, side: 'buy' | 'sell' = 'buy') => openModal({ type: 'trade', handle, side }),
 
     async execTrade(p: ProfileDTO, side: 'buy' | 'sell', q: QuoteWei) {
@@ -211,10 +212,11 @@ export function useActions() {
       }
     },
 
-    async post(text: string, visibility: Visibility, onDone?: () => void) {
+    /** [B] media: URLs from POST /api/uploads. */
+    async post(text: string, visibility: Visibility, onDone?: () => void, media?: string[]) {
       if (!needUser()) return false;
       try {
-        await api().createPost({ text, visibility });
+        await api().createPost({ text, visibility, ...(media?.length ? { media } : {}) });
         onDone?.();
         useUI.setState({ feedTab: 'latest' });
         await qc.invalidateQueries({ queryKey: ['feed'] });
@@ -228,16 +230,35 @@ export function useActions() {
       }
     },
 
+    /** [A] Claims every wallet's earnings that can sign in this browser (one claim() per wallet). */
     async claimEarnings(w: WalletDTO) {
-      const sw = needWallet();
-      if (!sw) return;
-      try {
-        const hash = await sw.claim(w.earnings.claimSubjects as Address[]);
-        await sw.waitForReceipt(hash);
-        toast(`Claimed ${F.$(weiToEth(w.earnings.totalWei))}`);
-        await invalidateMoney(qc);
-        // "Claimed so far" comes from the indexer: refresh once it has the Claim event.
-        const before = BigInt(w.earnings.claimedWei);
+      if (!needUser()) return;
+      const due = (w.wallets ?? []).filter((x) => BigInt(x.earnings.totalWei) > 0n);
+      const list = due.length ? due : [{ address: w.address, earnings: w.earnings }];
+      let total = 0n;
+      let skipped = 0;
+      for (const x of list) {
+        const mw = memberWallets.find((m) => m.address.toLowerCase() === x.address.toLowerCase());
+        if (!mw?.wallet) {
+          skipped++;
+          continue;
+        }
+        try {
+          const hash = await mw.wallet.claim(x.earnings.claimSubjects as Address[]);
+          await mw.wallet.waitForReceipt(hash);
+          total += BigInt(x.earnings.totalWei);
+        } catch (e) {
+          fail(e);
+          break;
+        }
+      }
+      if (total > 0n) toast(`Claimed ${F.$(weiToEth(total))}`);
+      else if (skipped) openConnectWallet(list[0]!.address);
+      if (total > 0n && skipped) setTimeout(() => toast('Connect your other wallets to claim the rest'), 2700);
+      await invalidateMoney(qc);
+      // "Claimed so far" comes from the indexer: refresh once it has the Claim events.
+      const before = BigInt(w.earnings.claimedWei);
+      if (total > 0n)
         void (async () => {
           for (let i = 0; i < 20; i++) {
             await new Promise((r) => setTimeout(r, 1000));
@@ -246,30 +267,18 @@ export function useActions() {
               .catch(() => null);
             if (fresh && BigInt(fresh.earnings.claimedWei) > before) {
               qc.setQueryData(qk.wallet, fresh);
+              await invalidateMoney(qc);
               break;
             }
           }
         })();
-      } catch (e) {
-        fail(e);
-      }
     },
 
+    /** [A] The Deposit modal: QR + address of the active wallet; test funds on local chains. */
     async deposit() {
       if (!needUser()) return;
-      try {
-        const { txHash } = await api().faucet();
-        if (MOCK) toast('Added $100 in demo funds');
-        else {
-          if (wallet) await wallet.waitForReceipt(txHash as `0x${string}`).catch(() => null);
-          toast('Added test funds from the faucet');
-        }
-        qc.invalidateQueries({ queryKey: qk.wallet });
-      } catch (e) {
-        if (isAuthRequired(e)) return;
-        // No faucet on this chain: show the deposit address instead.
-        openModal({ type: 'deposit' });
-      }
+      if (!me?.wallet) return openModal({ type: 'onboard' });
+      openModal({ type: 'deposit' });
     },
 
     async withdraw(usd: number, to: string, available: bigint) {
@@ -290,7 +299,7 @@ export function useActions() {
         await w.waitForReceipt(hash);
         await api().withdrawLog({ label: 'Withdrawal to external wallet', amountWei: (-wei).toString(), txHash: hash });
         closeModal();
-        toast(`Withdrew $${usd.toFixed(2)} as USDC`);
+        toast(`Sent $${usd.toFixed(2)} in ETH`);
         await invalidateMoney(qc);
         return true;
       } catch (e) {
@@ -411,7 +420,9 @@ export function useActions() {
 
     shareCard() {
       if (!me) return;
-      window.open(shareCardUrl(me.user.score, F.usd(me.user.reachValue)), '_blank', 'noopener');
+      // [B] the card page's OG image makes X unfurl the link
+      const card = `${window.location.origin}/card/${me.user.handle}`;
+      window.open(shareCardUrl(me.user.score, F.usd(me.user.reachValue), card), '_blank', 'noopener');
     },
   };
 }

@@ -39,6 +39,9 @@ import {
   type UserRef,
   type Visibility,
   type WalletDTO,
+  type HoldingDTO,
+  type WalletBalanceDTO,
+  type WalletInfoDTO,
 } from '@sway/shared';
 import { emitMock } from './bus';
 import {
@@ -106,6 +109,19 @@ interface MyTrade {
   at: number;
 }
 
+/** [A] A wallet the member added (mock mode keeps its money and keys apart from the account wallet). */
+export interface MockLinkedWallet {
+  address: Address;
+  kind: 'embedded' | 'external';
+  connector: string;
+  label: string | null;
+  createdAt: number;
+  eth: number;
+  holdings: Record<string, number>;
+  earnedHolder: number;
+  claimed: number;
+}
+
 let seq = 0;
 const nid = (p: string) => `${p}${Date.now().toString(36)}${(++seq).toString(36)}`;
 
@@ -146,6 +162,13 @@ export class MockWorld {
   staked = 0;
   /** Mock wallet transactions, so tip/subscribe can log what was sent. */
   txs = new Map<string, { to: string; eth: number }>();
+
+  /* [A] wallets: the account wallet's money is `eth` / `earned` / `claimed` above and its keys are `holdings`
+   * minus what linked wallets hold (`holdings` stays the member's total, which rooms and points read). */
+  linked: MockLinkedWallet[] = [];
+  account: { connector: string; kind: 'embedded' | 'external'; createdAt: number } = { connector: 'sway', kind: 'embedded', createdAt: Date.now() };
+  /** Average-cost basis per `${address}|${handle}` (ETH paid, fees included) and realized PnL. */
+  basis: Record<string, { cost: number; realized: number }> = {};
 
   constructor() {
     CREATORS_SEED.forEach((a) => {
@@ -228,6 +251,10 @@ export class MockWorld {
       following: this.following.has(h),
       subscribed: this.subs.has(h),
       heldUnits: U(this.holdings[h] || 0).toString(),
+      heldBy: this.walletInfos()
+        .map((wi) => ({ address: wi.address, units: U(this.unitsBy(wi.address, h)).toString() }))
+        .filter((x) => x.units !== '0'),
+      blocked: this.blocked.has(h), // [B]
       history: c.hist.map((p, i) => ({ t: iso(this.now0 - (c.hist.length - i) * 3600000), priceWei: W(p) })),
     };
   }
@@ -256,10 +283,14 @@ export class MockWorld {
       text: locked ? null : p.text,
       teaser: locked ? p.text : null,
       locked,
+      // [B]
+      media: locked ? [] : (p.media ?? []),
+      hidden: !!p.hidden,
+      boostedUntil: p.boostedUntil ? iso(p.boostedUntil) : null,
       visibility: p.vis,
       pinned,
-      boosted: p.boost,
-      parentId: null,
+      boosted: p.boost || (p.boostedUntil ?? 0) > Date.now(),
+      parentId: p.parentId ?? null,
       createdAt: iso(p.at),
       likes: p.likes + (liked ? 1 : 0),
       reposts: p.rp + (rp ? 1 : 0),
@@ -270,10 +301,15 @@ export class MockWorld {
     };
   }
 
+  /** [B] Not deleted; hidden only for admins and the author; nothing from accounts you blocked. */
+  visible = (p: SeedPost): boolean =>
+    !p.deleted && (!p.hidden || this.isAdmin() || this.isMine(p.author)) && !this.blocked.has(p.author);
+
   feed(tab: string): SeedPost[] {
     const mins = (p: SeedPost) => (Date.now() - p.at) / 60000;
-    let list = this.posts.slice();
-    const sc = (p: SeedPost) => (p.likes + p.rp * 2 + p.rep * 3) / (1 + mins(p) / 120) + (p.boost ? 400 : 0) + (this.C[p.author]?.score || 60) * 3;
+    let list = this.posts.filter((p) => !p.parentId && this.visible(p)); // [B]
+    const boosted = (p: SeedPost) => p.boost || (p.boostedUntil ?? 0) > Date.now(); // [B]
+    const sc = (p: SeedPost) => (p.likes + p.rp * 2 + p.rep * 3) / (1 + mins(p) / 120) + (boosted(p) ? 400 : 0) + (this.C[p.author]?.score || 60) * 3;
     if (tab === 'foryou') list.sort((a, b) => sc(b) - sc(a));
     if (tab === 'trending') list.sort((a, b) => b.likes + b.rp * 2 - (a.likes + a.rp * 2));
     if (tab === 'latest') list.sort((a, b) => b.at - a.at);
@@ -319,28 +355,44 @@ export class MockWorld {
     c.change = (priceAt(c.supply) / c.hist[Math.max(0, c.hist.length - 25)]! - 1) * 100;
   }
 
-  /** The prototype's execTrade(), priced with the exact wei quote. Throws like the contract would. */
-  execTrade(h: string, side: Side, units: bigint): number {
+  /**
+   * The prototype's execTrade(), priced with the exact wei quote. Throws like the contract would. [A] `from` is
+   * the trading wallet (default: the account wallet); its own balance and keys are used.
+   */
+  execTrade(h: string, side: Side, units: bigint, from?: string): number {
     const c = this.C[h];
     if (!c || !this.user) throw new Error('Market not found');
     const k = Number(units) / 100;
     const had = this.holdings[h] || 0;
+    const lw = from ? this.linkedOf(from) : undefined;
+    const addr = lw ? lw.address : this.user.wallet;
+    const mine = lw ? lw.holdings[h] || 0 : this.accountUnits(h);
     const q = quoteWei(U(c.supply), side, units, { level: this.level });
     const total = weiToEth(q.total),
       base = weiToEth(q.base);
+    const bk = `${addr.toLowerCase()}|${h}`;
+    const b = (this.basis[bk] ??= { cost: 0, realized: 0 });
     if (side === 'buy') {
-      if (q.total > ethToWei(this.eth)) throw new Error('Not enough balance');
-      this.eth -= total;
+      if (q.total > ethToWei(lw ? lw.eth : this.eth)) throw new Error('Not enough balance');
+      if (lw) lw.eth -= total;
+      else this.eth -= total;
       c.supply = +(c.supply + k).toFixed(2);
       this.holdings[h] = +(had + k).toFixed(2);
+      if (lw) lw.holdings[h] = +(mine + k).toFixed(2);
+      b.cost += total;
       if (had < 0.0001) c.holders++;
       if (!c.claimed) c.escrow += weiToEth(q.creatorFee);
     } else {
-      const sellable = c.isMe ? had - 1 : had;
+      const sellable = c.isMe && !lw ? mine - 1 : mine;
       if (k > sellable + 1e-9) throw new Error('More than you hold');
-      this.eth += total;
+      if (lw) lw.eth += total;
+      else this.eth += total;
       c.supply = +(c.supply - k).toFixed(2);
       this.holdings[h] = +(had - k).toFixed(2);
+      if (lw) lw.holdings[h] = +Math.max(0, mine - k).toFixed(2);
+      const sold = mine > 0 ? (b.cost * k) / mine : 0;
+      b.cost -= sold;
+      b.realized += total - sold;
       if (this.holdings[h]! < 0.0001) {
         this.holdings[h] = 0;
         c.holders = Math.max(1, c.holders - 1);
@@ -381,7 +433,7 @@ export class MockWorld {
     return { n, m };
   }
 
-  claimable = () => this.earned.creator + this.earned.holder + this.earned.ref;
+  claimable = () => this.earned.creator + this.earned.holder + this.earned.ref + this.linked.reduce((t, l) => t + l.earnedHolder, 0);
 
   userPoints(): number {
     if (!this.user) return 0;
@@ -426,50 +478,146 @@ export class MockWorld {
     if (!u) return null;
     return {
       user: { ...this.ref(u.handle), id: 'u-' + u.handle, memberNo: u.memberNo, score: u.score, reachValue: u.value, followers: u.followers },
-      wallet: { address: u.wallet, kind: 'embedded' },
+      wallet: { address: u.wallet, kind: this.account.kind },
       market: { subject: this.subjectOf(u.handle), opened: true },
+      wallets: this.walletInfos(),
       points: this.points(),
       stakingLevel: this.level,
       unreadNotifications: this.notifs.filter((n) => !n.read).length,
       unreadMessages: this.threads.filter((t) => t.unread).length,
+      isAdmin: this.isAdmin(), // [B]
     };
   }
 
+  /* ------------------------------------------------------------ [B] moderation */
+
+  /** Handles the signed-in member blocked. */
+  blocked = new Set<string>();
+  /** Mock mode: members whose handle starts with "admin" are admins (e.g. connect as @admin). */
+  isAdmin = (): boolean => !!this.user && this.user.handle.startsWith('admin');
+
   wallet(): WalletDTO {
     const u = this.user!;
-    const kh = this.keysHeld();
-    const hold = Object.entries(this.holdings).filter(([h, k]) => k > 0 && !this.C[h]?.isMe);
     const e = this.earned;
+    const wallets = this.walletBalances();
+    const holdings = this.holdingRows();
+    const sum = (f: (x: WalletBalanceDTO) => string) => wallets.reduce((t, x) => t + BigInt(f(x)), 0n).toString();
+    const kh = this.keysHeld();
     return {
       address: u.wallet,
-      kind: 'embedded',
-      cashWei: W(this.eth),
-      keysValueWei: W(this.holdValue()),
+      kind: this.account.kind,
+      cashWei: sum((x) => x.cashWei),
+      keysValueWei: holdings.reduce((t, x) => t + BigInt(x.valueWei), 0n).toString(),
       earnings: {
         creatorWei: W(e.creator),
-        holderWei: W(e.holder),
+        holderWei: sum((x) => x.earnings.holderWei),
         referralWei: W(e.ref),
-        totalWei: W(this.claimable()),
-        claimedWei: W(this.claimed),
-        claimSubjects: hold.map(([h]) => this.subjectOf(h)),
+        totalWei: sum((x) => x.earnings.totalWei),
+        claimedWei: sum((x) => x.earnings.claimedWei),
+        claimSubjects: wallets[0]!.earnings.claimSubjects,
       },
       keys: { units: U(kh.n).toString(), markets: kh.m },
-      holdings: hold.map(([h, k]) => {
-        const c = this.C[h]!;
-        return { market: this.market(c), units: U(k).toString(), valueWei: W(area(c.supply - Math.min(k, c.supply - 1), c.supply) * (1 - FEE_TOTAL)) };
-      }),
+      holdings,
       activity: this.activity
         .slice()
         .reverse()
         .map((a): ActivityDTO => ({ id: a.id, label: a.label, amountWei: W(a.amt), createdAt: iso(a.at), txHash: a.txHash })),
+      wallets,
     };
   }
+
+  /* ------------------------------------------------------------ [A] wallets */
+
+  linkedOf = (address: string): MockLinkedWallet | undefined => this.linked.find((l) => l.address.toLowerCase() === address.toLowerCase());
+
+  /** The account wallet's own units of a market (the member's total minus linked wallets). */
+  accountUnits(h: string): number {
+    const rest = this.linked.reduce((t, l) => t + (l.holdings[h] || 0), 0);
+    return Math.max(0, +((this.holdings[h] || 0) - rest).toFixed(2));
+  }
+
+  unitsBy(address: string, h: string): number {
+    const lw = this.linkedOf(address);
+    return lw ? lw.holdings[h] || 0 : this.accountUnits(h);
+  }
+
+  walletInfos(): WalletInfoDTO[] {
+    const u = this.user;
+    if (!u) return [];
+    return [
+      { address: u.wallet, kind: this.account.kind, connector: this.account.connector, label: null, account: true, createdAt: iso(this.account.createdAt) },
+      ...this.linked.map((l) => ({ address: l.address, kind: l.kind, connector: l.connector, label: l.label, account: false, createdAt: iso(l.createdAt) })),
+    ];
+  }
+
+  /** Sell value of `k` keys of a market (the locked first key never counts). */
+  private valueOf(h: string, k: number): number {
+    const c = this.C[h];
+    if (!c || k <= 0) return 0;
+    return area(c.supply - Math.min(k, c.supply - 1), c.supply) * (1 - FEE_TOTAL);
+  }
+
+  holdingRows(): HoldingDTO[] {
+    const rows: HoldingDTO[] = [];
+    for (const wi of this.walletInfos()) {
+      for (const h of Object.keys(this.holdings)) {
+        const k = this.unitsBy(wi.address, h);
+        if (k <= 0 || this.C[h]?.isMe) continue;
+        const value = this.valueOf(h, k);
+        const b = this.basis[`${wi.address.toLowerCase()}|${h}`] ?? { cost: 0, realized: 0 };
+        rows.push({
+          market: this.market(this.C[h]!),
+          units: U(k).toString(),
+          valueWei: W(value),
+          address: wi.address,
+          costBasisWei: W(b.cost),
+          avgCostWei: W(k > 0 ? b.cost / k : 0),
+          unrealizedPnlWei: W(value - b.cost),
+          realizedPnlWei: W(b.realized),
+        });
+      }
+    }
+    return rows.sort((a, b) => (BigInt(b.valueWei) > BigInt(a.valueWei) ? 1 : -1));
+  }
+
+  walletBalances(): WalletBalanceDTO[] {
+    const rows = this.holdingRows();
+    return this.walletInfos().map((wi) => {
+      const lw = wi.account ? undefined : this.linkedOf(wi.address);
+      const mine = rows.filter((r) => r.address === wi.address);
+      const held = Object.keys(this.holdings).filter((h) => this.unitsBy(wi.address, h) > 0 || (wi.account && this.C[h]?.isMe));
+      const creator = lw ? 0 : this.earned.creator,
+        holder = lw ? lw.earnedHolder : this.earned.holder,
+        ref = lw ? 0 : this.earned.ref;
+      return {
+        ...wi,
+        cashWei: W(lw ? lw.eth : this.eth),
+        keysValueWei: mine.reduce((t, r) => t + BigInt(r.valueWei), 0n).toString(),
+        keys: { units: mine.reduce((t, r) => t + BigInt(r.units), 0n).toString(), markets: mine.length },
+        earnings: {
+          creatorWei: W(creator),
+          holderWei: W(holder),
+          referralWei: W(ref),
+          totalWei: W(creator + holder + ref),
+          claimedWei: W(lw ? lw.claimed : this.claimed),
+          claimSubjects: held.map((h) => this.subjectOf(h)),
+        },
+      };
+    });
+  }
+
+  /** Simulated wallet app balance for a newly connected external wallet (deterministic per address). */
+  static demoBalance = (address: string) => 0.04 + (hash(address) % 120) / 1000;
 
   /* ------------------------------------------------------------ session */
 
   login(handle: string, followers?: number) {
     const u = makeUser(handle, followers);
     this.user = u;
+    // [A] a new member starts with just the account wallet
+    this.linked = [];
+    this.basis = {};
+    this.account = { connector: 'sway', kind: 'embedded', createdAt: Date.now() };
     const me = mkCreator(u.name, u.handle, u.followers, 'New on Sway. Holders get my room.', u.verified, { isMe: true, memberNo: u.memberNo });
     Object.assign(me, { score: u.score, value: u.value, supply: 1, holders: 1, volume: 0, hist: Array(40).fill(priceAt(1)), change: 0, extraHolders: {} });
     this.C[u.handle] = me;
@@ -496,6 +644,10 @@ export class MockWorld {
     this.activity = [];
     this.earned = { creator: 0, holder: 0, ref: 0 };
     this.eth = 0.75;
+    this.linked = [];
+    this.basis = {};
+    this.account = { connector: 'sway', kind: 'embedded', createdAt: Date.now() };
+    this.blocked.clear(); // [B]
   }
 
   /* ------------------------------------------------------------ notifications */
@@ -656,7 +808,11 @@ export class MockWorld {
       c.volume += t.eth;
       this.bumpHist(c);
       const held = this.holdings[t.c] || 0;
-      if (this.user && held > 0 && !c.isMe) this.earned.holder += t.eth * CURVE.HOLDERS * (held / c.supply);
+      if (this.user && held > 0 && !c.isMe) {
+        // [A] each wallet earns on its own keys
+        this.earned.holder += t.eth * CURVE.HOLDERS * (this.accountUnits(t.c) / c.supply);
+        for (const l of this.linked) if (l.holdings[t.c]) l.earnedHolder += t.eth * CURVE.HOLDERS * (l.holdings[t.c]! / c.supply);
+      }
       if (this.user && r() < 0.12) this.earned.ref += t.eth * CURVE.REF * 0.5;
     }
     this.pushTrade(t);

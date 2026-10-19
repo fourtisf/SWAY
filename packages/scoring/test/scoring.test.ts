@@ -12,7 +12,7 @@ import {
   scorePoints,
   nextStreak,
   streakPoints,
-  utcDay,
+  utcDayKey,
   settleBackings,
   settleStakes,
   tierOf,
@@ -159,6 +159,6 @@ describe('daily streak', () => {
     expect(nextStreak('2026-10-19', 5, '2026-10-19')).toEqual({ days: 5, already: true });
     expect(nextStreak('2026-10-16', 9, '2026-10-19')).toEqual({ days: 1, already: false });
     expect(nextStreak('2026-02-28', 2, '2026-03-01')).toEqual({ days: 3, already: false });
-    expect(utcDay(Date.parse('2026-10-19T23:59:59Z'))).toBe('2026-10-19');
+    expect(utcDayKey(Date.parse('2026-10-19T23:59:59Z'))).toBe('2026-10-19');
   });
 });

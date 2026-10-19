@@ -1,6 +1,8 @@
 /**
- * Burner embedded wallet (ConfigDTO.wallets.embedded === 'burner'): a viem private key kept in this
- * browser's localStorage, one per Sway user id. Local chains and testnets only.
+ * Burner embedded wallet (ConfigDTO.wallets.embedded === 'burner'): viem private keys kept in this browser's
+ * localStorage, never sent anywhere. `sway.burner.<userId>` holds the key created at onboarding; more Sway
+ * wallets (added, or imported from a backup) live under `sway.burner.<userId>.<address>`. Local chains and
+ * testnets only.
  */
 import { swayKeysAbi } from '@sway/shared/abi';
 import { swayChain, type ConfigDTO } from '@sway/shared';
@@ -9,11 +11,13 @@ import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import type { SwayWallet } from './types';
 
 const storageKey = (userId: string) => `sway.burner.${userId}`;
+const extraKey = (userId: string, address: string) => `sway.burner.${userId}.${address.toLowerCase()}`;
+const isKey = (v: string | null | undefined): v is Hex => !!v && /^0x[0-9a-fA-F]{64}$/.test(v);
 
 export function loadBurnerKey(userId: string): Hex | null {
   try {
     const v = localStorage.getItem(storageKey(userId));
-    return v && /^0x[0-9a-fA-F]{64}$/.test(v) ? (v as Hex) : null;
+    return isKey(v) ? v : null;
   } catch {
     return null;
   }
@@ -33,6 +37,59 @@ export function loadOrCreateBurnerKey(userId: string): Hex {
 }
 
 export const burnerAddress = (pk: Hex): Address => privateKeyToAccount(pk).address;
+
+/** This browser's key for one of the member's Sway wallets, if it has it. */
+export function findBurnerKey(userId: string, address: string): Hex | null {
+  const main = loadBurnerKey(userId);
+  if (main && burnerAddress(main).toLowerCase() === address.toLowerCase()) return main;
+  try {
+    const v = localStorage.getItem(extraKey(userId, address));
+    return isKey(v) && burnerAddress(v).toLowerCase() === address.toLowerCase() ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Keeps a key in this browser (an added or imported Sway wallet). Returns its address. */
+export function saveBurnerKey(userId: string, pk: Hex): Address {
+  const address = burnerAddress(pk);
+  try {
+    localStorage.setItem(extraKey(userId, address), pk);
+  } catch {
+    /* storage blocked: the key lives for this tab only */
+  }
+  return address;
+}
+
+/** A fresh Sway wallet for "Add wallet", kept in this browser. */
+export function newBurnerKey(userId: string): Hex {
+  const pk = generatePrivateKey();
+  saveBurnerKey(userId, pk);
+  return pk;
+}
+
+/** Accepts a pasted private key (with or without 0x, surrounding spaces ignored). */
+export function parsePrivateKey(raw: string): Hex | null {
+  const t = raw.trim().replace(/^0x/i, '');
+  if (!/^[0-9a-fA-F]{64}$/.test(t)) return null;
+  const pk = `0x${t.toLowerCase()}` as Hex;
+  try {
+    privateKeyToAccount(pk);
+    return pk;
+  } catch {
+    return null;
+  }
+}
+
+const clients = new Map<string, SwayWallet>();
+
+/** One SwayWallet per key and chain config (viem clients are reused across renders). */
+export function burnerWalletCached(pk: Hex, config: ConfigDTO): SwayWallet {
+  const k = `${pk}:${config.chainId}:${config.rpcUrl}:${config.contracts.swayKeys}`;
+  let w = clients.get(k);
+  if (!w) clients.set(k, (w = burnerWallet(pk, config)));
+  return w;
+}
 
 export function burnerWallet(pk: Hex, config: ConfigDTO): SwayWallet {
   const chain = swayChain({ chainId: config.chainId, rpcUrl: config.rpcUrl, explorerUrl: config.explorerUrl, name: config.chainName });

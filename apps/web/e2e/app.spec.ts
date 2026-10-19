@@ -52,6 +52,8 @@ async function connect(page: Page, handle: string) {
   await page.fill('#cx-h', handle);
   await page.locator('.modal').getByRole('button', { name: 'Authorize and continue' }).click();
   await expect(page.locator('.modal')).toContainText(`Scoring @${handle}`);
+  // Step 4: the account wallet, made here or connected.
+  await page.locator('.modal').getByRole('button', { name: 'Create a Sway wallet' }).click({ timeout: 20_000 });
   await expect(page.locator('.modal')).toContainText('Your Sway card is live', { timeout: 20_000 });
   await expect(page.locator('.modal .ic')).toContainText('Sway score');
   await page.getByRole('button', { name: 'Enter Sway' }).click();
@@ -129,9 +131,12 @@ test('connect, trade, room, post, task, claim', async ({ page }) => {
   await expect(page.locator('#main')).toContainText('Claimed earnings');
   await expect(page.locator('#main')).toContainText('Bought 1 key of Nova Reyes');
 
-  // Deposit adds demo funds.
+  // Deposit shows the address as a QR code; on the local chain it also hands out test funds.
   await page.getByRole('button', { name: 'Deposit' }).click();
+  await expect(page.locator('.modal .qr img')).toBeVisible();
+  await page.locator('.modal').getByRole('button', { name: 'Get test funds' }).click();
   await expect(page.locator('.toasts')).toContainText('Added $100 in demo funds');
+  await page.keyboard.press('Escape');
 
   // Sell the key back from the wallet: the room locks again.
   await page.locator('.tr', { hasText: 'Nova Reyes' }).getByRole('button', { name: 'Sell' }).click();

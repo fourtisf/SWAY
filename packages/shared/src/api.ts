@@ -373,6 +373,9 @@ export interface GenesisResponse {
   /** Shares for ranks 1, 10, 50, 100, 250, 500. */
   split: Array<{ rank: number; sharePct: number }>;
   top: GenesisRow[];
+  /** [C] Once a snapshot exists: its id (GET /api/genesis/snapshots/:id, /genesis/list/:id) and list hash. */
+  snapshotId?: string;
+  listHash?: string;
 }
 
 export interface LaunchpadResponse {
@@ -381,6 +384,10 @@ export interface LaunchpadResponse {
   startCapUsd: number | null;
   launched: boolean;
   tokenAddress: Address | null;
+  /** [C] Terms the attestation would sign (signed-in member with an opened market, before launch). */
+  terms?: LaunchTermsDTO;
+  /** [C] The launched token, read live from SwayLaunchpad. */
+  token?: LaunchTokenDTO;
 }
 
 /* ---------------------------------------------------------------- session & config */
@@ -401,7 +408,15 @@ export interface ConfigDTO {
   chainName: string;
   rpcUrl: string;
   explorerUrl: string;
-  contracts: { swayKeys: Address | null; swayStaking: Address | null; genesisPass: Address | null; fanEscrow: Address | null; launchpad: Address | null };
+  contracts: {
+    swayKeys: Address | null;
+    swayStaking: Address | null;
+    genesisPass: Address | null;
+    fanEscrow: Address | null;
+    launchpad: Address | null;
+    /** [D] SwayDrops (creator airdrops to holders). */
+    drops?: Address | null;
+  };
   ethUsd: number;
   snapshotAt: ISODate;
   auth: { x: boolean; dev: boolean };
@@ -606,9 +621,633 @@ export type RouteKey = keyof typeof ROUTES;
 
 /* ---------------------------------------------------------------- [A] wallets & funding */
 
+/*
+ * A member has one account wallet (Wallet: owns their key market, receives tips and the Genesis pass, fixed
+ * once the market is open) and up to MAX_LINKED_WALLETS more (LinkedWallet, added by signature). An address
+ * belongs to at most one member. Keys held across all of a member's wallets count together (rooms,
+ * holder posts, heldUnits, Following, Messages, the auto task, points, the wallet page).
+ */
+
+export const MAX_LINKED_WALLETS = 10;
+export const WALLET_LABEL_MAX = 32;
+
+/**
+ * Logo key of the wallet app used to connect: 'sway' (the embedded Sway wallet), one of WALLET_APPS, or the
+ * EIP-6963 rdns of another browser wallet (e.g. 'io.metamask'). null for wallets linked before it was stored.
+ */
+export type WalletConnector = string;
+
+/** The curated wallet apps the connect modal always lists (logos come from RainbowKit's wallet definitions). */
+export const WALLET_APPS = ['metaMask', 'coinbaseWallet', 'rabby', 'rainbow', 'trust', 'okx', 'phantom', 'zerion', 'walletConnect'] as const;
+export type WalletApp = (typeof WALLET_APPS)[number];
+
+/** Allowed shape of a connector key (RainbowKit id or rdns). */
+export const WALLET_CONNECTOR_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+
+export interface WalletInfoDTO {
+  address: Address;
+  kind: 'embedded' | 'external';
+  connector: WalletConnector | null;
+  /** Member-chosen name (linked wallets only; the account wallet has none). */
+  label: string | null;
+  /** The account wallet (first in every list). */
+  account: boolean;
+  createdAt: ISODate;
+}
+
+export interface WalletBalanceDTO extends WalletInfoDTO {
+  cashWei: Wei;
+  /** Sell value of this wallet's keys (own market excluded), as in WalletDTO. */
+  keysValueWei: Wei;
+  keys: { units: Units; markets: number };
+  /** What SwayKeys.claim(claimSubjects) pays this address now. */
+  earnings: EarningsDTO;
+}
+
+export interface WalletsResponse {
+  /** Account wallet first, then linked wallets oldest first. */
+  wallets: WalletBalanceDTO[];
+  maxLinked: number;
+}
+
+/** POST /api/wallets/link: add another wallet (signature over the /api/wallets/nonce message). */
+export interface LinkWalletBody {
+  address: Address;
+  signature: `0x${string}`;
+  connector: WalletConnector;
+  label?: string;
+  /** 'embedded' for another Sway wallet created in the browser. Default 'external'. */
+  kind?: 'embedded' | 'external';
+}
+
+export interface WalletLabelBody {
+  /** null or '' clears it. */
+  label: string | null;
+}
+
+export interface FaucetBody {
+  /** One of the member's wallets (default: the account wallet). */
+  address?: Address;
+}
+
+/* Fields [A] adds to the shared DTOs above (merged by TypeScript into the interfaces of the same name). */
+
+export interface MeDTO {
+  /** Every wallet of the member: account first, then linked ones. */
+  wallets?: WalletInfoDTO[];
+}
+
+export interface WalletLinkBody {
+  /** Wallet app used (logo key), see WalletConnector. */
+  connector?: WalletConnector;
+}
+
+export interface HoldingDTO {
+  /** The wallet that holds these units (WalletDTO lists one row per wallet and market). */
+  address?: Address;
+  /** Wei paid for the units held, fees included (average-cost basis from the mirror). */
+  costBasisWei?: Wei;
+  /** Average cost per key (100 units). */
+  avgCostWei?: Wei;
+  /** valueWei − costBasisWei (signed). */
+  unrealizedPnlWei?: Wei;
+  /** Realized on sells so far (signed). */
+  realizedPnlWei?: Wei;
+}
+
+export interface WalletDTO {
+  /** Per-wallet breakdown; the top-level numbers are sums across these. */
+  wallets?: WalletBalanceDTO[];
+}
+
+export interface ProfileDTO {
+  /** The viewer's units of this market per wallet (only wallets holding some); heldUnits is their sum. */
+  heldBy?: Array<{ address: Address; units: Units }>;
+}
+
+export interface ConfigDTO {
+  /** Testnet faucet page (FAUCET_URL), shown in the Deposit modal. */
+  faucetUrl?: string | null;
+}
+
+export const WALLET_ROUTES = {
+  wallets: 'GET /api/wallets',
+  walletsNonce: 'POST /api/wallets/nonce',
+  walletsLink: 'POST /api/wallets/link',
+  walletsLabel: 'PATCH /api/wallets/:address',
+  walletsRemove: 'DELETE /api/wallets/:address',
+} as const;
+
+/**
+ * Q / B / R per WALLET_ROUTES key (all need a session; :address is any case, stored lowercase):
+ *   wallets:       R WalletsResponse
+ *   walletsNonce:  B WalletNonceBody (optional)                         R WalletNonceResponse
+ *                  Same rules as walletNonce, with its own nonce: the message names the handle, the address
+ *                  ("Address: {address}") and the nonce.
+ *   walletsLink:   B LinkWalletBody                                     R MeDTO
+ *                  409 no_wallet (no account wallet yet) / wallet_taken (address belongs to another member,
+ *                  in either table) / wallet_is_account (it is your account wallet) / wallet_limit (10 linked);
+ *                  400 bad_signature / nonce_expired. Linking an address you already linked is a no-op.
+ *   walletsLabel:  B WalletLabelBody                                    R WalletInfoDTO
+ *                  404 wallet_not_found; 409 account_wallet (the account wallet has no label)
+ *   walletsRemove:                                                      R MeDTO
+ *                  404 wallet_not_found; 409 account_wallet (the account wallet can't be removed)
+ * Also: walletLink (account wallet) takes WalletLinkBody.connector; faucet takes FaucetBody (optional);
+ * the wallet route answers WalletDTO summed across every wallet, with `wallets` per wallet.
+ */
+export type WalletRouteKey = keyof typeof WALLET_ROUTES;
+
 /* ---------------------------------------------------------------- [B] social, moderation, account & admin */
 
+/*
+ * Fields [B] adds to the shared DTOs above. TypeScript merges these declarations into the interfaces of
+ * the same name, so the additions stay in this section.
+ */
+export interface PostDTO {
+  /** Image URLs (/api/uploads/<name>), at most POST_MEDIA_MAX. Always empty while `locked`. */
+  media: string[];
+  /** Hidden by a moderator: only the author and admins still see it. */
+  hidden: boolean;
+  /** End of the paid boost window; `boosted` is true while it runs (and always for promoted posts). */
+  boostedUntil: ISODate | null;
+}
+
+export interface CreatePostBody {
+  /** URLs returned by POST /api/uploads; only the author's own uploads. */
+  media?: string[];
+}
+
+export interface PostDetailResponse {
+  /** Ancestors of `post`, root first. */
+  parents: PostDTO[];
+  /** The chain above `parents` stops at a post that was deleted, hidden or blocked. */
+  parentUnavailable: boolean;
+  /** Replies to `replies` (one level of nesting), oldest first; group them by parentId. */
+  nested: PostDTO[];
+}
+
+export interface ProfileDTO {
+  /** The viewer blocked this account. */
+  blocked?: boolean;
+  /** The owner deleted the account; the market stays live under "Deleted account". */
+  deleted?: boolean;
+}
+
+export interface MeDTO {
+  /** Can open /admin (moderation and operations). */
+  isAdmin?: boolean;
+}
+
+export const POST_MEDIA_MAX = 4;
+export const UPLOAD_MAX_BYTES = 5 * 1024 * 1024;
+export const UPLOAD_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const;
+export type UploadMime = (typeof UPLOAD_MIMES)[number];
+/** Default price of a 24h boost (the API reads BOOST_USD). */
+export const BOOST_USD_DEFAULT = 10;
+export const BOOST_HOURS = 24;
+export const REPORT_REASONS = ['spam', 'abuse', 'impersonation', 'other'] as const;
+export type ReportReason = (typeof REPORT_REASONS)[number];
+/** Typed confirmation for DELETE /api/me. */
+export const deleteConfirmText = (handle: string) => `delete @${handle}`;
+
+export interface UploadDTO {
+  /** Pass this in CreatePostBody.media. */
+  url: string;
+  name: string;
+  mime: UploadMime;
+  bytes: number;
+}
+
+export interface UploadResponse {
+  uploads: UploadDTO[];
+}
+
+export interface BoostQuoteDTO {
+  usd: number;
+  /** usd at the current ETH price; send at least this (2% tolerance). */
+  wei: Wei;
+  /** Where the payment goes (SwayKeys.treasury() or TREASURY_ADDRESS). Null when boosts are unavailable. */
+  treasury: Address | null;
+  hours: number;
+}
+
+export interface BoostResponse {
+  post: PostDTO;
+}
+
+export interface ReportBody {
+  /** Exactly one of postId / handle. */
+  postId?: string;
+  handle?: string;
+  reason: ReportReason;
+  note?: string;
+}
+
+export type HistoryRange = '1h' | '1d' | '7d';
+
+export interface PriceHistoryResponse {
+  range: HistoryRange;
+  /** Oldest first: the price at the start of the range, priceWei(supplyAfter) at each trade, then now. */
+  points: Array<{ t: ISODate; priceWei: Wei }>;
+}
+
+/** Public share card (/card/:handle and its OG image). */
+export interface CardDTO extends UserRef {
+  score: number;
+  reachValue: number;
+  followers: number;
+  tier: string;
+  memberNo: number | null;
+  /** Key price, null without a market. */
+  priceWei: Wei | null;
+}
+
+export interface AccountDTO {
+  id: string;
+  handle: string;
+  name: string;
+  avatarUrl: string | null;
+  /** Verified on X. */
+  verified: boolean;
+  memberNo: number | null;
+  joinedAt: ISODate | null;
+  isAdmin: boolean;
+  /** Accounts you blocked, newest first. */
+  blocked: UserRef[];
+}
+
+/** GET /api/me/export: everything Sway stores about you, as one JSON file. */
+export interface AccountExport {
+  exportedAt: ISODate;
+  profile: {
+    xId: string;
+    handle: string;
+    name: string;
+    avatarUrl: string | null;
+    bio: string;
+    followers: number;
+    verified: boolean;
+    score: number;
+    reachValue: number;
+    scoreInputs: unknown;
+    memberNo: number | null;
+    joinedAt: ISODate | null;
+    tier: string;
+  };
+  posts: Array<{
+    id: string;
+    text: string;
+    visibility: Visibility;
+    media: string[];
+    parentId: string | null;
+    createdAt: ISODate;
+    deletedAt: ISODate | null;
+    hiddenAt: ISODate | null;
+    boostedUntil: ISODate | null;
+  }>;
+  dmsSent: Array<{ id: string; to: string; text: string; createdAt: ISODate }>;
+  notifications: Array<{ id: string; type: NotificationType; body: RichText; link: string | null; createdAt: ISODate; read: boolean }>;
+  pointsLedger: Array<{ kind: string; amount: number; ref: string; createdAt: ISODate }>;
+  wallets: Array<{ address: Address; kind: 'embedded' | 'external'; linked: boolean; createdAt: ISODate }>;
+  trades: Array<{
+    txHash: string;
+    logIndex: number;
+    market: string;
+    subject: Address;
+    trader: Address;
+    isBuy: boolean;
+    units: Units;
+    baseWei: Wei;
+    totalWei: Wei;
+    supplyAfter: Units;
+    ts: ISODate;
+  }>;
+}
+
+export interface DeleteAccountBody {
+  /** Must equal deleteConfirmText(handle). */
+  confirm: string;
+}
+
+/* admin */
+
+export type ReportStatus = 'open' | 'actioned' | 'dismissed';
+export type AdminReportAction = 'hide' | 'dismiss' | 'flag';
+
+export interface AdminReportDTO {
+  id: string;
+  reason: ReportReason;
+  note: string | null;
+  status: ReportStatus;
+  createdAt: ISODate;
+  reporter: UserRef;
+  /** Full post (any visibility) for post reports; null for account reports. */
+  post: {
+    id: string;
+    text: string;
+    media: string[];
+    visibility: Visibility;
+    createdAt: ISODate;
+    hidden: boolean;
+    deleted: boolean;
+  } | null;
+  /** The reported account (the author, for post reports). */
+  target: (UserRef & { botFlag: boolean }) | null;
+}
+
+export interface AdminClaimDTO {
+  id: string;
+  kind: 'claim' | 'takedown';
+  contact: string;
+  note: string | null;
+  status: 'open' | 'resolved';
+  createdAt: ISODate;
+  market: UserRef & { subject: Address; halted: boolean };
+  from: UserRef | null;
+}
+
+export interface AdminMemberDTO extends UserRef {
+  id: string;
+  memberNo: number | null;
+  joinedAt: ISODate | null;
+  followers: number;
+  score: number;
+  botFlag: boolean;
+  botReason: string | null;
+  isAdmin: boolean;
+  deleted: boolean;
+}
+
+export interface AdminMarketDTO extends UserRef {
+  subject: Address;
+  category: MarketCategory;
+  fan: boolean;
+  claimed: boolean;
+  opened: boolean;
+  /** Mirror of SwayKeys (the indexer applies MarketHalted). */
+  halted: boolean;
+  supplyUnits: Units;
+  holders: number;
+}
+
+export interface OpenFanMarketBody {
+  handle: string;
+  name: string;
+  /** Numeric X user id (uint64) as a string. */
+  xId: string;
+  followers: number;
+  category: MarketCategory;
+}
+
+export interface AdminTxResult {
+  txHash: string | null;
+  /** 'skipped' when no SwayKeys/operator is configured (DB only). */
+  status: 'success' | 'reverted' | 'pending' | 'skipped';
+}
+
+export const SOCIAL_ROUTES = {
+  deletePost: 'DELETE /api/posts/:id',
+  boostQuote: 'GET /api/boost',
+  boostPost: 'POST /api/posts/:id/boost',
+  report: 'POST /api/reports',
+  block: 'POST /api/users/:handle/block',
+  upload: 'POST /api/uploads',
+  uploadFile: 'GET /api/uploads/:name',
+  priceHistory: 'GET /api/users/:handle/history',
+  card: 'GET /api/users/:handle/card',
+  account: 'GET /api/me/account',
+  exportData: 'GET /api/me/export',
+  deleteAccount: 'DELETE /api/me',
+  adminReports: 'GET /api/admin/reports',
+  adminResolveReport: 'POST /api/admin/reports/:id',
+  adminHidePost: 'POST /api/admin/posts/:id/hide',
+  adminClaims: 'GET /api/admin/claims',
+  adminResolveClaim: 'POST /api/admin/claims/:id/resolve',
+  adminMembers: 'GET /api/admin/members',
+  adminBotFlag: 'POST /api/admin/members/:handle/bot',
+  adminSetAdmin: 'POST /api/admin/members/:handle/admin',
+  adminMarkets: 'GET /api/admin/markets',
+  adminHaltMarket: 'POST /api/admin/markets/:handle/halt',
+  adminOpenFanMarket: 'POST /api/admin/fan-markets',
+} as const;
+
+/**
+ * Q / B / R per SOCIAL_ROUTES key (403 `forbidden` for every /api/admin route unless User.isAdmin):
+ *   deletePost:         (author or admin; soft delete)                   R { ok: true }
+ *   boostQuote:                                                          R BoostQuoteDTO
+ *   boostPost:          B { txHash }  (author only)                      R BoostResponse
+ *                       400 tx_not_found / tx_reverted / wrong_recipient / underpaid, 403 tx_not_yours,
+ *                       409 tx_used / tx_pending
+ *   report:             B ReportBody                                     R { ok: true }
+ *   block:              (toggle)                                         R { blocked: boolean }
+ *   upload:             multipart/form-data, 1–4 image files (jpeg/png/webp/gif by magic bytes, ≤ 5 MB each)
+ *                                                                        R UploadResponse
+ *                       400 bad_image / too_many_files, 413 too_large
+ *   uploadFile:         the image bytes (long-lived cache, nosniff, sandboxed CSP)
+ *   priceHistory:       Q { range: HistoryRange }                         R PriceHistoryResponse
+ *   card:                                                                R CardDTO
+ *   account:                                                             R AccountDTO
+ *   exportData:         (Content-Disposition: attachment)                R AccountExport
+ *   deleteAccount:      B DeleteAccountBody                              R { ok: true }; every session is revoked
+ *   adminReports:       Q { status?: ReportStatus }                      R AdminReportDTO[]
+ *   adminResolveReport: B { action: AdminReportAction }                  R AdminReportDTO
+ *   adminHidePost:      B { hidden: boolean }                            R { hidden: boolean }
+ *   adminClaims:        Q { status?: 'open' | 'resolved' }               R AdminClaimDTO[]
+ *   adminResolveClaim:                                                   R AdminClaimDTO
+ *   adminMembers:       Q { q?: string }                                 R AdminMemberDTO[]
+ *   adminBotFlag:       B { flagged: boolean }                           R AdminMemberDTO
+ *   adminSetAdmin:      B { admin: boolean }                             R AdminMemberDTO
+ *   adminMarkets:       Q { q?: string }                                 R AdminMarketDTO[]
+ *   adminHaltMarket:    B { halted: boolean }                            R AdminTxResult & { halted: boolean }
+ *   adminOpenFanMarket: B OpenFanMarketBody                              R AdminTxResult & { market: AdminMarketDTO }
+ */
+export type SocialRouteKey = keyof typeof SOCIAL_ROUTES;
+
 /* ---------------------------------------------------------------- [C] launchpad, staking & genesis */
+
+/** Token amounts are 18-decimal token units as decimal strings (like Wei). */
+export type TokenAmount = string;
+
+/** One key holder's share of the launch airdrop (10% of supply, pro rata to keys held). */
+export interface LaunchAirdropShareDTO {
+  /** null for an address that belongs to no member. */
+  user: UserRef | null;
+  address: Address;
+  /** Keys held that count (the creator's locked first key is excluded). */
+  units: Units;
+  amount: TokenAmount;
+  sharePct: number;
+}
+
+/** What POST /api/launchpad/attest would sign right now. */
+export interface LaunchTermsDTO {
+  name: string;
+  /** Without the "$". */
+  symbol: string;
+  startCapWei: Wei;
+  startCapUsd: number;
+  graduationCapWei: Wei;
+  graduationCapUsd: number;
+  totalSupply: TokenAmount;
+  holderAllocation: TokenAmount;
+  /** Largest first. Empty never: with no other holders the creator's account wallet gets the whole 10%. */
+  holders: LaunchAirdropShareDTO[];
+  creatorOnly: boolean;
+}
+
+export interface LaunchTokenDTO {
+  address: Address;
+  name: string;
+  symbol: string;
+  creator: UserRef;
+  creatorAddress: Address;
+  /** Wei per whole token. */
+  priceWei: Wei;
+  marketCapWei: Wei;
+  startCapWei: Wei;
+  graduationCapWei: Wei;
+  /** 0..1 from start cap to graduation cap. */
+  progress: number;
+  virtualEthWei: Wei;
+  /** Real ETH in the curve. */
+  ethReserveWei: Wei;
+  /** Tokens still on the curve. */
+  tokenReserve: TokenAmount;
+  volumeWei: Wei;
+  graduated: boolean;
+  /** Unclaimed 1% creator fees (SwayLaunchpad.creatorFees). */
+  creatorFeesWei: Wei;
+  /** The viewer's balance and launchpad allowance per wallet (account wallet first, then linked wallets). */
+  balances: Array<{ address: Address; balance: TokenAmount; allowance: TokenAmount }>;
+  isMine: boolean;
+  launchTx: string | null;
+  launchedAt: ISODate | null;
+  /** Explorer page of the token, when the chain has an explorer. */
+  explorer: string | null;
+  /** 'chain' when read live from SwayLaunchpad, 'mirror' when the chain was unreachable. */
+  source: 'chain' | 'mirror';
+}
+
+/** GET /api/launchpad/tokens/:handle: any creator's token (or why there is none yet). */
+export interface LaunchTokenResponse {
+  creator: UserRef & { score: number };
+  /** With the "$", like LaunchpadResponse.symbol. */
+  symbol: string;
+  launched: boolean;
+  token: LaunchTokenDTO | null;
+}
+
+/** POST /api/launchpad/attest: the operator-signed terms to pass to SwayLaunchpad.launch. */
+export interface LaunchAttestation {
+  launchpad: Address;
+  /** The account wallet that owns the key market; it must send the launch transaction. */
+  creator: Address;
+  name: string;
+  symbol: string;
+  startCapWei: Wei;
+  graduationCapWei: Wei;
+  airdropRoot: `0x${string}`;
+  /** Unix seconds. */
+  deadline: number;
+  signature: `0x${string}`;
+  holders: number;
+}
+
+export interface AirdropAllocationDTO {
+  token: Address;
+  name: string;
+  symbol: string;
+  creator: UserRef;
+  /** The wallet that owns the allocation and must send claimAirdrop. */
+  address: Address;
+  walletKind: 'account' | 'linked';
+  amount: TokenAmount;
+  proof: `0x${string}`[];
+}
+
+export interface AirdropsResponse {
+  launchpad: Address | null;
+  allocations: AirdropAllocationDTO[];
+}
+
+export interface StakingLevelDTO {
+  level: number;
+  name: string;
+  /** Protocol-fee cut, e.g. 0.5 for −50%. */
+  cut: number;
+  thresholdWei: Wei;
+  /** Post length limit at this level. */
+  postMax: number;
+}
+
+export interface StakingResponse {
+  /** false when SwayStaking isn't configured on this chain. */
+  enabled: boolean;
+  stakingAddress: Address | null;
+  tokenAddress: Address | null;
+  tokenSymbol: string;
+  /** The viewer's account wallet (null for guests). */
+  address: Address | null;
+  balanceWei: Wei;
+  allowanceWei: Wei;
+  stakedWei: Wei;
+  unstakingWei: Wei;
+  unlockAt: ISODate | null;
+  canWithdraw: boolean;
+  level: number;
+  /** Levels 1..4, ascending thresholds read from the contract. */
+  levels: StakingLevelDTO[];
+  pendingRewardsWei: Wei;
+  totalStakedWei: Wei;
+  cooldownSeconds: number;
+}
+
+export interface GenesisListRow {
+  rank: number;
+  user: UserRef;
+  wallet: Address;
+  walletShort: string;
+  points: number;
+  sharePct: number;
+  /** Pool units (18-decimal token units) for this rank. */
+  units: TokenAmount;
+  minted: boolean;
+  mintTx: string | null;
+  me: boolean;
+}
+
+export interface GenesisListResponse {
+  snapshotId: string;
+  takenAt: ISODate;
+  listHash: string;
+  poolUnits: TokenAmount;
+  published: boolean;
+  count: number;
+  minted: number;
+  rows: GenesisListRow[];
+}
+
+/**
+ * [C] routes. Q/B/R as in ROUTES:
+ *   launchAttest:         (member with an opened market, not launched)       R LaunchAttestation
+ *                         409 no_wallet / no_market / already_launched; 503 launch_unavailable / signer_mismatch
+ *   launchToken:                                                             R LaunchTokenResponse
+ *   launchAirdrops:       (viewer's unclaimed allocations across all their wallets; claimed ones drop out
+ *                         as soon as SwayLaunchpad.airdropClaimed reads true)  R AirdropsResponse
+ *   staking:                                                                 R StakingResponse
+ *   genesisLatest:        (404 no_snapshot before the freeze)                R GenesisListResponse
+ *   genesisSnapshot:                                                         R GenesisListResponse
+ */
+export const LAUNCH_ROUTES = {
+  launchAttest: 'POST /api/launchpad/attest',
+  launchToken: 'GET /api/launchpad/tokens/:handle',
+  launchAirdrops: 'GET /api/launchpad/airdrops',
+  staking: 'GET /api/staking',
+  genesisLatest: 'GET /api/genesis/snapshots/latest',
+  genesisSnapshot: 'GET /api/genesis/snapshots/:id',
+} as const;
+
+export type LaunchRouteKey = keyof typeof LAUNCH_ROUTES;
 
 /* ---------------------------------------------------------------- [D] engagement & creator drops */
 

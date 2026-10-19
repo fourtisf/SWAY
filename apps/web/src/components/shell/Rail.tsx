@@ -277,6 +277,8 @@ export function Rail() {
         <Link href="/genesis">Genesis</Link>
         <Link href="/launchpad">Launchpad</Link>
         <Link href="/leaderboard">Leaderboard</Link>
+        <Link href="/terms">Terms</Link>
+        <Link href="/privacy">Privacy</Link>
         <span>Robinhood Chain</span>
       </nav>
     </aside>

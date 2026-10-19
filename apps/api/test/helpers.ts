@@ -108,6 +108,23 @@ export class FakeChain implements ChainClient {
     this.eth.set(to.toLowerCase(), (this.eth.get(to.toLowerCase()) ?? 0n) + value);
     return { hash: fakeHash(), status: 'success' };
   }
+  /* [B] */
+  treasuryAddress: Address | null = '0x00000000000000000000000000000000000000ee';
+  async treasury() {
+    return this.treasuryAddress;
+  }
+  async setMarketHalted(subject: Address, halted: boolean): Promise<OperatorTxResult> {
+    this.calls.push({ fn: 'setMarketHalted', args: [subject, halted] });
+    const m = this.markets.get(subject.toLowerCase());
+    if (m) m.halted = halted;
+    return { hash: fakeHash(), status: 'success' };
+  }
+  async openFanMarket(xId: bigint): Promise<OperatorTxResult> {
+    this.calls.push({ fn: 'openFanMarket', args: [xId] });
+    const subject = fanSubject(xId).toLowerCase() as Address;
+    this.markets.set(subject, { owner: '0x0000000000000000000000000000000000000000', xId, fan: true, halted: false, supply: 100n });
+    return { hash: fakeHash(), status: 'success' };
+  }
 }
 
 export interface TestCtx {

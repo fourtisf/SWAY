@@ -1,5 +1,7 @@
 'use client';
 import { Icon } from '@/components/icons';
+import { AirdropsCard, StakeCard } from '@/components/launch/Cards';
+import { TokenBox } from '@/components/launch/TokenBox';
 import { useFormat } from '@/lib/format';
 import { useLaunchpad, useMe } from '@/lib/queries';
 import { openModal, useUI } from '@/lib/store';
@@ -12,14 +14,53 @@ const POINTS: Array<[string, string]> = [
 ];
 
 export default function LaunchpadPage() {
-  const me = useMe().data;
+  const meQ = useMe();
+  const me = meQ.data;
   const lp = useLaunchpad().data;
   const launch = useUI((s) => s.launch);
   const F = useFormat();
   const u = me?.user;
   const sym = lp?.symbol ?? (u ? '$' + u.handle.replace(/[^a-z0-9]/g, '').slice(0, 6).toUpperCase() : '$YOU');
-  const toggle = () => (u ? useUI.setState({ launch: !launch }) : openModal({ type: 'connect' }));
-  const main = () => (!u ? openModal({ type: 'connect' }) : launch ? openModal({ type: 'launch' }) : useUI.setState({ launch: true }));
+  const token = lp?.token;
+  const holders = lp?.terms ? (lp.terms.creatorOnly ? 0 : lp.terms.holders.length) : null;
+  // Terms come with GET /api/launchpad once the member has a wallet and an opened market.
+  const ready = !lp || !!lp.terms;
+  const toggle = () => (meQ.isPending ? undefined : u ? useUI.setState({ launch: !launch }) : openModal({ type: 'connect' }));
+  const main = () =>
+    meQ.isPending
+      ? undefined
+      : !u
+      ? openModal({ type: 'connect' })
+      : !ready
+        ? openModal({ type: 'onboard' })
+        : launch
+          ? openModal({ type: 'launch' })
+          : useUI.setState({ launch: true });
+
+  if (token)
+    return (
+      <>
+        <div className="stage" style={{ paddingBottom: 8 }}>
+          <div className="glow-orb" />
+          <div style={{ position: 'relative', textAlign: 'center', maxWidth: 440 }}>
+            <span className="tag aqua" style={{ height: 28, padding: '0 12px', fontSize: 12.5 }}>
+              <Icon name="rocket" size={14} />
+              Live on Robinhood Chain
+            </span>
+            <h2 className="big-h" style={{ marginTop: 16 }}>
+              {`${sym} is live.`}
+            </h2>
+            <p className="t2" style={{ margin: '0 auto 6px', maxWidth: '40ch' }}>
+              Your key holders can claim their 10%. You earn 1% of every trade on the curve.
+            </p>
+          </div>
+        </div>
+        <TokenBox t={token} />
+        <AirdropsCard />
+        <StakeCard level={me?.stakingLevel ?? 0} />
+      </>
+    );
+
   return (
     <>
       <div className="stage" style={{ paddingBottom: 8 }}>
@@ -55,7 +96,7 @@ export default function LaunchpadPage() {
           <span className="tok-sym">{sym.slice(1, 3)}</span>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-.03em' }}>{sym}</div>
-            <div className="hd">{`${u ? u.name + ' token' : 'Your token'}  seeded by a Sway score of ${u ? u.score : '—'}`}</div>
+            <div className="hd">{`${u ? u.name + ' token' : 'Your token'}  seeded by a Sway score of ${u ? u.score : '—'}`}</div>
           </div>
           <span className={`tag ${launch ? 'aqua' : 'line'}`}>{launch ? 'Ready' : 'Preview'}</span>
         </div>
@@ -66,7 +107,7 @@ export default function LaunchpadPage() {
           </div>
           <div className="glass stat">
             <small>Start cap</small>
-            <b>{u ? F.usd(lp?.startCapUsd ?? 2000 + u.score * 60) : '—'}</b>
+            <b>{u ? F.usd(lp?.terms?.startCapUsd ?? lp?.startCapUsd ?? 2000 + u.score * 60) : '—'}</b>
           </div>
           <div className="glass stat">
             <small>To key holders</small>
@@ -74,13 +115,13 @@ export default function LaunchpadPage() {
           </div>
         </div>
         <div style={{ marginTop: 14 }}>
-          {POINTS.map(([a, b]) => (
+          {POINTS.map(([a, b], i) => (
             <div key={a} className="earn-r">
               <span>
                 <b style={{ color: 'var(--tx)' }}>{a}</b>
                 <br />
                 <span className="t3" style={{ fontSize: 12.5 }}>
-                  {b}
+                  {i === 1 && holders !== null ? `${b}. ${holders ? `${holders} holder${holders === 1 ? '' : 's'} today` : 'Nobody else yet, so it goes to you'}` : b}
                 </span>
               </span>
             </div>
@@ -92,6 +133,8 @@ export default function LaunchpadPage() {
               <Icon name="x" />
               Connect X to launch
             </>
+          ) : !ready ? (
+            me?.wallet ? 'Open your key market first' : 'Finish setting up your wallet'
           ) : launch ? (
             'Launch ' + sym
           ) : (
@@ -102,6 +145,7 @@ export default function LaunchpadPage() {
           Launch terms are placeholders until the contract is audited.
         </p>
       </div>
+      <AirdropsCard />
     </>
   );
 }

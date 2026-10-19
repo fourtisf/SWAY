@@ -21,6 +21,9 @@ deviates from it, and what is still open. Keep this current.
 | Genesis | ERC-721 + ERC-5192 locked; transfers, approvals and burns revert. `commitSnapshot(listHash)` once, then `mint`/`mintBatch` by the issuer; one pass per wallet. |
 | Launchpad | Placeholder terms (brief Phase 3): 1B supply, 90% on a virtual constant-product curve whose start cap comes from an operator-signed EIP-712 attestation (prototype: $2,000 + score × 60), 10% merkle airdrop to key holders, 1% creator fee, curve closes at the graduation cap and the owner migrates liquidity (pool venue on Robinhood Chain to be decided). |
 | EVM target | solc 0.8.24, `evm_version = cancun` (Robinhood Chain is Arbitrum Orbit). Verify the chain's ArbOS version before deploying. |
+| Activity bond | Brief Phase 4. `SwayKeys.creatorInactive[subject]` (operator-set) moves the 6% creator fee into the holder fee; the trader pays the same total. The workers' `activity-bond` job sets it after 7 days without a room post by the creator and clears it on the next post (both onchain, mirrored as `KeyMarket.creatorInactive`). Unclaimed fan markets are exempt (nobody can post there yet; the contract refuses them). |
+| Anti-dump fee | Brief Phase 4 says "higher sell fee within 24h of buying"; the size is ours: **+5% of the curve price**, paid to holders through the same accumulator. The window is per wallet and market, from `lastBuyAt[subject][holder]` (set on every buy). `quoteWei(…, { antiDump })` and the contract agree to the wei (curve vectors cover it). |
+| Creator drops | `SwayDrops`: the creator funds `create(root, duration)` (1–365 days) with ETH, holders `claim(id, amount, proof)`, the creator `reclaim`s the rest after expiry. No attestation is needed because creators can only give their own ETH. The API builds the tree from key balances (pro rata to units, the creator's own wallets, the fan escrow and bot-flagged members left out) with the launchpad's leaf encoding; one funded drop per tree, because claims are tracked per (root, address). |
 
 ## Off-chain
 
@@ -35,6 +38,13 @@ deviates from it, and what is still open. Keep this current.
 | `change` | Percent change over the last 24 trades (the prototype's definition), from the Trade mirror. |
 | Mainnet guard | API and workers refuse chain 4663 unless `SWAY_ENABLE_MAINNET=1`; the deploy script needs `ALLOW_MAINNET=1` and a real `SWAY_TOKEN`. |
 | Dev auth | `DEV_AUTH=1` (never in production) reproduces the prototype's demo sign-in with its `makeUser()` numbers; dev x ids are `9·10¹⁸ + hash(handle)` so they can't collide with real X ids. |
+| Several wallets | `Wallet` is the account wallet (owns the market subject, receives tips and the Genesis pass, fixed once the market is open); up to 10 more are linked by signature (`LinkedWallet`). An address belongs to one member across both tables. Holdings, room access, points and the wallet page count every wallet together. |
+| Bot flags | Workers flag, never unflag: an account under 14 days old with fewer than 20 followers, or one with fewer than 10 followers that never posts and gets no engagement. X-verified, official and dev accounts are skipped. Admins review and clear flags in `/admin`. Flagged members keep points but lose rewards (Genesis, verified invites, creator drops). |
+| Health | Workers serve `/healthz` (db, redis, rpc, indexer lag ≤ `maxLag`) and Prometheus `/metrics` (head, lag, per-job last success and failure counts) on `WORKERS_HEALTH_PORT`. Operator transactions from the API and the workers share one Redis lock (`lock:operator`) so nonces never clash. |
+| Daily streak | One check-in per UTC day, `n × 100` points for day `n` of an unbroken streak, capped at 700 from day 7. Ledger kind `streak`, ref `streak:<day>`; a missed day restarts at 1. |
+| Watchlist alerts | A watch stores a baseline price; the `price-alerts` job (every minute) sends one `trade` notification when the price moved `alertPct` (5–100%) from it and moves the baseline, so each move alerts once. |
+| Web push | Payload-less pushes signed with VAPID (node:crypto, no dependency): the push service never sees notification text; the service worker fetches the newest unread notification. Endpoints must belong to a browser push service (FCM, Mozilla, Apple, WNS), so the workers can't be pointed at arbitrary URLs. One push per member per 10-second run; 404/410 subscriptions are dropped. Keys: `node scripts/vapid-keys.mjs`. |
+| Notification prefs | Per type (trades, mentions, battles, points) plus price alerts and push. A muted type stays out of the list, the badge and push; rows are still written, so turning a type back on shows history. |
 
 ## Web
 
@@ -46,6 +56,7 @@ deviates from it, and what is still open. Keep this current.
 | Indexer lag | After a receipt the UI shows the new holding immediately and polls the profile/wallet until the mirror catches up; trade events on the WebSocket refresh the same queries. |
 | Build workaround | RainbowKit → wagmi connectors → `@base-org/account` → `@coinbase/cdp-sdk` imports optional `@x402/*` packages that aren't installed; `next.config.mjs` aliases them to empty modules. |
 | Copy | Prototype wording kept, minus demo-only phrases ("Prototype", "…in the full build"). Additions: log out, claim/takedown request form, accept/decline on challenges, empty-room hint, API-unreachable banner. |
+| Dark mode | Not in the prototype (Phase 4 settings). Light stays the default; Settings → Appearance offers Light / Dark / System. Implemented as `[data-theme="dark"]` overrides of the prototype's tokens plus the rules that hard-code white, set before first paint by an inline script. Canvas charts read the tokens and redraw on change. |
 
 ## Open items before mainnet
 
@@ -61,8 +72,11 @@ deviates from it, and what is still open. Keep this current.
    set the per-15-minute limits in `packages/x` accordingly. Set `X_LAUNCH_POST_ID` for the repost task.
 7. **Admin keys**: put the owner behind a multisig + timelock; move `OPERATOR_PRIVATE_KEY` / `ISSUER_PRIVATE_KEY`
    to a secrets manager; consider separating the operator (markets, referrers, fan claims) from the fan admin.
-8. **Launchpad**: pool venue and migration flow, airdrop root generation from the key-holder snapshot.
+8. **Launchpad**: pool venue and migration flow.
 9. **API contract polish**: `ownerAddress` on post authors (tip/subscribe fetch the profile today), cash
    balance on `MeDTO` (the mobile top bar fetches the wallet), a profile-exists flag for leaderboard rows.
-10. **Phase 4** (brief §11): post detail page with threads, price chart ranges, PnL (cost basis is already
-   mirrored per holding), OG card image, settings, creator activity bond, anti-dump fee, voice rooms.
+10. **Anti-dump size**: the brief doesn't give one; 5% is a placeholder to confirm.
+11. **Web push**: generate production VAPID keys (`VAPID_PUBLIC_KEY` on the API, both keys on the workers) and
+    set `VAPID_SUBJECT` to a monitored contact.
+12. **Live voice rooms** (brief Phase 4) are not built: they need a media server (an SFU such as LiveKit) and a
+    hosting decision. Access would reuse the room check (`balanceOf` across the member's wallets).

@@ -6,6 +6,7 @@ import { IdParams, params, query } from './_util';
 import { getViewer, requireViewer } from '../plugins/auth';
 import { notFound } from '../errors';
 import { notificationDTO } from '../services/dto';
+import { prefsOf, visibleTypes } from '../services/engage';
 
 const TAB_TYPES: Record<'all' | 'trades' | 'mentions', NotificationType[] | null> = {
   all: null,
@@ -15,15 +16,20 @@ const TAB_TYPES: Record<'all' | 'trades' | 'mentions', NotificationType[] | null
 
 export async function notificationRoutes(app: FastifyInstance) {
   const { prisma } = app.deps;
-  const unread = (userId: string) => prisma.notification.count({ where: { userId, readAt: null } });
+  // [D] Muted types (User.notifPrefs) stay out of the list and the badge.
+  const unread = async (userId: string) => {
+    const u = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { notifPrefs: true } });
+    return prisma.notification.count({ where: { userId, readAt: null, type: { in: visibleTypes(prefsOf(u)) } } });
+  };
 
   app.get('/notifications', async (req): Promise<NotificationDTO[]> => {
     const { tab } = query(z.object({ tab: z.enum(['all', 'trades', 'mentions']).default('all') }), req);
     const v = await getViewer(req);
     if (!v) return [];
-    const types = TAB_TYPES[tab];
+    const shown = visibleTypes(prefsOf(v.user));
+    const types = (TAB_TYPES[tab] ?? shown).filter((t) => shown.includes(t));
     const rows = await prisma.notification.findMany({
-      where: { userId: v.user.id, ...(types ? { type: { in: types } } : {}) },
+      where: { userId: v.user.id, type: { in: types } },
       orderBy: { createdAt: 'desc' },
       take: 100,
       include: { from: { include: { market: true } } },

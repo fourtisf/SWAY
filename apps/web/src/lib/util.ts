@@ -33,7 +33,7 @@ export function dicebear(handle: string, claimed?: boolean): string {
 }
 
 /** Top-level app routes; any other single segment is a profile handle. */
-export const ROUTE_NAMES = ['explore', 'markets', 'notifications', 'messages', 'tasks', 'wallet', 'leaderboard', 'battles', 'launchpad', 'genesis', 'model'] as const;
+export const ROUTE_NAMES = ['explore', 'markets', 'notifications', 'messages', 'tasks', 'wallet', 'leaderboard', 'battles', 'launchpad', 'genesis', 'model', 'staking', /* [B] */ 'post', 'settings', 'admin', 'terms', 'privacy', 'card'] as const;
 
 export function routeOf(pathname: string): { view: string; arg: string | null } {
   const seg = pathname.split('/').filter(Boolean);
@@ -43,9 +43,10 @@ export function routeOf(pathname: string): { view: string; arg: string | null } 
   return { view: 'profile', arg: first.toLowerCase() };
 }
 
-export const shareCardUrl = (score: number, valueUsd: string) =>
+export const shareCardUrl = (score: number, valueUsd: string, cardUrl?: string) =>
   'https://x.com/intent/post?text=' +
-  encodeURIComponent(`My Sway score is ${score}/100 and my reach is valued at ${valueUsd}. Buy my key and join my room.`);
+  encodeURIComponent(`My Sway score is ${score}/100 and my reach is valued at ${valueUsd}. Buy my key and join my room.`) +
+  (cardUrl ? '&url=' + encodeURIComponent(cardUrl) : '');
 
 export const plainText = (rich: Array<{ t: string }>) => rich.map((s) => s.t).join('');
 

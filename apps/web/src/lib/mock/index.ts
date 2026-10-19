@@ -8,6 +8,10 @@ import { ApiRequestError, notifyAuthRequired, type SwayApi } from '../api';
 import { emitMock } from './bus';
 import { ETH_USD, fakeAddress, fakeHash } from './seed';
 import { MockWorld } from './state';
+import { installLaunchMock, launchMockApi } from './launch'; // [C]
+import { mockAccountLink, mockFaucet, walletsMockApi } from './wallets'; // [A]
+import { installSocialMock, socialMockApi } from './social'; // [B]
+import { engageMockApi, installEngageMock } from './engage'; // [D]
 
 let world: MockWorld | null = null;
 let simStarted = false;
@@ -78,9 +82,9 @@ export function getMockApi(): SwayApi {
       needUser(w);
       return { nonce: 'mock', message: `Link this wallet to Sway\nAddress: ${body?.address ?? '{address}'}\nNonce: mock` };
     },
-    async walletLink() {
+    async walletLink(body) {
       needUser(w);
-      return w.me()!;
+      return mockAccountLink(w, body); // [A]
     },
     async openMarket() {
       needUser(w);
@@ -102,7 +106,7 @@ export function getMockApi(): SwayApi {
     async post(id) {
       const p = id === w.pinned.id ? w.pinned : w.posts.find((x) => x.id === id);
       if (!p) throw notFound('Post');
-      return { post: w.post(p, p === w.pinned), replies: [] };
+      return { post: w.post(p, p === w.pinned), replies: [], parents: [], parentUnavailable: false, nested: [] }; // [B] threads: see ./social
     },
     async like(id) {
       needUser(w);
@@ -289,10 +293,8 @@ export function getMockApi(): SwayApi {
       const a = w.activity[w.activity.length - 1]!;
       return { id: a.id, label: a.label, amountWei, createdAt: new Date(a.at).toISOString(), txHash };
     },
-    async faucet() {
-      needUser(w);
-      w.eth += 100 / ETH_USD;
-      w.log('Deposit', 100 / ETH_USD);
+    async faucet(body) {
+      mockFaucet(w, body?.address); // [A] any of the member's wallets
       return { txHash: fakeHash('faucet' + Date.now()) };
     },
 
@@ -368,6 +370,17 @@ export function getMockApi(): SwayApi {
         tokenAddress: null,
       };
     },
+    // [A] wallets & funding
+    ...walletsMockApi(w),
+    // [B] social, moderation, account & admin
+    ...socialMockApi(w),
+    // [C] launchpad, staking & genesis
+    ...launchMockApi(w),
+    // [D] engagement & creator drops
+    ...engageMockApi(w),
   };
+  installSocialMock(api, w); // [B]
+  installLaunchMock(api, w); // [C]
+  installEngageMock(api, w); // [D]
   return api;
 }

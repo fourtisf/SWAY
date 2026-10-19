@@ -49,6 +49,57 @@ import {
   type WalletLinkBody,
   type WalletNonceBody,
   type WalletNonceResponse,
+  // [A] wallets & funding
+  WALLET_ROUTES,
+  type FaucetBody,
+  type LinkWalletBody,
+  type WalletInfoDTO,
+  type WalletLabelBody,
+  type WalletRouteKey,
+  type WalletsResponse,
+  // [B] social, moderation, account & admin
+  SOCIAL_ROUTES,
+  type AccountDTO,
+  type AccountExport,
+  type AdminClaimDTO,
+  type AdminMarketDTO,
+  type AdminMemberDTO,
+  type AdminReportAction,
+  type AdminReportDTO,
+  type AdminTxResult,
+  type BoostQuoteDTO,
+  type BoostResponse,
+  type CardDTO,
+  type DeleteAccountBody,
+  type HistoryRange,
+  type OpenFanMarketBody,
+  type PriceHistoryResponse,
+  type ReportBody,
+  type ReportStatus,
+  type SocialRouteKey,
+  type UploadResponse,
+  // [C] launchpad, staking & genesis
+  LAUNCH_ROUTES,
+  ENGAGE_ROUTES,
+  type EngageRouteKey,
+  type ClaimableDropDTO,
+  type CreatorDropDTO,
+  type DropPlanBody,
+  type DropPlanDTO,
+  type NotificationPrefs,
+  type PushConfigDTO,
+  type PushSubscribeBody,
+  type ReferralsResponse,
+  type StreakDTO,
+  type WatchBody,
+  type WatchDTO,
+  type WatchlistResponse,
+  type AirdropsResponse,
+  type GenesisListResponse,
+  type LaunchAttestation,
+  type LaunchRouteKey,
+  type LaunchTokenResponse,
+  type StakingResponse,
 } from '@sway/shared';
 import { MOCK } from './env';
 
@@ -105,7 +156,8 @@ export interface SwayApi {
   taskSkip(id: string): Promise<TaskDTO>;
   wallet(): Promise<WalletDTO>;
   withdrawLog(body: { label: string; amountWei: Wei; txHash: string }): Promise<ActivityDTO>;
-  faucet(): Promise<{ txHash: string }>;
+  /** [A] body.address picks one of the member's wallets (default: the account wallet). */
+  faucet(body?: FaucetBody): Promise<{ txHash: string }>;
 
   leaderboard(q: { tab: LeaderboardTab }): Promise<LeaderboardResponse>;
   battles(): Promise<BattlesResponse>;
@@ -114,6 +166,65 @@ export interface SwayApi {
   back(id: string, body: BackBody): Promise<BattleDTO>;
   genesis(): Promise<GenesisResponse>;
   launchpad(): Promise<LaunchpadResponse>;
+
+  /* [A] wallets & funding (WALLET_ROUTES) */
+  wallets(): Promise<WalletsResponse>;
+  walletsNonce(body?: WalletNonceBody): Promise<WalletNonceResponse>;
+  walletsLink(body: LinkWalletBody): Promise<MeDTO>;
+  walletsLabel(address: string, body: WalletLabelBody): Promise<WalletInfoDTO>;
+  walletsRemove(address: string): Promise<MeDTO>;
+
+  /* [B] social, moderation, account & admin (SOCIAL_ROUTES) */
+  deletePost(id: string): Promise<Ok>;
+  boostQuote(): Promise<BoostQuoteDTO>;
+  boostPost(id: string, body: { txHash: string }): Promise<BoostResponse>;
+  report(body: ReportBody): Promise<Ok>;
+  block(handle: string): Promise<{ blocked: boolean }>;
+  /** multipart/form-data, 1–4 images. */
+  upload(files: File[]): Promise<UploadResponse>;
+  /** GET /api/uploads/:name serves the image itself: this returns its URL. */
+  uploadFileUrl(name: string): string;
+  priceHistory(handle: string, q: { range: HistoryRange }): Promise<PriceHistoryResponse>;
+  card(handle: string): Promise<CardDTO>;
+  account(): Promise<AccountDTO>;
+  exportData(): Promise<AccountExport>;
+  deleteAccount(body: DeleteAccountBody): Promise<Ok>;
+  adminReports(q?: { status?: ReportStatus }): Promise<AdminReportDTO[]>;
+  adminResolveReport(id: string, body: { action: AdminReportAction }): Promise<AdminReportDTO>;
+  adminHidePost(id: string, body: { hidden: boolean }): Promise<{ hidden: boolean }>;
+  adminClaims(q?: { status?: 'open' | 'resolved' }): Promise<AdminClaimDTO[]>;
+  adminResolveClaim(id: string): Promise<AdminClaimDTO>;
+  adminMembers(q?: { q?: string }): Promise<AdminMemberDTO[]>;
+  adminBotFlag(handle: string, body: { flagged: boolean }): Promise<AdminMemberDTO>;
+  adminSetAdmin(handle: string, body: { admin: boolean }): Promise<AdminMemberDTO>;
+  adminMarkets(q?: { q?: string }): Promise<AdminMarketDTO[]>;
+  adminHaltMarket(handle: string, body: { halted: boolean }): Promise<AdminTxResult & { halted: boolean }>;
+  adminOpenFanMarket(body: OpenFanMarketBody): Promise<AdminTxResult & { market: AdminMarketDTO }>;
+
+  /* [C] launchpad, staking & genesis (LAUNCH_ROUTES) */
+  launchAttest(): Promise<LaunchAttestation>;
+  launchToken(handle: string): Promise<LaunchTokenResponse>;
+  launchAirdrops(): Promise<AirdropsResponse>;
+  staking(): Promise<StakingResponse>;
+  genesisLatest(): Promise<GenesisListResponse>;
+  genesisSnapshot(id: string): Promise<GenesisListResponse>;
+
+  /* [D] engagement & creator drops (ENGAGE_ROUTES) */
+  watchlist(): Promise<WatchlistResponse>;
+  watch(handle: string, body: WatchBody): Promise<WatchDTO>;
+  unwatch(handle: string): Promise<{ watching: false }>;
+  streak(): Promise<StreakDTO>;
+  checkIn(): Promise<StreakDTO & { awarded: number }>;
+  referrals(): Promise<ReferralsResponse>;
+  notifPrefs(): Promise<NotificationPrefs>;
+  setNotifPrefs(body: Partial<NotificationPrefs>): Promise<NotificationPrefs>;
+  pushConfig(): Promise<PushConfigDTO>;
+  pushSubscribe(body: PushSubscribeBody): Promise<Ok>;
+  pushUnsubscribe(body: { endpoint: string }): Promise<Ok>;
+  pushTest(): Promise<Ok>;
+  dropPlan(body: DropPlanBody): Promise<DropPlanDTO>;
+  userDrops(handle: string): Promise<CreatorDropDTO[]>;
+  claimableDrops(): Promise<ClaimableDropDTO[]>;
 }
 
 /** Compile-time check that every ROUTES entry has a client method. */
@@ -128,6 +239,36 @@ export const ROUTE_METHODS: Record<RouteKey, keyof SwayApi> = {
   taskVerify: 'taskVerify', taskSkip: 'taskSkip', wallet: 'wallet', withdrawLog: 'withdrawLog', faucet: 'faucet',
   leaderboard: 'leaderboard', battles: 'battles', createBattle: 'createBattle', respondBattle: 'respondBattle',
   back: 'back', genesis: 'genesis', launchpad: 'launchpad',
+};
+
+/** [A] Same check for WALLET_ROUTES. */
+export const WALLET_ROUTE_METHODS: Record<WalletRouteKey, keyof SwayApi> = {
+  wallets: 'wallets', walletsNonce: 'walletsNonce', walletsLink: 'walletsLink', walletsLabel: 'walletsLabel', walletsRemove: 'walletsRemove',
+};
+
+/** [B] Same check for SOCIAL_ROUTES. */
+export const SOCIAL_ROUTE_METHODS: Record<SocialRouteKey, keyof SwayApi> = {
+  deletePost: 'deletePost', boostQuote: 'boostQuote', boostPost: 'boostPost', report: 'report', block: 'block',
+  upload: 'upload', uploadFile: 'uploadFileUrl', priceHistory: 'priceHistory', card: 'card', account: 'account',
+  exportData: 'exportData', deleteAccount: 'deleteAccount', adminReports: 'adminReports',
+  adminResolveReport: 'adminResolveReport', adminHidePost: 'adminHidePost', adminClaims: 'adminClaims',
+  adminResolveClaim: 'adminResolveClaim', adminMembers: 'adminMembers', adminBotFlag: 'adminBotFlag',
+  adminSetAdmin: 'adminSetAdmin', adminMarkets: 'adminMarkets', adminHaltMarket: 'adminHaltMarket',
+  adminOpenFanMarket: 'adminOpenFanMarket',
+};
+
+/** [C] Same check for LAUNCH_ROUTES. */
+export const LAUNCH_ROUTE_METHODS: Record<LaunchRouteKey, keyof SwayApi> = {
+  launchAttest: 'launchAttest', launchToken: 'launchToken', launchAirdrops: 'launchAirdrops', staking: 'staking',
+  genesisLatest: 'genesisLatest', genesisSnapshot: 'genesisSnapshot',
+};
+
+/** [D] Same check for ENGAGE_ROUTES. */
+export const ENGAGE_ROUTE_METHODS: Record<EngageRouteKey, keyof SwayApi> = {
+  watchlist: 'watchlist', watch: 'watch', unwatch: 'unwatch', streak: 'streak', checkIn: 'checkIn', referrals: 'referrals',
+  notifPrefs: 'notifPrefs', setNotifPrefs: 'setNotifPrefs', pushConfig: 'pushConfig', pushSubscribe: 'pushSubscribe',
+  pushUnsubscribe: 'pushUnsubscribe', pushTest: 'pushTest', dropPlan: 'dropPlan', userDrops: 'userDrops',
+  claimableDrops: 'claimableDrops',
 };
 
 /** Non-2xx answer from the API, carrying the ApiError body. */
@@ -168,8 +309,15 @@ export function notifyAuthRequired(): void {
 
 type Query = Record<string, string | number | boolean | undefined | null>;
 
-async function request<T>(key: RouteKey, opts: { params?: Record<string, string>; query?: Query; body?: unknown } = {}): Promise<T> {
-  const [method, tpl] = ROUTES[key].split(' ') as [string, string];
+type RequestOpts = { params?: Record<string, string>; query?: Query; body?: unknown };
+
+function request<T>(key: RouteKey, opts: RequestOpts = {}): Promise<T> {
+  return requestRoute<T>(ROUTES[key], opts);
+}
+
+/** Calls any 'METHOD /path' entry, so the workstream tables (*_ROUTES) share one implementation. */
+export async function requestRoute<T>(route: string, opts: RequestOpts = {}): Promise<T> {
+  const [method, tpl] = route.split(' ') as [string, string];
   const path = tpl.replace(/:(\w+)/g, (_, k: string) => encodeURIComponent(opts.params?.[k] ?? ''));
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(opts.query ?? {})) if (v !== undefined && v !== null && v !== '') qs.set(k, String(v));
@@ -199,6 +347,26 @@ async function request<T>(key: RouteKey, opts: { params?: Record<string, string>
   if (res.status === 204) return undefined as T;
   const text = await res.text();
   return (text ? JSON.parse(text) : undefined) as T;
+}
+
+/** [B] POST /api/uploads as multipart/form-data (requestRoute only sends JSON). */
+async function uploadFiles(files: File[]): Promise<UploadResponse> {
+  const [method, url] = SOCIAL_ROUTES.upload.split(' ') as [string, string];
+  const form = new FormData();
+  for (const f of files) form.append('file', f, f.name);
+  let res: Response;
+  try {
+    res = await fetch(url, { method, credentials: 'include', headers: { accept: 'application/json' }, body: form });
+  } catch {
+    throw new ApiRequestError(0, 'network', 'Can’t reach Sway right now');
+  }
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as Partial<ApiError>;
+    const err = new ApiRequestError(res.status, body.error || `http_${res.status}`, body.message || res.statusText || 'Upload failed');
+    if (isAuthRequired(err)) notifyAuthRequired();
+    throw err;
+  }
+  return (await res.json()) as UploadResponse;
 }
 
 export function createHttpApi(): SwayApi {
@@ -254,7 +422,7 @@ export function createHttpApi(): SwayApi {
     taskSkip: (id) => request('taskSkip', { params: { id } }),
     wallet: () => request('wallet'),
     withdrawLog: (body) => request('withdrawLog', { body }),
-    faucet: () => request('faucet'),
+    faucet: (body) => request('faucet', body ? { body } : {}),
     leaderboard: (query) => request('leaderboard', { query }),
     battles: () => request('battles'),
     createBattle: (body) => request('createBattle', { body }),
@@ -262,6 +430,63 @@ export function createHttpApi(): SwayApi {
     back: (id, body) => request('back', { params: { id }, body }),
     genesis: () => request('genesis'),
     launchpad: () => request('launchpad'),
+
+    /* [A] wallets & funding */
+    wallets: () => requestRoute(WALLET_ROUTES.wallets),
+    walletsNonce: (body) => requestRoute(WALLET_ROUTES.walletsNonce, body ? { body } : {}),
+    walletsLink: (body) => requestRoute(WALLET_ROUTES.walletsLink, { body }),
+    walletsLabel: (address, body) => requestRoute(WALLET_ROUTES.walletsLabel, { params: { address }, body }),
+    walletsRemove: (address) => requestRoute(WALLET_ROUTES.walletsRemove, { params: { address } }),
+
+    /* [B] social, moderation, account & admin */
+    deletePost: (id) => requestRoute(SOCIAL_ROUTES.deletePost, { params: { id } }),
+    boostQuote: () => requestRoute(SOCIAL_ROUTES.boostQuote),
+    boostPost: (id, body) => requestRoute(SOCIAL_ROUTES.boostPost, { params: { id }, body }),
+    report: (body) => requestRoute(SOCIAL_ROUTES.report, { body }),
+    block: (handle) => requestRoute(SOCIAL_ROUTES.block, { params: p(handle) }),
+    upload: (files) => uploadFiles(files),
+    uploadFileUrl: (name) => SOCIAL_ROUTES.uploadFile.split(' ')[1]!.replace(':name', encodeURIComponent(name)),
+    priceHistory: (handle, query) => requestRoute(SOCIAL_ROUTES.priceHistory, { params: p(handle), query }),
+    card: (handle) => requestRoute(SOCIAL_ROUTES.card, { params: p(handle) }),
+    account: () => requestRoute(SOCIAL_ROUTES.account),
+    exportData: () => requestRoute(SOCIAL_ROUTES.exportData),
+    deleteAccount: (body) => requestRoute(SOCIAL_ROUTES.deleteAccount, { body }),
+    adminReports: (query) => requestRoute(SOCIAL_ROUTES.adminReports, { query }),
+    adminResolveReport: (id, body) => requestRoute(SOCIAL_ROUTES.adminResolveReport, { params: { id }, body }),
+    adminHidePost: (id, body) => requestRoute(SOCIAL_ROUTES.adminHidePost, { params: { id }, body }),
+    adminClaims: (query) => requestRoute(SOCIAL_ROUTES.adminClaims, { query }),
+    adminResolveClaim: (id) => requestRoute(SOCIAL_ROUTES.adminResolveClaim, { params: { id } }),
+    adminMembers: (query) => requestRoute(SOCIAL_ROUTES.adminMembers, { query }),
+    adminBotFlag: (handle, body) => requestRoute(SOCIAL_ROUTES.adminBotFlag, { params: p(handle), body }),
+    adminSetAdmin: (handle, body) => requestRoute(SOCIAL_ROUTES.adminSetAdmin, { params: p(handle), body }),
+    adminMarkets: (query) => requestRoute(SOCIAL_ROUTES.adminMarkets, { query }),
+    adminHaltMarket: (handle, body) => requestRoute(SOCIAL_ROUTES.adminHaltMarket, { params: p(handle), body }),
+    adminOpenFanMarket: (body) => requestRoute(SOCIAL_ROUTES.adminOpenFanMarket, { body }),
+
+    /* [C] launchpad, staking & genesis */
+    launchAttest: () => requestRoute(LAUNCH_ROUTES.launchAttest),
+    launchToken: (handle) => requestRoute(LAUNCH_ROUTES.launchToken, { params: p(handle) }),
+    launchAirdrops: () => requestRoute(LAUNCH_ROUTES.launchAirdrops),
+    staking: () => requestRoute(LAUNCH_ROUTES.staking),
+    genesisLatest: () => requestRoute(LAUNCH_ROUTES.genesisLatest),
+    genesisSnapshot: (id) => requestRoute(LAUNCH_ROUTES.genesisSnapshot, { params: { id } }),
+
+    /* [D] engagement & creator drops */
+    watchlist: () => requestRoute(ENGAGE_ROUTES.watchlist),
+    watch: (handle, body) => requestRoute(ENGAGE_ROUTES.watch, { params: p(handle), body }),
+    unwatch: (handle) => requestRoute(ENGAGE_ROUTES.unwatch, { params: p(handle) }),
+    streak: () => requestRoute(ENGAGE_ROUTES.streak),
+    checkIn: () => requestRoute(ENGAGE_ROUTES.checkIn),
+    referrals: () => requestRoute(ENGAGE_ROUTES.referrals),
+    notifPrefs: () => requestRoute(ENGAGE_ROUTES.notifPrefs),
+    setNotifPrefs: (body) => requestRoute(ENGAGE_ROUTES.setNotifPrefs, { body }),
+    pushConfig: () => requestRoute(ENGAGE_ROUTES.pushConfig),
+    pushSubscribe: (body) => requestRoute(ENGAGE_ROUTES.pushSubscribe, { body }),
+    pushUnsubscribe: (body) => requestRoute(ENGAGE_ROUTES.pushUnsubscribe, { body }),
+    pushTest: () => requestRoute(ENGAGE_ROUTES.pushTest),
+    dropPlan: (body) => requestRoute(ENGAGE_ROUTES.dropPlan, { body }),
+    userDrops: (handle) => requestRoute(ENGAGE_ROUTES.userDrops, { params: p(handle) }),
+    claimableDrops: () => requestRoute(ENGAGE_ROUTES.claimableDrops),
   };
 }
 

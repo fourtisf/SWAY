@@ -4,6 +4,7 @@ import type { TaskDTO } from '@sway/shared';
 import Link from 'next/link';
 import { useEffect, useRef, type CSSProperties } from 'react';
 import { Icon } from '@/components/icons';
+import { StreakCard } from '@/components/engage/Engage'; // [D]
 import { Loading, NeedUser, Spinner } from '@/components/ui';
 import { useActions } from '@/lib/actions';
 import { useFormat } from '@/lib/format';
@@ -19,6 +20,7 @@ function Rules() {
         ['Each verified invite', '+500'],
         ['Keys you hold', '400K per ETH'],
         ['Keys you trade', '100K per ETH'],
+        ['Daily check-in streak', 'up to 700 a day'],
         ['Battles won', 'both stakes'],
       ].map(([a, b]) => (
         <div key={a} className="between" style={{ padding: '9px 0', borderBottom: '1px solid var(--stroke)', fontSize: 13.5 }}>
@@ -148,6 +150,7 @@ export default function TasksPage() {
           </p>
         )}
       </div>
+      <StreakCard />
       <div className="sec-h" style={{ paddingTop: 6 }}>
         <h2>Tasks</h2>
         <span className="t3" style={{ fontSize: 12.5 }}>
@@ -178,6 +181,10 @@ export default function TasksPage() {
             Copy
           </button>
         </div>
+        <Link className="lnk t2" href="/referrals" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 12, fontSize: 13.5, fontWeight: 600 }}>
+          See who joined and what you earned
+          <Icon name="chevR" size={16} />
+        </Link>
       </div>
       <Rules />
     </>

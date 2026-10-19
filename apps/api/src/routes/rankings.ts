@@ -1,4 +1,4 @@
-/** Leaderboard, Genesis pass ranking and Launchpad preview. */
+/** Leaderboard and Genesis pass ranking. The Launchpad lives in routes/launch.ts. */
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { Prisma, decToBig } from '@sway/db';
@@ -6,15 +6,14 @@ import { genesisSharePercent, GENESIS_MAX, tierOf } from '@sway/scoring';
 import type {
   GenesisResponse,
   GenesisRow,
-  LaunchpadResponse,
   LeaderboardResponse,
   LeaderboardRow,
-  Address,
 } from '@sway/shared';
 import { query } from './_util';
 import { getViewer } from '../plugins/auth';
 import { userRef } from '../services/dto';
 import { pointsDTO } from '../services/points';
+import { snapshotSharePct } from './genesis';
 
 interface Row {
   id: string;
@@ -135,7 +134,7 @@ export async function rankingRoutes(app: FastifyInstance) {
                 rank: mine.rank,
                 points: mine.points,
                 inCut: true,
-                sharePct: genesisSharePercent(mine.rank),
+                sharePct: snapshotSharePct(mine.units, snapshot.poolUnits),
                 toCut: 0,
               }
             : { rank: 0, points: 0, inCut: false, sharePct: 0, toCut: 0 }
@@ -145,8 +144,10 @@ export async function rankingRoutes(app: FastifyInstance) {
           rank: e.rank,
           user: userRef(e.user, e.user.market),
           points: e.points,
-          sharePct: genesisSharePercent(e.rank),
+          sharePct: snapshotSharePct(e.units, snapshot.poolUnits),
         })),
+        snapshotId: snapshot.id,
+        listHash: snapshot.listHash,
       };
     }
 
@@ -206,24 +207,5 @@ export async function rankingRoutes(app: FastifyInstance) {
       };
     }
     return { snapshotAt: config.snapshotAt.toISOString(), frozen, me, split, top };
-  });
-
-  app.get('/launchpad', async (req): Promise<LaunchpadResponse> => {
-    const v = await getViewer(req);
-    if (!v) return { symbol: '$YOU', score: null, startCapUsd: null, launched: false, tokenAddress: null };
-    const lt = await prisma.launchToken.findUnique({ where: { userId: v.user.id } });
-    return {
-      symbol:
-        lt?.symbol ??
-        '$' +
-          v.user.handle
-            .replace(/[^a-z0-9]/gi, '')
-            .slice(0, 6)
-            .toUpperCase(),
-      score: v.user.score,
-      startCapUsd: 2000 + v.user.score * 60,
-      launched: !!lt?.launchedAt,
-      tokenAddress: (lt?.tokenAddress as Address | null) ?? null,
-    };
   });
 }
