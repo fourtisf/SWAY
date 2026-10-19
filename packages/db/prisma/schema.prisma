@@ -214,6 +214,10 @@ model KeyMarket {
   openBlock    BigInt?
   claimBlock   BigInt?
   halted       Boolean        @default(false)
+  /// Creator activity bond in effect (SwayKeys.creatorInactive): no room post for 7 days, so the 6% creator
+  /// fee goes to holders until the creator posts again.
+  creatorInactive Boolean     @default(false)
+  creatorInactiveSince DateTime?
   supplyUnits  BigInt         @default(100)
   priceWei     Decimal        @default(0) @db.Decimal(78, 0)
   volumeWei    Decimal        @default(0) @db.Decimal(78, 0)

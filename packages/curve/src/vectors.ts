@@ -18,6 +18,8 @@ export interface CurveVectors {
   level: number[];
   traderRef: boolean[];
   creatorRef: boolean[];
+  creatorInactive: boolean[];
+  antiDump: boolean[];
   base: string[];
   creatorFee: string[];
   protocolFee: string[];
@@ -30,18 +32,22 @@ export interface CurveVectors {
 export function buildVectors(count = 160, seed = 20261027): CurveVectors {
   const r = rng(seed);
   const v: CurveVectors = {
-    supply: [], units: [], isBuy: [], level: [], traderRef: [], creatorRef: [],
+    supply: [], units: [], isBuy: [], level: [], traderRef: [], creatorRef: [], creatorInactive: [], antiDump: [],
     base: [], creatorFee: [], protocolFee: [], holderFee: [], referralFee: [], protocolTotal: [], total: [],
   };
-  const cases: Array<[bigint, Side, bigint, number, boolean, boolean]> = [
-    [100n, 'buy', 1n, 0, false, false],
-    [100n, 'buy', 100n, 0, false, false],
-    [101n, 'sell', 1n, 0, true, true],
-    [200n, 'sell', 100n, 4, true, false],
-    [1_000n, 'buy', 1_000n, 2, false, true],
-    [10_000n, 'buy', 10_000n, 3, true, true],
-    [10_000n, 'sell', 9_900n, 1, false, false],
-    [1_000_000n, 'buy', 1n, 0, true, true],
+  // [supply, side, units, level, traderRef, creatorRef, creatorInactive, antiDump]
+  const cases: Array<[bigint, Side, bigint, number, boolean, boolean, boolean, boolean]> = [
+    [100n, 'buy', 1n, 0, false, false, false, false],
+    [100n, 'buy', 100n, 0, false, false, false, false],
+    [101n, 'sell', 1n, 0, true, true, false, false],
+    [200n, 'sell', 100n, 4, true, false, false, false],
+    [1_000n, 'buy', 1_000n, 2, false, true, false, false],
+    [10_000n, 'buy', 10_000n, 3, true, true, false, false],
+    [10_000n, 'sell', 9_900n, 1, false, false, false, false],
+    [1_000_000n, 'buy', 1n, 0, true, true, false, false],
+    [5_000n, 'buy', 700n, 0, true, true, true, false],
+    [5_000n, 'sell', 700n, 2, false, true, false, true],
+    [5_000n, 'sell', 700n, 0, true, false, true, true],
   ];
   while (cases.length < count) {
     const supply = 100n + BigInt(Math.floor(Math.pow(r(), 3) * 200_000));
@@ -49,16 +55,18 @@ export function buildVectors(count = 160, seed = 20261027): CurveVectors {
     const maxUnits = side === 'buy' ? 50_000 : Number(supply - 100n);
     if (maxUnits < 1) continue;
     const units = 1n + BigInt(Math.floor(Math.pow(r(), 2) * (maxUnits - 1)));
-    cases.push([supply, side, units, Math.floor(r() * 5), r() < 0.5, r() < 0.5]);
+    cases.push([supply, side, units, Math.floor(r() * 5), r() < 0.5, r() < 0.5, r() < 0.15, side === 'sell' && r() < 0.3]);
   }
-  for (const [supply, side, units, level, tr, cr] of cases) {
-    const q = quoteWei(supply, side, units, { level, hasTraderReferrer: tr, hasCreatorReferrer: cr });
+  for (const [supply, side, units, level, tr, cr, inactive, dump] of cases) {
+    const q = quoteWei(supply, side, units, { level, hasTraderReferrer: tr, hasCreatorReferrer: cr, creatorInactive: inactive, antiDump: dump });
     v.supply.push(supply.toString());
     v.units.push(units.toString());
     v.isBuy.push(side === 'buy');
     v.level.push(level);
     v.traderRef.push(tr);
     v.creatorRef.push(cr);
+    v.creatorInactive.push(inactive);
+    v.antiDump.push(dump);
     v.base.push(q.base.toString());
     v.creatorFee.push(q.creatorFee.toString());
     v.protocolFee.push(q.protocolFee.toString());

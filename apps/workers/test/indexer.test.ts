@@ -15,6 +15,7 @@ import { startChain, KEYS, type TestChain } from './anvil';
 import { loadConfig } from '../src/config';
 import { makeClients, type Clients } from '../src/clients';
 import { Indexer } from '../src/indexer/indexer';
+import { enforceActivityBond } from '../src/jobs/activity-bond';
 
 let chain: TestChain;
 let c: Clients;
@@ -205,5 +206,24 @@ describe('indexer', () => {
     const bal = (await chain.pub.readContract({ address: token, abi: erc20Abi, functionName: 'balanceOf', args: [bob.address] })) as bigint;
     expect(bal).toBeGreaterThan(0n);
     expect(await prisma.activity.count({ where: { userId: bobUser.id, label: { contains: '$ALICE' } } })).toBe(1);
+  });
+
+  it('enforces the creator activity bond onchain and mirrors it', async () => {
+    const alice = chain.wallet(1).address.toLowerCase();
+    const later = new Date(Date.now() + 8 * 86400e3);
+    const r1 = await enforceActivityBond(c, later);
+    expect(r1.flagged).toBeGreaterThanOrEqual(1);
+    expect(await chain.pub.readContract({ address: keys, abi: swayKeysAbi, functionName: 'creatorInactive', args: [alice as Address] })).toBe(true);
+    await catchUp();
+    const m = await prisma.keyMarket.findUniqueOrThrow({ where: { subject: alice } });
+    expect(m.creatorInactive).toBe(true);
+    const aliceUser = await prisma.user.findUniqueOrThrow({ where: { handle: 'alice' } });
+    expect(await prisma.notification.count({ where: { userId: aliceUser.id, link: '/messages/room-alice' } })).toBe(1);
+
+    await prisma.roomMessage.create({ data: { marketId: m.id, authorId: aliceUser.id, text: 'gm holders', createdAt: later } });
+    const r2 = await enforceActivityBond(c, later);
+    expect(r2.cleared).toBe(1);
+    await catchUp();
+    expect((await prisma.keyMarket.findUniqueOrThrow({ where: { subject: alice } })).creatorInactive).toBe(false);
   });
 });

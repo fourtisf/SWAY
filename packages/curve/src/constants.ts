@@ -26,6 +26,10 @@ export const PROTOCOL_FEE_BPS = 200n;
 export const HOLDER_FEE_BPS = 100n;
 export const REFERRAL_FEE_BPS = 100n;
 
+/** Anti-dump: selling within 24h of your last buy in a market costs an extra 5% of the curve price, paid to holders. */
+export const ANTI_DUMP_BPS = 500n;
+export const ANTI_DUMP_WINDOW_SECONDS = 24 * 60 * 60;
+
 /** Protocol-fee cut by staking level 0..4: 0%, −10%, −25%, −50%, −75%. */
 export const LEVEL_CUT_BPS = [0n, 1_000n, 2_500n, 5_000n, 7_500n] as const;
 

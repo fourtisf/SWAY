@@ -12,6 +12,7 @@ import type { Clients } from '../clients';
 import { publishNotifications } from '../notify';
 import {
   onClaimed,
+  onCreatorInactiveSet,
   onFanMarketClaimed,
   onGenesisMint,
   onMarketHalted,
@@ -148,6 +149,8 @@ export class Indexer {
           return onFanMarketClaimed(ctx, m, e.args);
         case 'MarketHalted':
           return onMarketHalted(ctx, m, e.args);
+        case 'CreatorInactiveSet':
+          return onCreatorInactiveSet(ctx, m, e.args);
         case 'Claimed':
           return onClaimed(ctx, m, e.args);
         case 'ReferrerSet':

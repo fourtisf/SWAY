@@ -313,3 +313,10 @@ export function sellValueWei(supply: bigint, units: bigint, isOwner: boolean): b
   if (u <= 0n) return 0n;
   return quoteWei(supply, 'sell', u).total;
 }
+
+export async function onCreatorInactiveSet(c: ApplyContext, m: LogMeta, a: { subject: string; inactive: boolean }) {
+  const market = await c.tx.keyMarket.findUnique({ where: { subject: addr(a.subject) } });
+  if (!market || market.creatorInactive === a.inactive) return;
+  await c.tx.keyMarket.update({ where: { id: market.id }, data: { creatorInactive: a.inactive, creatorInactiveSince: a.inactive ? m.ts : null } });
+  c.out.markets.add(market.id);
+}

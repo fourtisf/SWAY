@@ -14,6 +14,8 @@ contract CurveVectorsTest is Base {
         uint256[] level;
         bool[] traderRef;
         bool[] creatorRef;
+        bool[] creatorInactive;
+        bool[] antiDump;
         uint256[] base;
         uint256[] creatorFee;
         uint256[] protocolFee;
@@ -31,6 +33,8 @@ contract CurveVectorsTest is Base {
         v.level = vm.parseJsonUintArray(json, ".level");
         v.traderRef = vm.parseJsonBoolArray(json, ".traderRef");
         v.creatorRef = vm.parseJsonBoolArray(json, ".creatorRef");
+        v.creatorInactive = vm.parseJsonBoolArray(json, ".creatorInactive");
+        v.antiDump = vm.parseJsonBoolArray(json, ".antiDump");
         v.base = vm.parseJsonUintArray(json, ".base");
         v.creatorFee = vm.parseJsonUintArray(json, ".creatorFee");
         v.protocolFee = vm.parseJsonUintArray(json, ".protocolFee");
@@ -81,7 +85,9 @@ contract CurveVectorsTest is Base {
         vm.startPrank(operator);
         if (v.traderRef[i]) keys.setReferrer(trader, address(uint160(0x40000 + i)));
         if (v.creatorRef[i]) keys.setReferrer(creator, address(uint160(0x50000 + i)));
+        if (v.creatorInactive[i]) keys.setCreatorInactive(creator, true);
         vm.stopPrank();
+        if (v.antiDump[i]) keys.harnessSetLastBuy(creator, trader, block.timestamp - 1 hours);
     }
 
     function _assertQuote(V memory v, uint256 i, address creator, address trader) internal view {

@@ -41,6 +41,10 @@ contract SwayKeys is Ownable2Step, ReentrancyGuard, Pausable {
     uint256 public constant SNIPE_MAX_UNITS = 1_000; // 10 keys
     uint256 public constant SNIPE_WINDOW = 5 minutes;
 
+    /// @notice Anti-dump: selling within 24h of your last buy in a market costs an extra 5%, paid to holders.
+    uint256 public constant ANTI_DUMP_BPS = 500;
+    uint256 public constant ANTI_DUMP_WINDOW = 24 hours;
+
     uint256 internal constant ACC_PRECISION = 1e18;
 
     /* ------------------------------------------------------------------ storage */
@@ -82,6 +86,11 @@ contract SwayKeys is Ownable2Step, ReentrancyGuard, Pausable {
     mapping(uint64 xId => address subject) public subjectOfXId;
     mapping(address => bool) public isOperator;
     mapping(address => bool) public isFanAdmin;
+    /// @notice Last time `holder` bought keys of `subject` (starts the anti-dump window).
+    mapping(address subject => mapping(address holder => uint40)) public lastBuyAt;
+    /// @notice Creator activity bond: while set (the creator hasn't posted in their room for 7 days), the 6%
+    ///         creator fee goes to holders instead. Set and cleared by the operator from room activity.
+    mapping(address subject => bool) public creatorInactive;
 
     address public treasury;
     ISwayStaking public staking;
@@ -104,6 +113,7 @@ contract SwayKeys is Ownable2Step, ReentrancyGuard, Pausable {
     );
     event FanMarketClaimed(address indexed subject, address indexed owner, uint256 escrowReleased);
     event MarketHalted(address indexed subject, bool halted);
+    event CreatorInactiveSet(address indexed subject, bool inactive);
     event ReferrerSet(address indexed user, address indexed referrer);
     event Claimed(address indexed account, uint256 creator, uint256 holder, uint256 referral, uint256 protocol);
     event OperatorSet(address indexed account, bool enabled);
@@ -193,12 +203,21 @@ contract SwayKeys is Ownable2Step, ReentrancyGuard, Pausable {
         }
     }
 
-    function _fees(uint256 base, address trader) internal view returns (Fees memory f) {
+    /// @dev The Trade event reports fees where they actually go: a redirected creator fee and the anti-dump
+    ///      surcharge are part of `holderFee`.
+    function _fees(uint256 base, address trader, address subject, bool isBuy) internal view returns (Fees memory f) {
         uint256 cut = protocolCutBps(levelOf(trader));
         f.creator = (base * CREATOR_FEE_BPS) / BPS;
         f.protocol = (base * PROTOCOL_FEE_BPS * (BPS - cut)) / (BPS * BPS);
         f.holder = (base * HOLDER_FEE_BPS) / BPS;
         f.referral = (base * REFERRAL_FEE_BPS) / BPS;
+        if (creatorInactive[subject] && markets[subject].owner != address(0)) {
+            f.holder += f.creator;
+            f.creator = 0;
+        }
+        if (!isBuy && block.timestamp < uint256(lastBuyAt[subject][trader]) + ANTI_DUMP_WINDOW) {
+            f.holder += (base * ANTI_DUMP_BPS) / BPS;
+        }
     }
 
     function _feeTotal(Fees memory f) internal pure returns (uint256) {
@@ -219,7 +238,7 @@ contract SwayKeys is Ownable2Step, ReentrancyGuard, Pausable {
             if (s - LOCKED_UNITS < units) revert InsufficientKeys();
             base = cumulative(s) - cumulative(s - units);
         }
-        Fees memory f = _fees(base, trader);
+        Fees memory f = _fees(base, trader, subject, isBuy);
         (creatorFee, protocolFee, holderFee, referralFee) = (f.creator, f.protocol, f.holder, f.referral);
         uint256 fee = _feeTotal(f);
         total = isBuy ? base + fee : base - fee;
@@ -298,6 +317,16 @@ contract SwayKeys is Ownable2Step, ReentrancyGuard, Pausable {
         emit FanMarketClaimed(subject, newOwner, released);
     }
 
+    /// @notice Creator activity bond, driven by room activity offchain: the operator flags a creator who
+    ///         hasn't posted in their room for 7 days and clears the flag when they post again.
+    function setCreatorInactive(address subject, bool inactive) external onlyOperator {
+        Market storage m = markets[subject];
+        if (m.supply == 0) revert MarketNotOpen();
+        if (m.owner == address(0)) revert NotFanMarket();
+        creatorInactive[subject] = inactive;
+        emit CreatorInactiveSet(subject, inactive);
+    }
+
     function setMarketHalted(address subject, bool halted) external onlyFanAdmin {
         if (markets[subject].supply == 0) revert MarketNotOpen();
         markets[subject].halted = halted;
@@ -315,7 +344,7 @@ contract SwayKeys is Ownable2Step, ReentrancyGuard, Pausable {
         if (m.halted) revert MarketIsHalted();
 
         uint256 base = cumulative(supplyBefore + units) - cumulative(supplyBefore);
-        Fees memory f = _fees(base, msg.sender);
+        Fees memory f = _fees(base, msg.sender, subject, true);
         uint256 total = base + _feeTotal(f);
         if (msg.value < total) revert InsufficientPayment(total, msg.value);
 
@@ -327,6 +356,7 @@ contract SwayKeys is Ownable2Step, ReentrancyGuard, Pausable {
         uint256 supplyAfter = supplyBefore + units;
         m.supply = supplyAfter;
 
+        lastBuyAt[subject][msg.sender] = uint40(block.timestamp);
         if (m.firstTradeAt == 0) m.firstTradeAt = uint40(block.timestamp);
         if (block.timestamp < uint256(m.firstTradeAt) + SNIPE_WINDOW && balanceAfter > SNIPE_MAX_UNITS) {
             revert SnipeLimit();
@@ -353,7 +383,7 @@ contract SwayKeys is Ownable2Step, ReentrancyGuard, Pausable {
         if (supplyAfter < LOCKED_UNITS) revert InsufficientKeys();
 
         uint256 base = cumulative(supplyBefore) - cumulative(supplyAfter);
-        Fees memory f = _fees(base, msg.sender);
+        Fees memory f = _fees(base, msg.sender, subject, false);
         uint256 proceeds = base - _feeTotal(f);
         if (proceeds < minProceeds) revert Slippage(proceeds, minProceeds);
 

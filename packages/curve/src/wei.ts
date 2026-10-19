@@ -14,6 +14,8 @@
  */
 import {
   ACC_PRECISION,
+  ANTI_DUMP_BPS,
+  ANTI_DUMP_WINDOW_SECONDS,
   BPS,
   CREATOR_FEE_BPS,
   CUBE_DIV,
@@ -46,6 +48,12 @@ export function areaWei(fromUnits: bigint, toUnits: bigint): bigint {
   return cumulativeWei(hi) - cumulativeWei(lo);
 }
 
+/** True when a sell now would pay the anti-dump surcharge, given the seller's last buy (ISO date or ms). */
+export function inAntiDumpWindow(lastBuyAt: string | number | Date | null | undefined, now = Date.now()): boolean {
+  if (!lastBuyAt) return false;
+  return now < new Date(lastBuyAt).getTime() + ANTI_DUMP_WINDOW_SECONDS * 1000;
+}
+
 /** Reserve the contract holds for a market at this supply. */
 export function reserveWei(supplyUnits: bigint): bigint {
   return supplyUnits <= LOCKED_UNITS ? 0n : cumulativeWei(supplyUnits) - cumulativeWei(LOCKED_UNITS);
@@ -57,12 +65,17 @@ export function levelCutBps(level: number): bigint {
 }
 
 export interface FeeBreakdown {
-  /** 6% to the market owner, or to FanEscrow while a fan market is unclaimed. */
+  /** 6% to the market owner, or to FanEscrow while a fan market is unclaimed. 0 while the creator is inactive. */
   creatorFee: bigint;
   /** 2% cut by the trader's staking level. Missing referral halves are added on top (see protocolTotal). */
   protocolFee: bigint;
-  /** 1% streamed pro rata to current holders through the reward-per-unit accumulator. */
+  /**
+   * 1% streamed pro rata to current holders through the reward-per-unit accumulator, plus the creator's 6%
+   * while they are inactive (activity bond) and the 5% anti-dump surcharge on early sells.
+   */
   holderFee: bigint;
+  /** The part of holderFee that is the anti-dump surcharge. */
+  antiDumpFee: bigint;
   /** 1% referral pool: half to the trader's referrer, half to the creator's referrer. */
   referralFee: bigint;
   traderReferrerShare: bigint;
@@ -82,14 +95,24 @@ export interface FeeOptions {
   level?: number;
   hasTraderReferrer?: boolean;
   hasCreatorReferrer?: boolean;
+  /** Creator activity bond in effect (SwayKeys.creatorInactive): the creator fee goes to holders. */
+  creatorInactive?: boolean;
+  /** Apply the anti-dump surcharge (a sell within 24h of the trader's last buy in this market). */
+  antiDump?: boolean;
 }
 
 export function feesWei(base: bigint, opts: FeeOptions = {}): FeeBreakdown {
   const cut = levelCutBps(opts.level ?? 0);
-  const creatorFee = (base * CREATOR_FEE_BPS) / BPS;
+  let creatorFee = (base * CREATOR_FEE_BPS) / BPS;
   const protocolFee = (base * PROTOCOL_FEE_BPS * (BPS - cut)) / (BPS * BPS);
-  const holderFee = (base * HOLDER_FEE_BPS) / BPS;
+  let holderFee = (base * HOLDER_FEE_BPS) / BPS;
   const referralFee = (base * REFERRAL_FEE_BPS) / BPS;
+  if (opts.creatorInactive) {
+    holderFee += creatorFee;
+    creatorFee = 0n;
+  }
+  const antiDumpFee = opts.antiDump ? (base * ANTI_DUMP_BPS) / BPS : 0n;
+  holderFee += antiDumpFee;
   const traderHalf = referralFee / 2n;
   const creatorHalf = referralFee - traderHalf;
   const traderReferrerShare = opts.hasTraderReferrer ? traderHalf : 0n;
@@ -100,6 +123,7 @@ export function feesWei(base: bigint, opts: FeeOptions = {}): FeeBreakdown {
     creatorFee,
     protocolFee,
     holderFee,
+    antiDumpFee,
     referralFee,
     traderReferrerShare,
     creatorReferrerShare,
@@ -131,7 +155,7 @@ export function quoteWei(supplyUnits: bigint, side: Side, units: bigint, opts: F
   if (side === 'sell' && supplyUnits - units < LOCKED_UNITS) throw new CurveError('cannot sell the locked first key');
   const supplyAfter = side === 'buy' ? supplyUnits + units : supplyUnits - units;
   const base = areaWei(supplyUnits, supplyAfter);
-  const fees = feesWei(base, opts);
+  const fees = feesWei(base, { ...opts, antiDump: side === 'sell' && !!opts.antiDump });
   return {
     side,
     units,

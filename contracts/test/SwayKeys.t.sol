@@ -107,6 +107,7 @@ contract SwayKeysTest is Base {
 
     function test_sell_paysCurveMinusFees() public {
         _buy(bob, alice, 300);
+        vm.warp(block.timestamp + 24 hours); // past the anti-dump window
         uint256 base = keys.cumulative(400) - keys.cumulative(300);
         uint256 fees = base * 600 / 10_000 + base * 200 / 10_000 + base * 100 / 10_000 + base * 100 / 10_000;
         uint256 got = _sell(bob, alice, 100);
@@ -239,7 +240,8 @@ contract SwayKeysTest is Base {
         assertApproxEqAbs(keys.pendingHolderReward(alice, bob), fee2 / 2, 1);
         assertEq(keys.pendingHolderReward(alice, carol), 0, "buyer earns nothing from own buy");
 
-        // carol sells 100: fee goes to holders after the sell: alice 100, bob 100, carol 100
+        // carol sells 100 after the anti-dump window: fee goes to holders after the sell: alice, bob, carol 100 each
+        vm.warp(block.timestamp + 24 hours);
         (uint256 base3,) = _quote(alice, 100, false, carol);
         _sell(carol, alice, 100);
         uint256 fee3 = base3 * 100 / 10_000;
@@ -392,6 +394,71 @@ contract SwayKeysTest is Base {
         vm.prank(operator);
         vm.expectRevert(SwayKeys.ZeroAddress.selector);
         keys.claimFanMarket(subject, address(escrow));
+    }
+
+    /* ------------------------------------------------------------ activity bond & anti-dump */
+
+    function test_inactiveCreatorFeeGoesToHolders() public {
+        _buy(bob, alice, 100);
+        vm.warp(block.timestamp + 6 minutes);
+        vm.expectEmit(true, false, false, true);
+        emit SwayKeys.CreatorInactiveSet(alice, true);
+        vm.prank(operator);
+        keys.setCreatorInactive(alice, true);
+        (uint256 creatorBefore,,,) = _earnings(alice);
+        vm.prank(operator);
+        keys.setCreatorInactive(alice, false);
+        (,,,,, uint256 totalActive) = keys.quote(alice, 200, true, carol);
+        vm.prank(operator);
+        keys.setCreatorInactive(alice, true);
+        (uint256 base, uint256 creatorFee,, uint256 holderFee,, uint256 total) = keys.quote(alice, 200, true, carol);
+        assertEq(total, totalActive, "the trader pays the same");
+        assertEq(creatorFee, 0);
+        assertEq(holderFee, base * 100 / 10_000 + base * 600 / 10_000);
+        uint256 bobBefore = keys.pendingHolderReward(alice, bob);
+        _buy(carol, alice, 200);
+        (uint256 creatorAfter,,,) = _earnings(alice);
+        assertEq(creatorAfter, creatorBefore, "no creator fee while inactive");
+        // holders before the buy: alice 100, bob 100 -> bob gets half of 1% + 6%
+        assertApproxEqAbs(keys.pendingHolderReward(alice, bob) - bobBefore, holderFee / 2, 2);
+
+        vm.prank(operator);
+        keys.setCreatorInactive(alice, false);
+        _buy(dave, alice, 10);
+        (uint256 creatorBack,,,) = _earnings(alice);
+        assertGt(creatorBack, creatorAfter, "fee returns once the creator posts again");
+    }
+
+    function test_creatorInactiveRules() public {
+        vm.expectRevert(SwayKeys.NotOperator.selector);
+        keys.setCreatorInactive(alice, true);
+        vm.prank(operator);
+        vm.expectRevert(SwayKeys.MarketNotOpen.selector);
+        keys.setCreatorInactive(bob, true);
+        address fan = _openFan(9009);
+        vm.prank(operator);
+        vm.expectRevert(SwayKeys.NotFanMarket.selector);
+        keys.setCreatorInactive(fan, true);
+    }
+
+    function test_antiDumpWithin24h() public {
+        _buy(bob, alice, 300);
+        (uint256 base,,, uint256 holderFee,, uint256 early) = keys.quote(alice, 100, false, bob);
+        assertEq(holderFee, base * 100 / 10_000 + base * 500 / 10_000, "1% + 5% surcharge to holders");
+        vm.warp(block.timestamp + 24 hours);
+        (,,, uint256 holderLate,, uint256 late) = keys.quote(alice, 100, false, bob);
+        assertEq(holderLate, base * 100 / 10_000);
+        assertEq(late - early, base * 500 / 10_000);
+        // a fresh buy restarts the window
+        vm.warp(block.timestamp + 6 minutes);
+        _buy(bob, alice, 1);
+        (,,,,, uint256 again) = keys.quote(alice, 100, false, bob);
+        assertLt(again, late);
+        // the surcharge reaches the other holders
+        uint256 aliceBefore = keys.pendingHolderReward(alice, alice);
+        uint256 got = _sell(bob, alice, 100);
+        assertEq(got, again);
+        assertGt(keys.pendingHolderReward(alice, alice) - aliceBefore, 0);
     }
 
     function test_haltBlocksBuysNotSells() public {

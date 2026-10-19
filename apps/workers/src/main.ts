@@ -15,6 +15,7 @@ import { recountPoints } from './jobs/points';
 import { creditReferrals } from './jobs/referrals';
 import { payWeeklyPrizes, refreshLiveBattles, simulatedBattleReader, tickBattles, xBattleReader } from './jobs/battles';
 import { flagBots } from './jobs/bots';
+import { enforceActivityBond } from './jobs/activity-bond';
 import { recordJob, startHealthServer } from './health';
 import { genesisTick } from './jobs/genesis';
 import { X_QUEUE, recheckTrusted, refreshScore, runVerifyTask, sweepScores, type VerifyTaskJob } from './jobs/xjobs';
@@ -43,6 +44,7 @@ async function main() {
   await cron.upsertJobScheduler('genesis', every(60_000));
   await cron.upsertJobScheduler('live-battles', every(10 * 60_000));
   await cron.upsertJobScheduler('bot-flags', every(10 * 60_000));
+  await cron.upsertJobScheduler('activity-bond', every(5 * 60_000));
 
   const handlers: Record<string, () => Promise<unknown>> = {
     price: () => refreshPrice(c),
@@ -55,6 +57,7 @@ async function main() {
     genesis: () => genesisTick(c),
     'live-battles': () => refreshLiveBattles(c, battleReader),
     'bot-flags': () => flagBots(c),
+    'activity-bond': () => enforceActivityBond(c),
   };
   const cronWorker = new Worker(
     CRON_QUEUE,

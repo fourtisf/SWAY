@@ -34,6 +34,10 @@ contract SwayKeysHarness is SwayKeys {
         balanceOf[subject][holder] += units;
     }
 
+    function harnessSetLastBuy(address subject, address holder, uint256 ts) external {
+        lastBuyAt[subject][holder] = uint40(ts);
+    }
+
     function harnessEndSnipeWindow(address subject) external {
         markets[subject].firstTradeAt = 1;
     }

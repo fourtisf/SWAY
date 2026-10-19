@@ -5,6 +5,7 @@ import {
   cumulativeWei,
   ethToWei,
   feePercent,
+  inAntiDumpWindow,
   feesWei,
   keysToUnits,
   maxBuyUnits,
@@ -139,5 +140,29 @@ describe('helpers', () => {
     const u = maxBuyUnits(500n, budget);
     expect(quoteWei(500n, 'buy', u).total).toBeLessThanOrEqual(budget);
     expect(quoteWei(500n, 'buy', u + 1n).total).toBeGreaterThan(budget);
+  });
+});
+
+describe('creator activity bond and anti-dump', () => {
+  it('inactive creator: the 6% goes to holders, total unchanged', () => {
+    const a = quoteWei(5_000n, 'buy', 700n);
+    const b = quoteWei(5_000n, 'buy', 700n, { creatorInactive: true });
+    expect(b.creatorFee).toBe(0n);
+    expect(b.holderFee).toBe(a.holderFee + a.creatorFee);
+    expect(b.total).toBe(a.total);
+  });
+  it('early sells pay an extra 5% to holders; buys never do', () => {
+    const a = quoteWei(5_000n, 'sell', 700n);
+    const b = quoteWei(5_000n, 'sell', 700n, { antiDump: true });
+    expect(b.antiDumpFee).toBe((b.base * 500n) / 10_000n);
+    expect(b.holderFee).toBe(a.holderFee + b.antiDumpFee);
+    expect(b.total).toBe(a.total - b.antiDumpFee);
+    expect(quoteWei(5_000n, 'buy', 700n, { antiDump: true }).antiDumpFee).toBe(0n);
+  });
+  it('window helper', () => {
+    const now = Date.parse('2026-10-19T12:00:00Z');
+    expect(inAntiDumpWindow(null, now)).toBe(false);
+    expect(inAntiDumpWindow('2026-10-19T00:00:00Z', now)).toBe(true);
+    expect(inAntiDumpWindow('2026-10-18T11:59:00Z', now)).toBe(false);
   });
 });
