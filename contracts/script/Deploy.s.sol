@@ -9,6 +9,7 @@ import {FanEscrow} from "../src/FanEscrow.sol";
 import {SwayStaking} from "../src/SwayStaking.sol";
 import {GenesisPass} from "../src/GenesisPass.sol";
 import {SwayLaunchpad, ISwayKeysMarkets} from "../src/SwayLaunchpad.sol";
+import {SwayDrops} from "../src/SwayDrops.sol";
 
 /// @dev Local/testnet stand-in for $SWAY, which doesn't exist yet. Never deployed when SWAY_TOKEN is set.
 contract DevSway is ERC20 {
@@ -47,6 +48,7 @@ contract Deploy is Script {
         SwayStaking staking;
         GenesisPass pass;
         SwayLaunchpad launchpad;
+        SwayDrops drops;
         address swayToken;
     }
 
@@ -85,6 +87,7 @@ contract Deploy is Script {
         );
         d.pass = new GenesisPass(c.deployer, c.issuer, c.baseURI);
         d.launchpad = new SwayLaunchpad(c.deployer, ISwayKeysMarkets(address(d.keys)), c.launchSigner);
+        d.drops = new SwayDrops();
     }
 
     function _wire(Config memory c, Deployed memory d) internal {
@@ -115,13 +118,15 @@ contract Deploy is Script {
         vm.serializeAddress(k, "fanEscrow", address(d.escrow));
         vm.serializeAddress(k, "swayStaking", address(d.staking));
         vm.serializeAddress(k, "genesisPass", address(d.pass));
-        string memory json = vm.serializeAddress(k, "launchpad", address(d.launchpad));
+        vm.serializeAddress(k, "launchpad", address(d.launchpad));
+        string memory json = vm.serializeAddress(k, "drops", address(d.drops));
         vm.writeJson(json, string.concat("deployments/", vm.toString(block.chainid), ".json"));
         console2.log("SwayKeys      ", address(d.keys));
         console2.log("FanEscrow     ", address(d.escrow));
         console2.log("SwayStaking   ", address(d.staking));
         console2.log("GenesisPass   ", address(d.pass));
         console2.log("SwayLaunchpad ", address(d.launchpad));
+        console2.log("SwayDrops     ", address(d.drops));
         if (c.admin != c.deployer) console2.log("Pending owner (must acceptOwnership on each):", c.admin);
     }
 }

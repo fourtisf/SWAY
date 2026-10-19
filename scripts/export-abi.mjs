@@ -9,7 +9,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = resolve(root, 'packages/shared/src/abi');
 const names = process.argv.slice(2).length
   ? process.argv.slice(2)
-  : ['SwayKeys', 'FanEscrow', 'SwayStaking', 'GenesisPass', 'SwayLaunchpad', 'SwayCreatorToken'];
+  : ['SwayKeys', 'FanEscrow', 'SwayStaking', 'GenesisPass', 'SwayLaunchpad', 'SwayCreatorToken', 'SwayDrops'];
 mkdirSync(outDir, { recursive: true });
 const exported = [];
 for (const name of names) {

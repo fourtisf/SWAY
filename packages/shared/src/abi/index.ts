@@ -5,3 +5,4 @@ export { swayStakingAbi } from './SwayStaking';
 export { genesisPassAbi } from './GenesisPass';
 export { swayLaunchpadAbi } from './SwayLaunchpad';
 export { swayCreatorTokenAbi } from './SwayCreatorToken';
+export { swayDropsAbi } from './SwayDrops';
