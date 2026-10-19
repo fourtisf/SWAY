@@ -42,6 +42,9 @@ sudo -iu sway nano /srv/sway/.env
 
 Never paste these keys into chats or commit them; `.env` is git-ignored and readable by `sway` only.
 
+To turn on Connect X later without editing the file by hand: `bash /srv/sway/deploy/set-x-keys.sh` (as root) asks for
+the Client ID, Client Secret, Bearer Token and your admin handle, saves them and redeploys.
+
 ## 4. Deploy the contracts (as sway, once per chain)
 
 ```bash
