@@ -16,6 +16,7 @@ import { loadConfig } from '../src/config';
 import { makeClients, type Clients } from '../src/clients';
 import { Indexer } from '../src/indexer/indexer';
 import { enforceActivityBond } from '../src/jobs/activity-bond';
+import { syncReferrers } from '../src/jobs/referrals';
 
 let chain: TestChain;
 let c: Clients;
@@ -276,5 +277,19 @@ describe('indexer', () => {
     expect(back.claimTx).toBeNull();
     expect(decToBig((await prisma.creatorDrop.findUniqueOrThrow({ where: { id: 0 } })).claimedWei)).toBe(0n);
     expect(await prisma.activity.count({ where: { txHash: hash } })).toBe(0);
+  });
+  it('sets the referrer on every wallet of a credited invitee, linked ones included', async () => {
+    const dave = await prisma.user.findUniqueOrThrow({ where: { handle: 'dave' }, include: { wallet: true } });
+    const bob = await prisma.user.findUniqueOrThrow({ where: { handle: 'bob' }, include: { wallet: true } });
+    const linked = '0x00000000000000000000000000000000000b0b02';
+    await prisma.linkedWallet.create({ data: { userId: bob.id, address: linked, kind: 'external' } });
+    await prisma.referral.create({ data: { inviterId: dave.id, inviteeId: bob.id, status: 'credited', creditedAt: new Date() } });
+    await c.redis.del('referrer:set');
+    expect(await syncReferrers(c)).toBe(2);
+    for (const a of [bob.wallet!.address, linked]) {
+      expect(String(await chain.pub.readContract({ address: keys, abi: swayKeysAbi, functionName: 'referrerOf', args: [a as Address] })).toLowerCase()).toBe(dave.wallet!.address);
+    }
+    expect((await prisma.referral.findUniqueOrThrow({ where: { inviteeId: bob.id } })).onchainTx).toMatch(/^0x/);
+    expect(await syncReferrers(c)).toBe(0);
   });
 });

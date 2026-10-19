@@ -102,15 +102,22 @@ export function burnerWallet(pk: Hex, config: ConfigDTO): SwayWallet {
     if (!config.contracts.swayKeys) throw new Error('SwayKeys is not deployed on this chain yet');
     return config.contracts.swayKeys;
   };
+  // Other trades can land between the estimate and this one (settling holder rewards then costs more), so
+  // contract calls carry 25% more gas than estimated; unused gas isn't charged.
+  const write = async (call: Parameters<SwayWallet['writeContract']>[0]) => {
+    const c = call as unknown as Record<string, unknown>;
+    const est = await pub.estimateContractGas({ ...c, account } as never);
+    return wallet.writeContract({ ...c, gas: (est * 5n) / 4n } as never);
+  };
   return {
     address: account.address,
     kind: 'embedded',
     signMessage: (message) => wallet.signMessage({ message }),
-    buy: (subject, units, value) => wallet.writeContract({ address: keys(), abi: swayKeysAbi, functionName: 'buy', args: [subject, units], value }),
-    sell: (subject, units, minProceeds) => wallet.writeContract({ address: keys(), abi: swayKeysAbi, functionName: 'sell', args: [subject, units, minProceeds] }),
-    claim: (subjects) => wallet.writeContract({ address: keys(), abi: swayKeysAbi, functionName: 'claim', args: [subjects] }),
+    buy: (subject, units, value) => write({ address: keys(), abi: swayKeysAbi, functionName: 'buy', args: [subject, units], value }),
+    sell: (subject, units, minProceeds) => write({ address: keys(), abi: swayKeysAbi, functionName: 'sell', args: [subject, units, minProceeds] }),
+    claim: (subjects) => write({ address: keys(), abi: swayKeysAbi, functionName: 'claim', args: [subjects] }),
     sendEth: (to, value) => wallet.sendTransaction({ to, value }),
-    writeContract: (call) => wallet.writeContract(call as never),
+    writeContract: (call) => write(call),
     async waitForReceipt(hash) {
       const r = await pub.waitForTransactionReceipt({ hash });
       if (r.status !== 'success') throw new Error('Transaction reverted');

@@ -749,7 +749,7 @@ export const WALLET_ROUTES = {
  *                  in either table) / wallet_is_account (it is your account wallet) / wallet_limit (10 linked);
  *                  400 bad_signature / nonce_expired. Linking an address you already linked is a no-op.
  *   walletsLabel:  B WalletLabelBody                                    R WalletInfoDTO
- *                  404 wallet_not_found; 409 account_wallet (the account wallet has no label)
+ *                  404 wallet_not_found (the account wallet can be renamed too)
  *   walletsRemove:                                                      R MeDTO
  *                  404 wallet_not_found; 409 account_wallet (the account wallet can't be removed)
  * Also: walletLink (account wallet) takes WalletLinkBody.connector; faucet takes FaucetBody (optional);

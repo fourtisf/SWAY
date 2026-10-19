@@ -104,12 +104,12 @@ describe('linked wallets', () => {
       payload: { label: 'x'.repeat(33) },
     });
     expect(long.statusCode).toBe(400);
-    // The account wallet keeps its name and can't be removed.
-    for (const method of ['PATCH', 'DELETE'] as const) {
-      const r = await ctx.app.inject({ method, url: `/api/wallets/${m.address}`, headers: { cookie: m.cookie }, payload: { label: 'x' } });
-      expect(r.statusCode).toBe(409);
-      expect(r.json().error).toBe('account_wallet');
-    }
+    // The account wallet can be renamed but not removed.
+    const named = await ctx.app.inject({ method: 'PATCH', url: `/api/wallets/${m.address}`, headers: { cookie: m.cookie }, payload: { label: 'Main' } });
+    expect(named.json()).toMatchObject({ address: m.address, account: true, label: 'Main' });
+    const r = await ctx.app.inject({ method: 'DELETE', url: `/api/wallets/${m.address}`, headers: { cookie: m.cookie } });
+    expect(r.statusCode).toBe(409);
+    expect(r.json().error).toBe('account_wallet');
     // Another member can't touch it.
     const other = await member(ctx, 'notmine');
     const nope = await ctx.app.inject({ method: 'DELETE', url: `/api/wallets/${address}`, headers: { cookie: other.cookie } });

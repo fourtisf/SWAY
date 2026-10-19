@@ -205,6 +205,12 @@ function TitleHeader({ view }: { view: string }) {
           New challenge
         </button>
       ) : null}
+      {view === 'markets' && me ? (
+        <Link className="btn btn-glass btn-sm" style={{ marginLeft: 'auto' }} href="/watchlist">
+          <Icon name="star" />
+          Watchlist
+        </Link>
+      ) : null}
       {view === 'model' ? (
         <button className="btn btn-glass btn-sm" style={{ marginLeft: 'auto' }} onClick={() => toast('Repo link goes here once it’s public')}>
           <Icon name="github" />

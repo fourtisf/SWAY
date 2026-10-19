@@ -8,6 +8,8 @@ import { Icon } from '@/components/icons';
 import { Avatar, Empty, Loading, Tabs, VB, Voiceprint } from '@/components/ui';
 import { RoomView } from '@/components/views/Chat';
 import { BlockedNote, ChartCard, ProfileMenu } from '@/components/views/ProfileExtras'; // [B]
+import { CreatorDrops } from '@/components/engage/Drops'; // [D]
+import { WatchButton } from '@/components/engage/Engage'; // [D]
 import { PostItem } from '@/components/views/Post';
 import { useActions } from '@/lib/actions';
 import { useFormat } from '@/lib/format';
@@ -139,6 +141,7 @@ function Profile({ handle }: { handle: string }) {
             ) : c.claimed ? (
               <>
                 <ProfileMenu c={c} />
+                <WatchButton handle={handle} />
                 <button className="btn btn-glass btn-sm" aria-label="Message" onClick={() => a.dm(handle)}>
                   <Icon name="chat" size={16} />
                 </button>
@@ -150,9 +153,12 @@ function Profile({ handle }: { handle: string }) {
                 </button>
               </>
             ) : (
-              <button className="btn btn-glass btn-sm" onClick={() => openModal({ type: 'claim', handle })}>
-                This is my account
-              </button>
+              <>
+                <WatchButton handle={handle} />
+                <button className="btn btn-glass btn-sm" onClick={() => openModal({ type: 'claim', handle })}>
+                  This is my account
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -237,6 +243,14 @@ function Profile({ handle }: { handle: string }) {
         </div>
       </div>
       <ChartCard c={c} />
+      {c.creatorInactive && (
+        <div className="note" id="bondNote" style={{ margin: '0 16px 16px' }}>
+          {c.isMe
+            ? 'You haven’t posted in your room for 7 days, so your 6% creator fee goes to your holders. Post in your room to get it back.'
+            : `${c.name} hasn’t posted in their room for 7 days, so the 6% creator fee goes to holders until they do.`}
+        </div>
+      )}
+      <CreatorDrops handle={handle} isMe={c.isMe} opened={c.claimed !== false && !c.deleted && BigInt(c.supplyUnits) >= 100n} />
       {c.blocked && <BlockedNote handle={handle} />}
       <div className="ptabs">
         <Tabs<ProfileTab>

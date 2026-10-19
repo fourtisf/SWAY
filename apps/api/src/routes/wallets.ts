@@ -22,6 +22,7 @@ import {
   ADDRESS_PLACEHOLDER,
   addLinkedWallet,
   addWalletMessage,
+  accountInfo,
   linkedInfo,
   verifyLinkSignature,
   walletOverview,
@@ -105,8 +106,13 @@ export async function walletsRoutes(app: FastifyInstance) {
   });
 
   app.patch('/wallets/:address', async (req): Promise<WalletInfoDTO> => {
-    const { row } = await linkedOf(req);
     const b = body(z.object({ label: Label.nullable() }), req);
+    // The account wallet can be renamed too (it just can't be removed).
+    const v = await requireViewer(req);
+    if (v.wallet && v.wallet.address === params(AddressParams, req).address) {
+      return accountInfo(await prisma.wallet.update({ where: { id: v.wallet.id }, data: { label: b.label || null } }));
+    }
+    const { row } = await linkedOf(req);
     const updated = await prisma.linkedWallet.update({ where: { id: row.id }, data: { label: b.label || null } });
     return linkedInfo(updated);
   });

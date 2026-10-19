@@ -11,6 +11,7 @@ import {
   priceAt,
   priceWei,
   quoteWei,
+  inAntiDumpWindow,
   weiToEth,
   type Side,
 } from '@sway/curve';
@@ -166,9 +167,12 @@ export class MockWorld {
   /* [A] wallets: the account wallet's money is `eth` / `earned` / `claimed` above and its keys are `holdings`
    * minus what linked wallets hold (`holdings` stays the member's total, which rooms and points read). */
   linked: MockLinkedWallet[] = [];
-  account: { connector: string; kind: 'embedded' | 'external'; createdAt: number } = { connector: 'sway', kind: 'embedded', createdAt: Date.now() };
+  account: { connector: string; kind: 'embedded' | 'external'; createdAt: number; label?: string | null } = { connector: 'sway', kind: 'embedded', createdAt: Date.now() };
   /** Average-cost basis per `${address}|${handle}` (ETH paid, fees included) and realized PnL. */
   basis: Record<string, { cost: number; realized: number }> = {};
+  /** [D] Last buy per `${address}|${handle}` (anti-dump window) and creators under the activity bond. */
+  lastBuy: Record<string, number> = {};
+  inactive = new Set<string>();
 
   constructor() {
     CREATORS_SEED.forEach((a) => {
@@ -255,6 +259,12 @@ export class MockWorld {
         .map((wi) => ({ address: wi.address, units: U(this.unitsBy(wi.address, h)).toString() }))
         .filter((x) => x.units !== '0'),
       blocked: this.blocked.has(h), // [B]
+      creatorInactive: this.inactive.has(h), // [D]
+      lastBuyAt: Object.fromEntries(
+        this.walletInfos()
+          .filter((wi) => this.lastBuy[`${wi.address.toLowerCase()}|${h}`])
+          .map((wi) => [wi.address.toLowerCase(), iso(this.lastBuy[`${wi.address.toLowerCase()}|${h}`]!)]),
+      ),
       history: c.hist.map((p, i) => ({ t: iso(this.now0 - (c.hist.length - i) * 3600000), priceWei: W(p) })),
     };
   }
@@ -367,10 +377,14 @@ export class MockWorld {
     const lw = from ? this.linkedOf(from) : undefined;
     const addr = lw ? lw.address : this.user.wallet;
     const mine = lw ? lw.holdings[h] || 0 : this.accountUnits(h);
-    const q = quoteWei(U(c.supply), side, units, { level: this.level });
+    const bk = `${addr.toLowerCase()}|${h}`;
+    const q = quoteWei(U(c.supply), side, units, {
+      level: this.level,
+      creatorInactive: this.inactive.has(h),
+      antiDump: side === 'sell' && inAntiDumpWindow(this.lastBuy[bk]),
+    });
     const total = weiToEth(q.total),
       base = weiToEth(q.base);
-    const bk = `${addr.toLowerCase()}|${h}`;
     const b = (this.basis[bk] ??= { cost: 0, realized: 0 });
     if (side === 'buy') {
       if (q.total > ethToWei(lw ? lw.eth : this.eth)) throw new Error('Not enough balance');
@@ -380,6 +394,7 @@ export class MockWorld {
       this.holdings[h] = +(had + k).toFixed(2);
       if (lw) lw.holdings[h] = +(mine + k).toFixed(2);
       b.cost += total;
+      this.lastBuy[bk] = Date.now();
       if (had < 0.0001) c.holders++;
       if (!c.claimed) c.escrow += weiToEth(q.creatorFee);
     } else {
@@ -545,7 +560,7 @@ export class MockWorld {
     const u = this.user;
     if (!u) return [];
     return [
-      { address: u.wallet, kind: this.account.kind, connector: this.account.connector, label: null, account: true, createdAt: iso(this.account.createdAt) },
+      { address: u.wallet, kind: this.account.kind, connector: this.account.connector, label: this.account.label ?? null, account: true, createdAt: iso(this.account.createdAt) },
       ...this.linked.map((l) => ({ address: l.address, kind: l.kind, connector: l.connector, label: l.label, account: false, createdAt: iso(l.createdAt) })),
     ];
   }

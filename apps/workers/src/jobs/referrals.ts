@@ -1,7 +1,8 @@
 /**
  * Verified invites (brief §6): the invitee is ≥30 days old on X, has ≥50 followers, an X checkmark and
  * no bot flag. Inviter +500, invitee +100, at most 25 credited per inviter per UTC day. A credited invite
- * also sets the onchain referrer so the inviter earns half of the 1% referral fee on the invitee's trades.
+ * also sets the onchain referrer on each of the invitee's wallets so the inviter earns half of the 1% referral
+ * fee on their trades.
  */
 import { INVITE_POINTS, INVITEE_POINTS, INVITES_CREDITED_PER_DAY, inviteQualifies } from '@sway/scoring';
 import { swayKeysAbi } from '@sway/shared/abi';
@@ -16,7 +17,7 @@ export async function creditReferrals(c: Clients, now = new Date()): Promise<num
   const { prisma } = c;
   const pending = await prisma.referral.findMany({
     where: { status: 'pending' },
-    include: { invitee: { include: { wallet: true } }, inviter: { include: { wallet: true } } },
+    include: { invitee: true },
     orderBy: { createdAt: 'asc' },
     take: 500,
   });
@@ -53,23 +54,51 @@ export async function creditReferrals(c: Clients, now = new Date()): Promise<num
     await publishNotifications(c, ids);
     credited++;
 
-    const keys = c.cfg.contracts.swayKeys;
-    if (keys && c.operator && inv.wallet && r.inviter.wallet) {
+  }
+  await syncReferrers(c);
+  return credited;
+}
+
+const KNOWN = 'referrer:set';
+
+/**
+ * Sets the onchain referrer on every wallet of each credited invitee (account and linked, including wallets
+ * linked after the credit), so trades from any of them pay the inviter's half. Addresses already set onchain
+ * are remembered in Redis; a wallet that someone else referred first is left alone (the contract sets once).
+ */
+export async function syncReferrers(c: Clients, limit = 50): Promise<number> {
+  const keys = c.cfg.contracts.swayKeys;
+  const op = c.operator;
+  if (!keys || !op) return 0;
+  const refs = await c.prisma.referral.findMany({
+    where: { status: 'credited', inviter: { wallet: { isNot: null } } },
+    include: { inviter: { include: { wallet: true } }, invitee: { include: { wallet: true, linkedWallets: true } } },
+  });
+  let sent = 0;
+  for (const r of refs) {
+    const referrer = r.inviter.wallet!.address as `0x${string}`;
+    const wallets = [r.invitee.wallet?.address, ...r.invitee.linkedWallets.map((l) => l.address)].filter(Boolean) as `0x${string}`[];
+    for (const user of wallets) {
+      if (sent >= limit) return sent;
+      if (user === referrer || (await c.redis.sismember(KNOWN, user))) continue;
+      const current = (await c.pub.readContract({ address: keys, abi: swayKeysAbi, functionName: 'referrerOf', args: [user] })) as string;
+      if (!/^0x0{40}$/i.test(current)) {
+        await c.redis.sadd(KNOWN, user);
+        continue;
+      }
       try {
-        const op = c.operator;
         const hash = await withSenderLock(c, op, async () => {
-          const h = await op.writeContract({
-            address: keys, abi: swayKeysAbi, functionName: 'setReferrer',
-            args: [inv.wallet!.address as `0x${string}`, r.inviter.wallet!.address as `0x${string}`],
-          });
+          const h = await op.writeContract({ address: keys, abi: swayKeysAbi, functionName: 'setReferrer', args: [user, referrer] });
           await c.pub.waitForTransactionReceipt({ hash: h });
           return h;
         });
-        await prisma.referral.update({ where: { id: r.id }, data: { onchainTx: hash } });
+        await c.redis.sadd(KNOWN, user);
+        if (user === r.invitee.wallet?.address && !r.onchainTx) await c.prisma.referral.update({ where: { id: r.id }, data: { onchainTx: hash } });
+        sent++;
       } catch (e) {
-        console.warn(`[referrals] setReferrer failed for ${inv.handle}: ${(e as Error).message.split('\n')[0]}`);
+        console.warn(`[referrals] setReferrer failed for ${r.invitee.handle} (${user}): ${(e as Error).message.split('\n')[0]}`);
       }
     }
   }
-  return credited;
+  return sent;
 }

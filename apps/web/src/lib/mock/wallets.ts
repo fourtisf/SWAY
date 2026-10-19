@@ -59,13 +59,12 @@ export function walletsMockApi(w: MockWorld): SwayApiWallets {
     async walletsLabel(address, { label }) {
       needUser(w);
       const l = w.linkedOf(address);
-      if (!l) {
-        if (w.user && same(address, w.user.wallet)) throw err(409, 'account_wallet', 'Your account wallet keeps its name');
-        throw err(404, 'wallet_not_found', 'That wallet is not one of yours');
-      }
+      const isAccount = !!w.user && same(address, w.user.wallet);
+      if (!l && !isAccount) throw err(404, 'wallet_not_found', 'That wallet is not one of yours');
       const t = (label ?? '').trim();
       if (t.length > WALLET_LABEL_MAX) throw err(400, 'bad_request', `Names are at most ${WALLET_LABEL_MAX} characters`);
-      l.label = t || null;
+      if (l) l.label = t || null;
+      else w.account.label = t || null;
       return w.walletInfos().find((x) => same(x.address, address))!;
     },
     async walletsRemove(address) {

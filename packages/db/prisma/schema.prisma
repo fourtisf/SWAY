@@ -187,6 +187,8 @@ model Wallet {
   /// Wallet app used to connect ("sway", "metaMask", "coinbaseWallet", "rabby", "walletConnect", an EIP-6963
   /// rdns…), for the logo.
   connector String?
+  /// Name the member gave the wallet (like LinkedWallet.label).
+  label     String?
   createdAt DateTime   @default(now())
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

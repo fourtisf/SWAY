@@ -29,7 +29,7 @@ export function WatchButton({ handle }: { handle: string }) {
   return (
     <div className="watch" ref={ref}>
       <button
-        className={`btn btn-glass btn-icon ${w ? 'on' : ''}`}
+        className={`btn btn-glass btn-sm btn-icon ${w ? 'on' : ''}`}
         aria-label={w ? `Watching @${handle}` : `Watch @${handle}`}
         aria-expanded={open}
         title={w ? (w.alertPct ? `Alert at ±${w.alertPct}%` : 'Watching') : 'Watch this key'}

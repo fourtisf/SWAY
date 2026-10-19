@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/icons';
 import { AirdropsCard, StakeCard } from '@/components/launch/Cards'; // [C]
+import { DropsCard } from '@/components/engage/Drops'; // [D]
 import { Avatar, Empty, Loading, NeedUser, Spinner, VB } from '@/components/ui';
 import { WalletLogo } from '@/components/wallet/WalletLogo';
 import { useActions } from '@/lib/actions';
@@ -77,7 +78,7 @@ function WalletMenu({ mw, active }: { mw: MemberWallet; active: boolean }) {
           {!mw.usable && mw.kind === 'embedded' && item('Import its key', () => openModal({ type: 'walletImport' }))}
           {item('Copy address', () => copyAddress(mw.address))}
           {mw.kind === 'embedded' && mw.usable && item('Back up Sway wallet', () => openModal({ type: 'walletBackup', address: mw.address }))}
-          {!mw.account && item('Rename', () => openModal({ type: 'walletRename', address: mw.address }))}
+          {item('Rename', () => openModal({ type: 'walletRename', address: mw.address }))}
           {!mw.account && item('Remove', () => openModal({ type: 'walletRemove', address: mw.address }), true)}
         </span>
       )}
@@ -258,6 +259,7 @@ export default function WalletPage() {
       </div>
       {/* [C] token airdrops and staking */}
       <AirdropsCard />
+      <DropsCard />
       <StakeCard level={me.data.stakingLevel} />
       <div className="sec-h">
         <h2>Your keys</h2>

@@ -55,7 +55,7 @@ export const accountInfo = (w: Wallet): WalletInfoDTO => ({
   address: w.address as Address,
   kind: w.kind,
   connector: w.connector,
-  label: null,
+  label: w.label,
   account: true,
   createdAt: w.createdAt.toISOString(),
 });

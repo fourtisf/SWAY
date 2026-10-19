@@ -1,5 +1,5 @@
 'use client';
-import { CURVE, LEVEL_CUT, feePercent, keysToUnits, quoteWei, unitsToKeys, weiToEth, type QuoteWei } from '@sway/curve';
+import { ANTI_DUMP_BPS, CURVE, LEVEL_CUT, feePercent, inAntiDumpWindow, keysToUnits, quoteWei, unitsToKeys, weiToEth, type QuoteWei } from '@sway/curve';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useActions } from '@/lib/actions';
@@ -81,9 +81,14 @@ export function TradeSheet({ handle, side: side0 }: { handle: string; side: 'buy
   const base0 = amt ?? (buy ? 1 : Math.min(1, maxSell));
   const a = !buy && base0 > maxSell ? r2(maxSell) : base0;
   const units = keysToUnits(a);
+  // [D] Phase 4 rules the contract applies: the activity bond moves the creator's 6% to holders, and selling
+  // within 24h of this wallet's last buy here adds 5% for holders.
+  const creatorInactive = !!p.creatorInactive;
+  const dump = !buy && !!active && inAntiDumpWindow(p.lastBuyAt?.[active.address.toLowerCase()]);
+  const dumpPct = Number(ANTI_DUMP_BPS) / 100;
   let q: QuoteWei | null = null;
   try {
-    if (units >= 1n && (buy || units <= supply - locked)) q = quoteWei(supply, side, units, { level });
+    if (units >= 1n && (buy || units <= supply - locked)) q = quoteWei(supply, side, units, { level, creatorInactive, antiDump: dump });
   } catch {
     q = null;
   }
@@ -201,16 +206,23 @@ export function TradeSheet({ handle, side: side0 }: { handle: string; side: 'buy
               </span>
             </div>
             <button className={`fees-t ${showFees ? 'open' : ''}`} aria-expanded={showFees} onClick={() => setShowFees(!showFees)}>
-              Includes {feePercent(LEVEL_CUT[level] ?? 0)}% in fees
+              Includes {feePercent(LEVEL_CUT[level] ?? 0) + (dump ? dumpPct : 0)}% in fees
               <Icon name="chev" />
             </button>
             <div className={`fees ${showFees ? 'open' : ''}`}>
               {sum('Curve price', q ? weiToEth(q.base) : 0)}
-              {sum('Creator 6%', q ? weiToEth(q.creatorFee) : 0)}
+              {sum(creatorInactive ? 'Creator 6% (to holders)' : 'Creator 6%', q ? weiToEth(q.creatorFee) : 0)}
               {sum('Protocol 2%', q ? weiToEth(q.protocolFee) : 0)}
-              {sum('Holders 1%', q ? weiToEth(q.holderFee) : 0)}
+              {sum(creatorInactive ? 'Holders 1% + 6%' : 'Holders 1%', q ? weiToEth(q.holderFee - q.antiDumpFee) : 0)}
+              {dump && sum(`Early-sell fee ${dumpPct}% (to holders)`, q ? weiToEth(q.antiDumpFee) : 0)}
               {sum('Referral 1%', q ? weiToEth(q.referralFee) : 0)}
             </div>
+            {(dump || creatorInactive) && (
+              <div className="fee-note" id="feeNote">
+                {dump && <p>This wallet bought this key less than 24 hours ago, so selling now adds a {dumpPct}% fee that goes to holders.</p>}
+                {creatorInactive && <p>{p.name} hasn’t posted in their room for 7 days, so the 6% creator fee goes to holders until they do.</p>}
+              </div>
+            )}
           </div>
           {me && active && (
             <WalletSwitch

@@ -1,4 +1,4 @@
-import { ethToWei } from '@sway/curve';
+import { ethToWei, quoteWei, weiToEth } from '@sway/curve';
 import { swayDropsAbi } from '@sway/shared/abi';
 import { describe, expect, it } from 'vitest';
 import type { ContractCall } from '../wallet/types';
@@ -35,5 +35,26 @@ describe('[D] mock engagement', () => {
     expect(w.eth).toBeGreaterThan(before);
     expect(await api.claimableDrops()).toHaveLength(0);
     expect(() => w.mockContractWrite!(claim(BigInt(d!.amountWei)))).toThrow('AlreadyClaimed');
+  });
+});
+
+describe('[D] mock anti-dump and activity bond', () => {
+  it('prices a sell within 24h of a buy with the 5% holder fee, like the contract', async () => {
+    const api = getMockApi();
+    const w = getWorld();
+    await api.devLogin({ handle: 'dump_mock', followers: 2000 });
+    const h = Object.keys(w.C).find((k) => w.C[k]!.claimed && !w.C[k]!.isMe)!;
+    w.execTrade(h, 'buy', 200n);
+    const p = (await api.profile(h))!;
+    expect(Object.keys(p.lastBuyAt ?? {})).toEqual([w.user!.wallet.toLowerCase()]);
+    expect(p.creatorInactive).toBe(false);
+    const supply = BigInt(p.supplyUnits);
+    const expected = quoteWei(supply, 'sell', 100n, { antiDump: true });
+    expect(expected.antiDumpFee).toBeGreaterThan(0n);
+    const got = w.execTrade(h, 'sell', 100n);
+    expect(got).toBeCloseTo(weiToEth(expected.total), 12);
+    w.lastBuy[`${w.user!.wallet.toLowerCase()}|${h}`] = Date.now() - 25 * 3_600_000;
+    const later = quoteWei(BigInt((await api.profile(h))!.supplyUnits), 'sell', 50n);
+    expect(w.execTrade(h, 'sell', 50n)).toBeCloseTo(weiToEth(later.total), 12);
   });
 });
