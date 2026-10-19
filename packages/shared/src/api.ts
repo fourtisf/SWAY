@@ -597,3 +597,15 @@ export const ROUTES = {
  *   onboarding:                                                          R OnboardingStatus
  */
 export type RouteKey = keyof typeof ROUTES;
+
+/* ================================================================================================
+ * Workstream sections. New DTOs and route tables go in the section of the workstream that owns them
+ * (one vertical slice each: db → api → web). Each section has its own route table so they can be
+ * edited independently; typed clients cover ROUTES plus every *_ROUTES table.
+ * ============================================================================================== */
+
+/* ---------------------------------------------------------------- [A] wallets & funding */
+
+/* ---------------------------------------------------------------- [B] social, moderation, account & admin */
+
+/* ---------------------------------------------------------------- [C] launchpad, staking & genesis */

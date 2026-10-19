@@ -12,13 +12,15 @@
   },
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "vectors": "tsx scripts/airdrop-vectors.ts"
   },
   "dependencies": {
     "@sway/curve": "workspace:*",
     "viem": "2.57.2"
   },
   "devDependencies": {
-    "vitest": "3.2.7"
+    "vitest": "3.2.7",
+    "tsx": "4.23.15"
   }
 }

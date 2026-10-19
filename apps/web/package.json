@@ -20,6 +20,7 @@
     "@sway/shared": "workspace:*",
     "@tanstack/react-query": "5.104.1",
     "next": "14.2.35",
+    "qrcode": "1.5.4",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "viem": "2.57.2",
@@ -28,6 +29,7 @@
   },
   "devDependencies": {
     "@playwright/test": "1.56.1",
+    "@types/qrcode": "1.5.6",
     "@types/react": "18.3.31",
     "@types/react-dom": "18.3.7",
     "autoprefixer": "10.6.1",

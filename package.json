@@ -17,7 +17,7 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "test:contracts": "cd contracts && forge test",
-    "vectors": "pnpm --filter @sway/curve vectors",
+    "vectors": "pnpm --filter @sway/curve vectors && pnpm --filter @sway/shared vectors",
     "db:generate": "pnpm --filter @sway/db generate",
     "db:migrate": "pnpm --filter @sway/db migrate:dev",
     "db:deploy": "pnpm --filter @sway/db migrate:deploy",

@@ -116,6 +116,13 @@ model User {
   /// Cached ledger sum, rebuilt from PointsLedger by the points worker.
   ledgerPoints Int       @default(0)
   stakingLevel Int       @default(0)
+  /// Moderation and operations access (/admin). Bootstrapped from ADMIN_HANDLES.
+  isAdmin      Boolean   @default(false)
+  /// Why the bot/farm flag was set (heuristic name or "admin"), and when.
+  botReason    String?
+  botFlaggedAt DateTime?
+  /// Account deleted by its owner: personal data removed, onchain history kept under a neutral name.
+  deletedAt    DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -147,19 +154,47 @@ model User {
   genesisEntries  GenesisEntry[]
   launchToken     LaunchToken?
   claimRequests   ClaimRequest[]
+  linkedWallets   LinkedWallet[]
+  reports         Report[]           @relation("reporter")
+  reported        Report[]           @relation("reportedUser")
+  blocks          Block[]            @relation("blocker")
+  blockedBy       Block[]            @relation("blocked")
+  uploads         Upload[]
 
   @@index([joinedAt])
 }
 
 /// One wallet per member, one member per wallet.
+/// The member's account wallet: owns their key market onchain (subject), receives tips and the Genesis pass.
+/// Fixed once the market is open. More wallets can be added as LinkedWallet.
 model Wallet {
   id        String     @id @default(cuid())
   userId    String     @unique
   /// Lowercase hex.
   address   String     @unique
   kind      WalletKind
+  /// Wallet app used to connect ("sway", "metaMask", "coinbaseWallet", "rabby", "walletConnect", an EIP-6963
+  /// rdns…), for the logo.
+  connector String?
   createdAt DateTime   @default(now())
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Extra wallets a member links (by signature) to trade and hold keys. Their holdings count toward room
+/// access, points and the wallet page. An address belongs to at most one member across Wallet and
+/// LinkedWallet (enforced by the API in one transaction).
+model LinkedWallet {
+  id        String     @id @default(cuid())
+  userId    String
+  /// Lowercase hex.
+  address   String     @unique
+  kind      WalletKind @default(external)
+  connector String?
+  label     String?
+  createdAt DateTime   @default(now())
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model KeyMarket {
@@ -258,6 +293,13 @@ model Post {
   likeCount   Int        @default(0)
   repostCount Int        @default(0)
   replyCount  Int        @default(0)
+  /// Image URLs (served by the API from UPLOAD_DIR).
+  media       String[]   @default([])
+  /// Paid boost window; `boosted` stays for official/promoted posts.
+  boostedUntil DateTime?
+  boostTx     String?    @unique
+  /// Hidden by a moderator.
+  hiddenAt    DateTime?
   createdAt   DateTime   @default(now())
   deletedAt   DateTime?
   author      User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
@@ -266,6 +308,7 @@ model Post {
   likes       Like[]
   reposts     Repost[]
   tags        PostTag[]
+  reports     Report[]
 
   @@index([createdAt])
   @@index([authorId, createdAt])
@@ -579,16 +622,42 @@ model GenesisEntry {
 }
 
 model LaunchToken {
-  id           String    @id @default(cuid())
-  userId       String    @unique
-  symbol       String
-  name         String
-  previewOn    Boolean   @default(false)
-  tokenAddress String?   @unique
-  launchTx     String?
-  launchedAt   DateTime?
-  createdAt    DateTime  @default(now())
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String          @id @default(cuid())
+  userId           String          @unique
+  symbol           String
+  name             String
+  previewOn        Boolean         @default(false)
+  tokenAddress     String?         @unique
+  launchTx         String?
+  launchedAt       DateTime?
+  /// Terms signed by the operator (attestation) and the merkle root of the key-holder airdrop.
+  startCapWei      Decimal?        @db.Decimal(78, 0)
+  graduationCapWei Decimal?        @db.Decimal(78, 0)
+  airdropRoot      String?
+  /// Curve mirror (SwayLaunchpad Traded events).
+  ethReserveWei    Decimal         @default(0) @db.Decimal(78, 0)
+  tokenReserve     Decimal         @default(0) @db.Decimal(78, 0)
+  volumeWei        Decimal         @default(0) @db.Decimal(78, 0)
+  creatorFeesWei   Decimal         @default(0) @db.Decimal(78, 0)
+  graduated        Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  airdrops         LaunchAirdrop[]
+}
+
+/// One leaf of a launch's key-holder airdrop (10% of supply, pro rata to keys held at launch).
+model LaunchAirdrop {
+  launchTokenId String
+  /// Lowercase hex.
+  address       String
+  amount        Decimal     @db.Decimal(78, 0)
+  /// Merkle proof (bytes32[] as hex strings).
+  proof         Json
+  claimTx       String?
+  launchToken   LaunchToken @relation(fields: [launchTokenId], references: [id], onDelete: Cascade)
+
+  @@id([launchTokenId, address])
+  @@index([address])
 }
 
 /// Claim or takedown requests for fan markets (brief §9).
@@ -603,6 +672,53 @@ model ClaimRequest {
   createdAt DateTime  @default(now())
   market    KeyMarket @relation(fields: [marketId], references: [id], onDelete: Cascade)
   user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+enum ReportStatus {
+  open
+  actioned
+  dismissed
+}
+
+/// A member's report of a post or an account, reviewed in /admin.
+model Report {
+  id             String       @id @default(cuid())
+  reporterId     String
+  postId         String?
+  reportedUserId String?
+  reason         String
+  note           String?
+  status         ReportStatus @default(open)
+  resolvedById   String?
+  resolvedAt     DateTime?
+  createdAt      DateTime     @default(now())
+  reporter       User         @relation("reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  post           Post?        @relation(fields: [postId], references: [id], onDelete: Cascade)
+  reportedUser   User?        @relation("reportedUser", fields: [reportedUserId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+}
+
+/// Blocking hides the blocked member's posts, replies and DMs from the blocker, and stops their DMs.
+model Block {
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+  blocker   User     @relation("blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked   User     @relation("blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@id([blockerId, blockedId])
+}
+
+/// Images uploaded for posts (stored under UPLOAD_DIR, served at /api/uploads/:name).
+model Upload {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String   @unique
+  mime      String
+  bytes     Int
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 /// Indexer cursor and recent block hashes for reorg detection.
