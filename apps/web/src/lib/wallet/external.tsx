@@ -29,6 +29,7 @@ function wagmiWallet(cfg: Config, address: Address, swayKeys: Address | null, ch
     sell: (subject, units, minProceeds) => writeContract(cfg, { address: keys(), abi: swayKeysAbi, functionName: 'sell', args: [subject, units, minProceeds], chainId }),
     claim: (subjects) => writeContract(cfg, { address: keys(), abi: swayKeysAbi, functionName: 'claim', args: [subjects], chainId }),
     sendEth: (to, value) => sendTransaction(cfg, { to, value, chainId }),
+    writeContract: (call) => writeContract(cfg, { ...call, chainId } as never),
     async waitForReceipt(hash) {
       const r = await waitForTransactionReceipt(cfg, { hash, chainId });
       if (r.status !== 'success') throw new Error('Transaction reverted');

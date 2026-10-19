@@ -1,4 +1,13 @@
-import type { Address, Hex } from 'viem';
+import type { Abi, Address, Hex } from 'viem';
+
+/** Any other contract call (launchpad, staking, ERC-20 approve…). */
+export interface ContractCall {
+  address: Address;
+  abi: Abi | readonly unknown[];
+  functionName: string;
+  args?: readonly unknown[];
+  value?: bigint;
+}
 
 /** One wallet interface for the UI, whatever is behind it (burner, wagmi/RainbowKit, Privy, CDP, mock). */
 export interface SwayWallet {
@@ -12,6 +21,8 @@ export interface SwayWallet {
   /** SwayKeys.claim(subjects): creator, holder and referral earnings in one transaction. */
   claim(subjects: Address[]): Promise<Hex>;
   sendEth(to: Address, wei: bigint): Promise<Hex>;
+  /** Generic contract write for features beyond SwayKeys. */
+  writeContract(call: ContractCall): Promise<Hex>;
   /** Resolves once mined; throws if the transaction reverted. */
   waitForReceipt(hash: Hex): Promise<void>;
 }

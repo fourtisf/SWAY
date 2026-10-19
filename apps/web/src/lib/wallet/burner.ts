@@ -53,6 +53,7 @@ export function burnerWallet(pk: Hex, config: ConfigDTO): SwayWallet {
     sell: (subject, units, minProceeds) => wallet.writeContract({ address: keys(), abi: swayKeysAbi, functionName: 'sell', args: [subject, units, minProceeds] }),
     claim: (subjects) => wallet.writeContract({ address: keys(), abi: swayKeysAbi, functionName: 'claim', args: [subjects] }),
     sendEth: (to, value) => wallet.sendTransaction({ to, value }),
+    writeContract: (call) => wallet.writeContract(call as never),
     async waitForReceipt(hash) {
       const r = await pub.waitForTransactionReceipt({ hash });
       if (r.status !== 'success') throw new Error('Transaction reverted');

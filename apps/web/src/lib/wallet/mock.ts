@@ -46,6 +46,12 @@ export function mockWallet(address: Address): SwayWallet {
       w.txs.set(h, { to, eth });
       return h;
     },
+    async writeContract(call) {
+      // Mock-mode handlers for non-SwayKeys contracts register on the world (see lib/mock).
+      const h = w.mockContractWrite?.(call);
+      if (!h) throw new Error(`${call.functionName} isn't available in mock mode`);
+      return h;
+    },
     async waitForReceipt() {
       await new Promise((r) => setTimeout(r, 0));
     },

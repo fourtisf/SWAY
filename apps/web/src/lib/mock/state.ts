@@ -134,6 +134,8 @@ export class MockWorld {
   keyVolume = 0;
   earned = { creator: 0, holder: 0, ref: 0 };
   claimed = 0;
+  /** Mock handlers for SwayWallet.writeContract (launchpad, staking…): return a tx hash or null. */
+  mockContractWrite?: (call: import('../wallet/types').ContractCall) => `0x${string}` | null;
   rooms: Record<string, Msg[]> = {};
   backed: Record<string, { side: 'a' | 'b'; amt: number }> = {};
   myTrades: MyTrade[] = [];
