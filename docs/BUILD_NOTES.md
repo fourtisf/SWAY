@@ -79,7 +79,10 @@ deviates from it, and what is still open. Keep this current.
 5. **$SWAY token**: supply, staking thresholds, level names, Genesis pool size (`GENESIS_POOL_UNITS`, defaults to
    5% of 1B).
 6. **X API tier**: confirm the endpoints used (follows lookup, user timelines, tweet lookup) are in the plan, and
-   set the per-15-minute limits in `packages/x` accordingly. Set `X_LAUNCH_POST_ID` for the repost task.
+   set the per-15-minute limits in `packages/x` accordingly. Set `X_LAUNCH_POST_ID` for the repost task. On a plan
+   without user timelines (X's free tier) sign-in still works: new members are scored from the public profile
+   alone (followers, age, checkmark; no engagement or posting cadence) and a re-score job retries the read, so
+   scores, task checks and battles need a plan that includes those reads to be accurate.
 7. **Admin keys**: put the owner behind a multisig + timelock; move `OPERATOR_PRIVATE_KEY` / `ISSUER_PRIVATE_KEY`
    to a secrets manager; consider separating the operator (markets, referrers, fan claims) from the fan admin.
 8. **Launchpad**: pool venue and migration flow.

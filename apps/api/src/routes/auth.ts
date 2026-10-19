@@ -98,8 +98,9 @@ export async function authRoutes(app: FastifyInstance) {
       });
       const tokScope = 'tok:' + createHash('sha256').update(tokens.accessToken).digest('hex').slice(0, 16);
       const me = await xClient(app.deps, tokens.accessToken, tokScope).getMe();
-      // A returning member whose posts can't be read (X budget spent) signs in on their stored score and
-      // gets a refresh-score job; a new account needs the read to be scored at all.
+      // When the posts can't be read (X budget spent, or an API plan without user timelines), a returning
+      // member keeps their stored score and a new one is scored from the public profile alone (no posts, so no
+      // engagement or cadence); either way a refresh-score job re-scores once the read works.
       let scored: MemberScore | null = null;
       let refresh = false;
       try {
@@ -107,8 +108,12 @@ export async function authRoutes(app: FastifyInstance) {
         const { inputs, result } = scoreXAccount(me, posts);
         scored = { inputs, score: result.score, value: result.value };
       } catch (e) {
+        req.log.warn({ err: e, xId: me.id }, 'X posts unreadable at sign-in; scoring later');
         const known = await prisma.user.findUnique({ where: { xId: me.id }, select: { scoredAt: true } });
-        if (!isXBudgetExceeded(e) || !known?.scoredAt) throw e;
+        if (!known?.scoredAt) {
+          const { inputs, result } = scoreXAccount(me, []);
+          scored = { inputs, score: result.score, value: result.value };
+        }
         refresh = true;
       }
       const profile: MemberProfile = {

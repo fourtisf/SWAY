@@ -91,6 +91,11 @@ export function ConnectModal() {
             </button>
           </>
         )}
+        {cfg && !x && !dev && (
+          <div className="note" id="xOff">
+            Sign-in with X isn’t switched on yet. You can browse everything as a guest in the meantime.
+          </div>
+        )}
         <p className="t3" style={{ fontSize: 12, textAlign: 'center', margin: '12px 0 0' }}>
           Next, create a Sway wallet on Robinhood Chain or connect your own.
         </p>

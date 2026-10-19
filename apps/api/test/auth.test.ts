@@ -258,7 +258,7 @@ describe('X OAuth 2.0 PKCE', () => {
     }
   });
 
-  it('when the X budget runs out mid sign-in: returning members get in and are queued for a rescore', async () => {
+  it('when posts can\'t be read at sign-in: new members are scored from the profile, everyone is queued for a rescore', async () => {
     const xFetch = (async (input: string | URL | Request) => {
       const url = new URL(String(input));
       const res = (b: unknown, status = 200, h: Record<string, string> = {}) =>
@@ -283,25 +283,19 @@ describe('X OAuth 2.0 PKCE', () => {
         return x.app.inject({ url: `/api/auth/x/callback?code=c&state=${state}` });
       };
       const first = await signIn();
-      expect(first.headers.location).toBe('http://localhost:3000/?auth_error=x_budget');
-      expect(await prisma.user.count({ where: { xId: '5150' } })).toBe(0);
+      expect(first.headers.location).toBe('http://localhost:3000/?onboard=1');
+      const created = await prisma.user.findUniqueOrThrow({ where: { xId: '5150' } });
+      expect(created.scoredAt).not.toBeNull();
+      expect(created.joinedAt).not.toBeNull();
+      expect(x.jobs.refreshes).toEqual([created.id]);
 
-      await prisma.user.create({
-        data: {
-          xId: '5150',
-          handle: 'budgeted',
-          name: 'B',
-          score: 42,
-          scoredAt: new Date(),
-          joinedAt: new Date(),
-          memberNo: 7,
-        },
-      });
+      // A returning member keeps the stored score (not a fresh profile-only one).
+      await prisma.user.update({ where: { id: created.id }, data: { score: 42 } });
       const again = await signIn();
       expect(again.headers.location).toBe('http://localhost:3000/?onboard=1');
       const u = await prisma.user.findUniqueOrThrow({ where: { xId: '5150' } });
       expect(u.score).toBe(42);
-      expect(x.jobs.refreshes).toEqual([u.id]);
+      expect(x.jobs.refreshes).toEqual([u.id, u.id]);
     } finally {
       await x.close();
     }
