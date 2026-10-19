@@ -141,7 +141,8 @@ export default function ExternalWalletRoot({ config }: { config: ConfigDTO }) {
       chains: [chain],
       connectors: [
         injected({ shimDisconnect: true }),
-        coinbaseWallet({ appName: 'Sway' }),
+        // No Coinbase analytics script on every page view.
+        coinbaseWallet({ appName: 'Sway', preference: { options: 'all', telemetry: false } }),
         ...(projectId
           ? [walletConnect({ projectId, showQrModal: false, metadata: { name: 'Sway', description: 'Your X reach, as a market', url: origin, icons: [`${origin}/icon.svg`] } })]
           : []),

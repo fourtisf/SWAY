@@ -74,7 +74,7 @@ export function memberWalletsOf(
   const infos: WalletInfoDTO[] =
     me.wallets ??
     (me.wallet ? [{ address: me.wallet.address, kind: me.wallet.kind, connector: me.wallet.kind === 'embedded' ? 'sway' : null, label: null, account: true, createdAt: '' }] : []);
-  return infos.map((w) => {
+  const list = infos.map((w) => {
     let wallet: SwayWallet | null = null;
     let status: MemberWallet['status'];
     if (MOCK) {
@@ -91,6 +91,13 @@ export function memberWalletsOf(
       status = wallet ? 'ready' : 'missing-key';
     }
     return { ...w, wallet, status, usable: !!wallet, name: w.label || name(w) };
+  });
+  // Two unlabelled wallets of the same app read "Sway wallet", "Sway wallet 2", …
+  const seen = new Map<string, number>();
+  return list.map((w) => {
+    const n = (seen.get(w.name) ?? 0) + 1;
+    seen.set(w.name, n);
+    return n > 1 && !w.label ? { ...w, name: `${w.name} ${n}` } : w;
   });
 }
 

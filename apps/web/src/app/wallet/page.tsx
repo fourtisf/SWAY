@@ -293,7 +293,7 @@ export default function WalletPage() {
               <div className="num">
                 <b>{F.$(weiToEth(h.valueWei))}</b>
                 {pl ? (
-                  <small className={pl.pct >= 0 ? 'up' : 'dn'} title={`Paid ${F.$(weiToEth(h.costBasisWei ?? '0'))}`}>
+                  <small className={`pnl ${pl.pct >= 0 ? 'up' : 'dn'}`} title={`Profit or loss on ${F.$(weiToEth(h.costBasisWei ?? '0'))} paid`}>
                     {pl.text}
                   </small>
                 ) : (

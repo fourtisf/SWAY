@@ -33,7 +33,10 @@
     ".next-e2e-c/types/**/*.ts",
     ".next-e2e-a/types/**/*.ts",
     ".next-e2e-b/types/**/*.ts",
-    ".next-c/types/**/*.ts"
+    ".next-c/types/**/*.ts",
+    ".next-a/types/**/*.ts",
+    ".next-build-b/types/**/*.ts",
+    ".next-b/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

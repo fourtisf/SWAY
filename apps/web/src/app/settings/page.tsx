@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { AppearanceSettings, NotificationSettings } from '@/components/engage/Engage'; // [D]
 import { Icon } from '@/components/icons';
 import { Avatar, Loading, NeedUser, VB } from '@/components/ui';
 import { errorMessage, getApi } from '@/lib/api';
@@ -138,6 +139,10 @@ export default function SettingsPage() {
           </div>
         </>
       )}
+
+      {/* [D] appearance and notification preferences */}
+      <AppearanceSettings />
+      <NotificationSettings />
 
       <div className="sec-h">
         <h2>Your data</h2>

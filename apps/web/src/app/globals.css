@@ -613,7 +613,8 @@ input[type=range]{width:100%;accent-color:var(--blue);height:4px}
 .wl-sub{font-size:14px}
 .wl-menu{position:relative;width:32px;height:32px;cursor:pointer}
 .wl-menu .sres{top:calc(100% + 6px);left:auto;right:0;min-width:210px;font-weight:600;font-size:15px}
-.wl-foot{padding:10px 16px 4px;font-size:13px}
+.wl-foot{padding:10px 16px 16px;font-size:13px}
+.num small.pnl.up{color:var(--aqua)}.num small.pnl.dn{color:var(--red)}
 .wl-in{display:inline-flex;align-items:center;gap:4px;font-size:13px;color:var(--tx2);min-width:0}
 .wl-in .wlogo{border-radius:4px!important}
 .sb-wallet{margin:0 0 10px}

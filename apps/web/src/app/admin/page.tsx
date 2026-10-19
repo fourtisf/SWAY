@@ -340,10 +340,16 @@ function FanMarketForm() {
 function Markets() {
   const [q, setQ] = useState('');
   const F = useFormat();
-  const { data } = useQuery({ queryKey: sk.admin('markets', q.trim()), queryFn: () => api().adminMarkets({ q: q.trim() || undefined }), placeholderData: (d) => d });
+  const { data } = useQuery({
+    queryKey: sk.admin('markets', q.trim()),
+    queryFn: () => api().adminMarkets({ q: q.trim() || undefined }),
+    placeholderData: (d) => d,
+    // A fan market shows as opening until the indexer sees MarketOpened.
+    refetchInterval: (qq) => (qq.state.data?.some((m) => !m.opened) ? 3000 : false),
+  });
   const { busy, run, qc } = useRun();
   // The indexer mirrors MarketHalted a block or two after the receipt.
-  const later = () => setTimeout(() => qc.invalidateQueries({ queryKey: ['admin'] }), 2500);
+  const later = () => [2500, 6000, 12000].forEach((ms) => setTimeout(() => qc.invalidateQueries({ queryKey: ['admin'] }), ms));
   return (
     <>
       <FanMarketForm />
