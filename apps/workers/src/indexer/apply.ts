@@ -32,9 +32,13 @@ const keysLabel = (units: bigint) => {
   return `${s} key${k === 1 ? '' : 's'}`;
 };
 
+/** The member owning `address`: their account wallet or one of their linked wallets. */
 async function memberByAddress(tx: Tx, address: string) {
-  const w = await tx.wallet.findUnique({ where: { address: addr(address) }, include: { user: true } });
-  return w?.user ?? null;
+  const a = addr(address);
+  const w = await tx.wallet.findUnique({ where: { address: a }, include: { user: true } });
+  if (w) return w.user;
+  const l = await tx.linkedWallet.findUnique({ where: { address: a }, include: { user: true } });
+  return l?.user ?? null;
 }
 
 /** Percent change of price over the last 24 trades (the prototype's change), from the Trade mirror. */

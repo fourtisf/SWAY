@@ -201,3 +201,36 @@ export async function payWeeklyPrizes(c: Clients, now = new Date()): Promise<num
   await publishNotifications(c, notes);
   return prizes.length;
 }
+
+/**
+ * While a battle is live, refresh each side's engagement rate (one X read per side per run, within the
+ * X budget). With the simulated reader (local dev) the rates take a small random walk instead.
+ */
+export async function refreshLiveBattles(c: Clients, reader: BattleReader): Promise<number> {
+  const live = await c.prisma.battle.findMany({ where: { status: 'live', bId: { not: null } }, include: { a: true, b: true } });
+  let updated = 0;
+  for (const b of live) {
+    let erA = b.erA;
+    let erB = b.erB;
+    if (reader.kind === 'simulated') {
+      const walk = (er: number) => Math.max(0.0001, (er || 0.01) * (1 + (Math.random() - 0.5) * 0.06));
+      erA = walk(b.erA);
+      erB = walk(b.erB);
+    } else {
+      try {
+        const ra = await reader.read(b, b.a, 'a');
+        const rb = await reader.read(b, b.b!, 'b');
+        if (ra.posted) erA = battleScore(ra.metrics, ra.followers);
+        if (rb.posted) erB = battleScore(rb.metrics, rb.followers);
+      } catch (e) {
+        if (isXBudgetExceeded(e)) break;
+        throw e;
+      }
+    }
+    if (erA !== b.erA || erB !== b.erB) {
+      await c.prisma.battle.update({ where: { id: b.id }, data: { erA, erB } });
+      updated++;
+    }
+  }
+  return updated;
+}

@@ -13,7 +13,9 @@ import { Indexer } from './indexer/indexer';
 import { refreshPrice } from './jobs/price';
 import { recountPoints } from './jobs/points';
 import { creditReferrals } from './jobs/referrals';
-import { payWeeklyPrizes, simulatedBattleReader, tickBattles, xBattleReader } from './jobs/battles';
+import { payWeeklyPrizes, refreshLiveBattles, simulatedBattleReader, tickBattles, xBattleReader } from './jobs/battles';
+import { flagBots } from './jobs/bots';
+import { recordJob, startHealthServer } from './health';
 import { genesisTick } from './jobs/genesis';
 import { X_QUEUE, recheckTrusted, refreshScore, runVerifyTask, sweepScores, type VerifyTaskJob } from './jobs/xjobs';
 
@@ -39,6 +41,8 @@ async function main() {
   await cron.upsertJobScheduler('scores', every(15 * 60_000));
   await cron.upsertJobScheduler('trusted-recheck', every(30 * 60_000));
   await cron.upsertJobScheduler('genesis', every(60_000));
+  await cron.upsertJobScheduler('live-battles', every(10 * 60_000));
+  await cron.upsertJobScheduler('bot-flags', every(10 * 60_000));
 
   const handlers: Record<string, () => Promise<unknown>> = {
     price: () => refreshPrice(c),
@@ -49,6 +53,8 @@ async function main() {
     scores: () => sweepScores(c),
     'trusted-recheck': () => recheckTrusted(c),
     genesis: () => genesisTick(c),
+    'live-battles': () => refreshLiveBattles(c, battleReader),
+    'bot-flags': () => flagBots(c),
   };
   const cronWorker = new Worker(
     CRON_QUEUE,
@@ -59,7 +65,11 @@ async function main() {
     },
     { connection, concurrency: 4 },
   );
-  cronWorker.on('failed', (job, err) => console.error(`[cron] ${job?.name} failed:`, err.message));
+  cronWorker.on('completed', (job) => recordJob.ok(job.name));
+  cronWorker.on('failed', (job, err) => {
+    if (job) recordJob.failed(job.name, err);
+    console.error(`[cron] ${job?.name} failed:`, err.message);
+  });
 
   // ---- X jobs from the API
   const xWorker = new Worker(
@@ -96,12 +106,14 @@ async function main() {
   } else console.log('[indexer] another instance holds the lock; standing by');
 
   await refreshPrice(c);
+  const health = startHealthServer(c);
   console.log(`[workers] up on chain ${cfg.chainId}`);
 
   const shutdown = async () => {
     console.log('[workers] shutting down');
     clearInterval(lockLoop);
     indexer.stop();
+    health?.close();
     if (leading && (await c.redis.get(LOCK_KEY)) === me) await c.redis.del(LOCK_KEY);
     await Promise.allSettled([cronWorker.close(), xWorker.close(), cron.close()]);
     await c.prisma.$disconnect();

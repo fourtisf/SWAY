@@ -58,3 +58,48 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+
+  # The Phase 1 definition of done against a real local stack: anvil + api + workers.
+  e2e-stack:
+    runs-on: ubuntu-latest
+    needs: [contracts, apps]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: sway
+          POSTGRES_PASSWORD: sway
+          POSTGRES_DB: sway
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sway" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: foundry-rs/foundry-toolchain@v1
+      - run: pnpm install --frozen-lockfile
+      - run: cp .env.example .env
+      - run: pnpm db:deploy
+      - name: start anvil and deploy contracts
+        run: |
+          anvil --chain-id 31337 --block-time 1 --silent &
+          sleep 2
+          bash scripts/deploy-local.sh
+      - run: pnpm --filter @sway/api build && pnpm --filter @sway/workers build
+      - name: start api and workers
+        run: |
+          (cd apps/api && node --env-file=../../.env dist/main.js > ../../api.log 2>&1 &)
+          (cd apps/workers && node --env-file=../../.env dist/main.js > ../../workers.log 2>&1 &)
+          for i in $(seq 1 30); do curl -sf localhost:4000/api/config >/dev/null && break; sleep 1; done
+      - run: pnpm --filter @sway/workers e2e:stack
+      - if: failure()
+        run: tail -n 200 api.log workers.log

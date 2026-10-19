@@ -1,6 +1,8 @@
 import type { Clients } from '../clients';
 import { PRICE_KEY } from '../clients';
 
+let failing = false;
+
 /** Reads ETH/USD from ETH_USD_FEED_URL into Redis (refreshed every ≤60s; brief §3). */
 export async function refreshPrice(c: Clients): Promise<number | null> {
   const url = c.cfg.ethUsdFeedUrl;
@@ -12,9 +14,13 @@ export async function refreshPrice(c: Clients): Promise<number | null> {
     if (!v) throw new Error('unrecognised price payload');
     await c.redis.set(PRICE_KEY, String(v), 'EX', 600);
     await c.publish({ kind: 'price', ethUsd: v });
+    if (failing) console.log('[price] feed recovered');
+    failing = false;
     return v;
   } catch (e) {
-    console.warn(`[price] ${url}: ${(e as Error).message}; keeping the last price`);
+    // Log transitions only; a dead feed would otherwise warn every 30 seconds.
+    if (!failing) console.warn(`[price] ${url}: ${(e as Error).message}; keeping the last price until the feed recovers`);
+    failing = true;
     return null;
   }
 }

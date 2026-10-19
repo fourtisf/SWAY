@@ -12,13 +12,15 @@ import { sellValueWei } from '../indexer/apply';
 
 export async function recountPoints(c: Clients): Promise<{ members: number; changed: number }> {
   const { prisma } = c;
-  const [holdings, wallets, sums, members] = await Promise.all([
+  const [holdings, wallets, linked, sums, members] = await Promise.all([
     prisma.holding.findMany({ where: { units: { gt: 0n } }, include: { market: { select: { userId: true, supplyUnits: true } } } }),
     prisma.wallet.findMany({ select: { address: true, userId: true } }),
+    prisma.linkedWallet.findMany({ select: { address: true, userId: true } }),
     prisma.pointsLedger.groupBy({ by: ['userId'], _sum: { amount: true } }),
     prisma.user.findMany({ where: { joinedAt: { not: null } }, select: { id: true, score: true, heldPoints: true, ledgerPoints: true, tier: true } }),
   ]);
-  const owner = new Map(wallets.map((w) => [w.address, w.userId]));
+  // Keys in any of a member's wallets (account or linked) count toward their held points.
+  const owner = new Map([...wallets, ...linked].map((w) => [w.address, w.userId]));
   const heldEth = new Map<string, number>();
   for (const h of holdings) {
     const userId = owner.get(h.address);

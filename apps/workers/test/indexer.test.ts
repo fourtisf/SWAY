@@ -7,7 +7,9 @@ import { Redis } from 'ioredis';
 import type { Address } from 'viem';
 import { priceWei, quoteWei } from '@sway/curve';
 import { fanSubject } from '@sway/shared';
-import { swayKeysAbi } from '@sway/shared/abi';
+import { swayKeysAbi, swayLaunchpadAbi } from '@sway/shared/abi';
+import { privateKeyToAccount } from 'viem/accounts';
+import { erc20Abi } from 'viem';
 import { prisma, decToBig } from '@sway/db';
 import { startChain, KEYS, type TestChain } from './anvil';
 import { loadConfig } from '../src/config';
@@ -47,6 +49,7 @@ beforeAll(async () => {
     FAN_ESCROW_ADDRESS: chain.deployment.fanEscrow,
     SWAY_STAKING_ADDRESS: chain.deployment.swayStaking,
     GENESIS_PASS_ADDRESS: chain.deployment.genesisPass,
+    LAUNCHPAD_ADDRESS: chain.deployment.launchpad,
     OPERATOR_PRIVATE_KEY: KEYS[0],
     INDEXER_START_BLOCK: '0',
     INDEXER_CONFIRMATIONS: '0',
@@ -167,5 +170,40 @@ describe('indexer', () => {
     expect(decToBig(fm.creatorFeesWei)).toBeGreaterThan(0n);
     const h = await prisma.holding.findUniqueOrThrow({ where: { marketId_address: { marketId: fm.id, address: dave.toLowerCase() } } });
     expect(h.units).toBe(100n);
+  });
+
+  it('mirrors a token launch and curve trades', async () => {
+    const pad = chain.deployment.launchpad as Address;
+    const alice = chain.wallet(1);
+    const bob = chain.wallet(2);
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
+    const root = '0x' + '00'.repeat(32);
+    const digest = (await chain.pub.readContract({
+      address: pad, abi: swayLaunchpadAbi, functionName: 'launchDigest',
+      args: [alice.address, 'Alice', 'ALICE', 10n ** 18n, 20n * 10n ** 18n, root as `0x${string}`, deadline],
+    })) as `0x${string}`;
+    const signature = await privateKeyToAccount(KEYS[0]!).sign({ hash: digest });
+    let hash = await alice.writeContract({
+      address: pad, abi: swayLaunchpadAbi, functionName: 'launch',
+      args: ['Alice', 'ALICE', 10n ** 18n, 20n * 10n ** 18n, root as `0x${string}`, deadline, signature], chain: alice.chain, account: alice.account!,
+    });
+    await chain.pub.waitForTransactionReceipt({ hash });
+    const token = (await chain.pub.readContract({ address: pad, abi: swayLaunchpadAbi, functionName: 'tokenOf', args: [alice.address] })) as Address;
+    hash = await bob.writeContract({ address: pad, abi: swayLaunchpadAbi, functionName: 'buy', args: [token, 0n], value: 10n ** 17n, chain: bob.chain, account: bob.account! });
+    await chain.pub.waitForTransactionReceipt({ hash });
+    await catchUp();
+
+    const aliceUser = await prisma.user.findUniqueOrThrow({ where: { handle: 'alice' } });
+    const lt = await prisma.launchToken.findUniqueOrThrow({ where: { userId: aliceUser.id } });
+    expect(lt.tokenAddress).toBe(token.toLowerCase());
+    expect(lt.symbol).toBe('ALICE');
+    const curve = (await chain.pub.readContract({ address: pad, abi: swayLaunchpadAbi, functionName: 'curves', args: [token] })) as readonly unknown[];
+    expect(decToBig(lt.ethReserveWei)).toBe(curve[2] as bigint);
+    expect(decToBig(lt.tokenReserve)).toBe(curve[3] as bigint);
+    expect(decToBig(lt.creatorFeesWei)).toBe(10n ** 15n);
+    const bobUser = await prisma.user.findUniqueOrThrow({ where: { handle: 'bob' } });
+    const bal = (await chain.pub.readContract({ address: token, abi: erc20Abi, functionName: 'balanceOf', args: [bob.address] })) as bigint;
+    expect(bal).toBeGreaterThan(0n);
+    expect(await prisma.activity.count({ where: { userId: bobUser.id, label: { contains: '$ALICE' } } })).toBe(1);
   });
 });

@@ -6,7 +6,7 @@
  * (append-only) points entries.
  */
 import { parseEventLogs, type Log } from 'viem';
-import { genesisPassAbi, swayKeysAbi, swayStakingAbi } from '@sway/shared/abi';
+import { genesisPassAbi, swayKeysAbi, swayLaunchpadAbi, swayStakingAbi } from '@sway/shared/abi';
 import { addr } from '@sway/db';
 import type { Clients } from '../clients';
 import { publishNotifications } from '../notify';
@@ -23,6 +23,7 @@ import {
   type LogMeta,
 } from './apply';
 import { rebuildMarket } from './rebuild';
+import { onAirdropClaimed, onCreatorFeesClaimed, onGraduated, onLaunched, onLaunchTraded, resyncLaunches } from './launchpad';
 
 export const CURSOR = 'sway';
 const KEEP_BLOCKS = 2_000n;
@@ -40,8 +41,8 @@ export class Indexer {
   constructor(private readonly c: Clients) {}
 
   private get addresses(): `0x${string}`[] {
-    const { swayKeys, swayStaking, genesisPass } = this.c.cfg.contracts;
-    return [swayKeys, swayStaking, genesisPass].filter(Boolean) as `0x${string}`[];
+    const { swayKeys, swayStaking, genesisPass, launchpad } = this.c.cfg.contracts;
+    return [swayKeys, swayStaking, genesisPass, launchpad].filter(Boolean) as `0x${string}`[];
   }
 
   async run(): Promise<void> {
@@ -124,12 +125,13 @@ export class Indexer {
   }
 
   private decode(raw: Log[]) {
-    const { swayKeys, swayStaking, genesisPass } = this.c.cfg.contracts;
+    const { swayKeys, swayStaking, genesisPass, launchpad } = this.c.cfg.contracts;
     const pick = (a: string | null) => raw.filter((l) => a && l.address.toLowerCase() === a.toLowerCase());
     const all = [
       ...parseEventLogs({ abi: swayKeysAbi, logs: pick(swayKeys) }).map((e) => ({ src: 'keys' as const, e, log: e as Log })),
       ...parseEventLogs({ abi: swayStakingAbi, logs: pick(swayStaking) }).map((e) => ({ src: 'staking' as const, e, log: e as Log })),
       ...parseEventLogs({ abi: genesisPassAbi, logs: pick(genesisPass) }).map((e) => ({ src: 'genesis' as const, e, log: e as Log })),
+      ...parseEventLogs({ abi: swayLaunchpadAbi, logs: pick(launchpad) }).map((e) => ({ src: 'launchpad' as const, e, log: e as Log })),
     ];
     return all.sort((x, y) => (x.log.blockNumber === y.log.blockNumber ? x.log.logIndex! - y.log.logIndex! : x.log.blockNumber! < y.log.blockNumber! ? -1 : 1));
   }
@@ -161,6 +163,23 @@ export class Indexer {
           return onStake(ctx, m, { account: e.args.account, delta: e.args.amount, level: e.args.level });
         case 'UnstakeRequested':
           return onStake(ctx, m, { account: e.args.account, delta: -e.args.amount, level: e.args.level, unlockAt: e.args.unlockAt });
+        default:
+          return;
+      }
+    }
+    if (ev.src === 'launchpad') {
+      const e = ev.e as ReturnType<typeof parseEventLogs<typeof swayLaunchpadAbi>>[number];
+      switch (e.eventName) {
+        case 'Launched':
+          return onLaunched(ctx, m, e.args);
+        case 'Traded':
+          return onLaunchTraded(ctx, m, e.args);
+        case 'Graduated':
+          return onGraduated(ctx, m, e.args);
+        case 'AirdropClaimed':
+          return onAirdropClaimed(ctx, m, e.args);
+        case 'CreatorFeesClaimed':
+          return onCreatorFeesClaimed(ctx, m, e.args);
         default:
           return;
       }
@@ -222,6 +241,7 @@ export class Indexer {
       },
       { timeout: 120_000 },
     );
+    await resyncLaunches(this.c).catch((e) => console.error('[indexer] launch resync after reorg failed', e));
     return to;
   }
 }

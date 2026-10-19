@@ -25,6 +25,7 @@ export interface WorkerConfig {
     fanEscrow: Address | null;
     swayStaking: Address | null;
     genesisPass: Address | null;
+    launchpad: Address | null;
   };
   operatorKey: Hex | null;
   issuerKey: Hex | null;
@@ -57,6 +58,7 @@ export function loadConfig(): WorkerConfig {
       fanEscrow: addrOrNull('FAN_ESCROW_ADDRESS'),
       swayStaking: addrOrNull('SWAY_STAKING_ADDRESS'),
       genesisPass: addrOrNull('GENESIS_PASS_ADDRESS'),
+      launchpad: addrOrNull('LAUNCHPAD_ADDRESS'),
     },
     operatorKey: keyOrNull('OPERATOR_PRIVATE_KEY'),
     issuerKey: keyOrNull('ISSUER_PRIVATE_KEY'),
