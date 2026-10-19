@@ -34,12 +34,26 @@ export async function requireAdmin(req: FastifyRequest): Promise<Viewer> {
 }
 
 /** Every admin action goes to the app log: who, what, on what. */
-export function adminLog(req: FastifyRequest, v: Viewer, action: string, target: string, extra: object = {}): void {
-  req.log.info({ admin: { actor: v.user.handle, actorId: v.user.id, action, target, ...extra } }, `admin ${action} ${target}`);
+export function adminLog(
+  req: FastifyRequest,
+  v: Viewer,
+  action: string,
+  target: string,
+  extra: object = {},
+): void {
+  req.log.info(
+    { admin: { actor: v.user.handle, actorId: v.user.id, action, target, ...extra } },
+    `admin ${action} ${target}`,
+  );
 }
 
 /** ADMIN_HANDLES bootstraps admins at every sign-in (it only grants; the panel can revoke). */
-export async function bootstrapAdmin(prisma: PrismaClient, config: Config, userId: string, handle: string): Promise<void> {
+export async function bootstrapAdmin(
+  prisma: PrismaClient,
+  config: Config,
+  userId: string,
+  handle: string,
+): Promise<void> {
   if (!config.adminHandles.includes(normalizeHandle(handle))) return;
   await prisma.user.updateMany({ where: { id: userId, isAdmin: false }, data: { isAdmin: true } });
 }
@@ -61,7 +75,11 @@ export function sniffImage(b: Buffer): UploadMime | null {
   if (b.length >= 8 && b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])))
     return 'image/png';
   if (b.length >= 6 && /^GIF8[79]a$/.test(b.subarray(0, 6).toString('latin1'))) return 'image/gif';
-  if (b.length >= 12 && b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP')
+  if (
+    b.length >= 12 &&
+    b.subarray(0, 4).toString('latin1') === 'RIFF' &&
+    b.subarray(8, 12).toString('latin1') === 'WEBP'
+  )
     return 'image/webp';
   return null;
 }
@@ -81,7 +99,10 @@ export async function resolveMedia(prisma: PrismaClient, userId: string, urls: s
     if (!names.includes(name)) names.push(name);
   }
   if (!names.length) return [];
-  const own = await prisma.upload.findMany({ where: { userId, name: { in: names } }, select: { name: true } });
+  const own = await prisma.upload.findMany({
+    where: { userId, name: { in: names } },
+    select: { name: true },
+  });
   if (own.length !== names.length) throw badRequest('bad_media', 'Attach images you uploaded to Sway');
   return names.map(uploadUrl);
 }

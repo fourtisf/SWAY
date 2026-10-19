@@ -22,7 +22,8 @@ import { swayLaunchpadAbi, swayStakingAbi } from '@sway/shared/abi';
 import { errorMessage, getApi, isAuthRequired } from './api';
 import { qk, qkLaunch, useConfig, useMe } from './queries';
 import { closeModal, openModal, toast } from './store';
-import { useExternalWallet, useSwayWallet, type SwayWallet } from './wallet';
+import { useMemberWallets, useSwayWallet, type SwayWallet } from './wallet';
+import { openConnectWallet } from './wallet-actions';
 
 const api = () => getApi();
 const same = (a?: string | null, b?: string | null) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
@@ -55,24 +56,31 @@ export function useLaunchActions() {
   const me = useMe().data ?? null;
   const config = useConfig().data;
   const { wallet, status } = useSwayWallet();
+  const { wallets } = useMemberWallets();
 
   const fail = (e: unknown) => {
     if (!isAuthRequired(e)) toast(errorMessage(e));
   };
 
-  /** The connected wallet, optionally required to be `address` (the wallet that owns the market/allocation). */
+  /**
+   * The active wallet, or with `address` the member's wallet at that address (the one that owns the market,
+   * the airdrop allocation or the stake), whether or not it is the active one.
+   */
   const needWallet = (address?: string | null): SwayWallet | null => {
     if (!me) {
       openModal({ type: 'connect' });
       return null;
     }
+    const owner = address ? wallets.find((w) => same(w.address, address)) : null;
+    if (owner?.wallet) return owner.wallet;
+    if (owner && owner.status === 'needs-external') {
+      openConnectWallet(owner.address);
+      return null;
+    }
     if (!wallet) {
       if (status === 'none') openModal({ type: 'onboard' });
-      else if (status === 'needs-external') {
-        const oc = useExternalWallet.getState().openConnect;
-        if (oc) oc();
-        else toast('Connect your wallet to continue');
-      } else if (status === 'missing-key') toast('Your Sway wallet key isn’t on this device');
+      else if (status === 'needs-external') openConnectWallet();
+      else if (status === 'missing-key') toast('Your Sway wallet key isn’t on this device');
       else toast('Embedded wallets aren’t available yet. Use your own wallet.');
       return null;
     }

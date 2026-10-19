@@ -130,12 +130,12 @@ export function loadCatalog(): Promise<Record<WalletApp, WalletMeta>> {
 const useCatalogStore = create<{ apps: Partial<Record<WalletApp, WalletMeta>>; loaded: boolean }>(() => ({ apps: {}, loaded: false }));
 
 /** Curated wallet metadata (empty until loaded; components re-render when the logos arrive). */
-export function useWalletCatalog(): Partial<Record<WalletApp, WalletMeta>> {
+export function useWalletCatalog(enabled = true): Partial<Record<WalletApp, WalletMeta>> {
   const apps = useCatalogStore((s) => s.apps);
   const loaded = useCatalogStore((s) => s.loaded);
   useEffect(() => {
-    if (!loaded) loadCatalog().then((a) => useCatalogStore.setState({ apps: a, loaded: true }), () => useCatalogStore.setState({ loaded: true }));
-  }, [loaded]);
+    if (enabled && !loaded) loadCatalog().then((a) => useCatalogStore.setState({ apps: a, loaded: true }), () => useCatalogStore.setState({ loaded: true }));
+  }, [enabled, loaded]);
   return apps;
 }
 

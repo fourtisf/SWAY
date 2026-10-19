@@ -174,3 +174,22 @@ describe('referral dashboard', () => {
     ctx.chain.claim = { creator: 0n, holder: 0n, referral: 0n, protocol: 0n };
   });
 });
+
+describe('profile: activity bond and anti-dump window', () => {
+  it('reports creatorInactive and the viewer\'s last buy per wallet', async () => {
+    const creator = await member(ctx, 'quietcreator');
+    const market = await openMarketRow(creator, 300n);
+    const fan = await member(ctx, 'fanbuyer');
+    const t = (ts: Date, isBuy: boolean, i: number) => ({
+      txHash: fakeHash(), logIndex: i, blockNumber: 1n, blockHash: '0x1', marketId: market.id, trader: fan.address, isBuy, units: 100n,
+      baseWei: dec(1n), creatorFeeWei: dec(0), protocolFeeWei: dec(0), holderFeeWei: dec(0), referralFeeWei: dec(0), totalWei: dec(1n), supplyAfter: 300n, ts,
+    });
+    const lastBuy = new Date(Date.now() - 3_600_000);
+    await prisma.trade.createMany({ data: [t(new Date(Date.now() - 86_400_000 * 3), true, 0), t(lastBuy, true, 1), t(new Date(), false, 2)] });
+    await prisma.keyMarket.update({ where: { id: market.id }, data: { creatorInactive: true } });
+    const p = json(await req('GET', '/api/users/quietcreator', fan.cookie));
+    expect(p.creatorInactive).toBe(true);
+    expect(p.lastBuyAt).toEqual({ [fan.address]: lastBuy.toISOString() });
+    expect(json(await req('GET', '/api/users/quietcreator')).lastBuyAt).toEqual({});
+  });
+});

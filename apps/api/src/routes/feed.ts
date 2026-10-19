@@ -42,7 +42,10 @@ const FeedQuery = z.object({
   cursor: z.string().max(400).optional(),
 });
 const CreatePost = z.object({
-  text: z.string().max(POST_MAX_STAKED * 2).default(''),
+  text: z
+    .string()
+    .max(POST_MAX_STAKED * 2)
+    .default(''),
   visibility: z.enum(['public', 'holders', 'subs']).default('public'),
   parentId: z.string().max(64).optional(),
   media: z.array(z.string().max(300)).max(20).optional(),
@@ -171,7 +174,7 @@ export async function feedRoutes(app: FastifyInstance) {
 
     const parents: PostRow[] = [];
     let parentUnavailable = false;
-    for (let pid = post.parentId; pid && parents.length < MAX_PARENTS; ) {
+    for (let pid = post.parentId; pid && parents.length < MAX_PARENTS;) {
       const p = await prisma.post.findUnique({ where: { id: pid }, include: POST_INCLUDE });
       if (!p || !canSeePost(p, v, blocked)) {
         parentUnavailable = true;
@@ -273,7 +276,8 @@ export async function feedRoutes(app: FastifyInstance) {
 
       const to = await treasury();
       if (!to) throw unavailable('boost_unavailable', 'Boosts aren’t available on this network yet');
-      if (!chain.rpcEnabled) throw unavailable('chain_unavailable', 'Could not reach the chain to check the payment');
+      if (!chain.rpcEnabled)
+        throw unavailable('chain_unavailable', 'Could not reach the chain to check the payment');
       const expected = await boostWei();
       let tx;
       try {
@@ -297,7 +301,13 @@ export async function feedRoutes(app: FastifyInstance) {
       try {
         await prisma.$transaction([
           prisma.activity.create({
-            data: { userId: v.user.id, label: 'Boosted a post', amountWei: (-tx.value).toString(), txHash, ref },
+            data: {
+              userId: v.user.id,
+              label: 'Boosted a post',
+              amountWei: (-tx.value).toString(),
+              txHash,
+              ref,
+            },
           }),
           prisma.post.update({
             where: { id },

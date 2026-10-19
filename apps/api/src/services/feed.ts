@@ -26,12 +26,16 @@ export function teaser(length: number): string {
 }
 
 /** Promoted (`boosted`) or inside a paid boost window. */
-export const isBoosted = (p: Pick<Post, 'boosted'> & { boostedUntil?: Date | null }, now = Date.now()): boolean =>
-  p.boosted || (!!p.boostedUntil && p.boostedUntil.getTime() > now);
+export const isBoosted = (
+  p: Pick<Post, 'boosted'> & { boostedUntil?: Date | null },
+  now = Date.now(),
+): boolean => p.boosted || (!!p.boostedUntil && p.boostedUntil.getTime() > now);
 
 /** For You score: (likes + 2·reposts + 3·replies) / (1 + ageMinutes/120) + 400 if boosted + authorScore·3. */
 export function forYouScore(
-  p: Pick<Post, 'likeCount' | 'repostCount' | 'replyCount' | 'boosted' | 'createdAt'> & { boostedUntil?: Date | null },
+  p: Pick<Post, 'likeCount' | 'repostCount' | 'replyCount' | 'boosted' | 'createdAt'> & {
+    boostedUntil?: Date | null;
+  },
   authorScore: number,
   now: number,
 ): number {
@@ -56,7 +60,10 @@ interface Ctx {
 /** Ids of the accounts the viewer blocked (their posts and replies vanish from the viewer's feeds). */
 export async function blockedIds(prisma: PrismaClient, viewer: Viewer | null): Promise<string[]> {
   if (!viewer) return [];
-  const rows = await prisma.block.findMany({ where: { blockerId: viewer.user.id }, select: { blockedId: true } });
+  const rows = await prisma.block.findMany({
+    where: { blockerId: viewer.user.id },
+    select: { blockedId: true },
+  });
   return rows.map((r) => r.blockedId);
 }
 
@@ -64,7 +71,10 @@ export async function blockedIds(prisma: PrismaClient, viewer: Viewer | null): P
  * Posts the viewer may see: not deleted; hidden posts only for admins and their author; nothing by an
  * account the viewer blocked. Combine with other conditions through AND.
  */
-export async function visiblePosts(prisma: PrismaClient, viewer: Viewer | null): Promise<Prisma.PostWhereInput> {
+export async function visiblePosts(
+  prisma: PrismaClient,
+  viewer: Viewer | null,
+): Promise<Prisma.PostWhereInput> {
   const blocked = await blockedIds(prisma, viewer);
   const and: Prisma.PostWhereInput[] = [{ deletedAt: null }];
   if (!viewer?.user.isAdmin)
@@ -186,7 +196,12 @@ function dec<T>(s: string | undefined | null): T | null {
 
 export async function pinnedPost(prisma: PrismaClient): Promise<PostRow | null> {
   return prisma.post.findFirst({
-    where: { pinned: true, deletedAt: null, hiddenAt: null, author: { official: true, handle: OFFICIAL_HANDLE } },
+    where: {
+      pinned: true,
+      deletedAt: null,
+      hiddenAt: null,
+      author: { official: true, handle: OFFICIAL_HANDLE },
+    },
     orderBy: { createdAt: 'desc' },
     include: POST_INCLUDE,
   });

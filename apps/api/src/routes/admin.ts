@@ -55,7 +55,9 @@ function reportDTO(r: ReportRow): AdminReportDTO {
           deleted: r.post.deletedAt !== null,
         }
       : null,
-    target: r.reportedUser ? { ...userRef(r.reportedUser, r.reportedUser.market), botFlag: r.reportedUser.botFlag } : null,
+    target: r.reportedUser
+      ? { ...userRef(r.reportedUser, r.reportedUser.market), botFlag: r.reportedUser.botFlag }
+      : null,
   };
 }
 
@@ -130,7 +132,10 @@ export async function adminRoutes(app: FastifyInstance) {
           if (!r.postId) throw badRequest('no_post', 'This report is about an account, not a post');
           await prisma.$transaction([
             prisma.post.update({ where: { id: r.postId }, data: { hiddenAt: now } }),
-            prisma.report.updateMany({ where: { postId: r.postId, status: 'open' }, data: { status: 'actioned', ...resolved } }),
+            prisma.report.updateMany({
+              where: { postId: r.postId, status: 'open' },
+              data: { status: 'actioned', ...resolved },
+            }),
           ]);
           adminLog(req, v, 'hide_post', r.postId, { report: id });
         } else if (action === 'flag') {
@@ -178,14 +183,20 @@ export async function adminRoutes(app: FastifyInstance) {
         market: { include: { user: true } },
         user: { include: { market: true } },
       } satisfies Prisma.ClaimRequestInclude;
-      const claimDTO = (c: Prisma.ClaimRequestGetPayload<{ include: typeof CLAIM_INCLUDE }>): AdminClaimDTO => ({
+      const claimDTO = (
+        c: Prisma.ClaimRequestGetPayload<{ include: typeof CLAIM_INCLUDE }>,
+      ): AdminClaimDTO => ({
         id: c.id,
         kind: c.kind === 'takedown' ? 'takedown' : 'claim',
         contact: c.contact,
         note: c.note,
         status: c.status === 'resolved' ? 'resolved' : 'open',
         createdAt: c.createdAt.toISOString(),
-        market: { ...userRef(c.market.user, c.market), subject: c.market.subject as Address, halted: c.market.halted },
+        market: {
+          ...userRef(c.market.user, c.market),
+          subject: c.market.subject as Address,
+          halted: c.market.halted,
+        },
         from: c.user ? userRef(c.user, c.user.market) : null,
       });
 
@@ -205,7 +216,11 @@ export async function adminRoutes(app: FastifyInstance) {
         const { id } = params(IdParams, req);
         const c = await prisma.claimRequest.findUnique({ where: { id } });
         if (!c) throw notFound('Request not found');
-        const row = await prisma.claimRequest.update({ where: { id }, data: { status: 'resolved' }, include: CLAIM_INCLUDE });
+        const row = await prisma.claimRequest.update({
+          where: { id },
+          data: { status: 'resolved' },
+          include: CLAIM_INCLUDE,
+        });
         adminLog(req, v, 'resolve_claim', id, { kind: c.kind, market: c.marketId });
         return claimDTO(row);
       });
@@ -232,7 +247,8 @@ export async function adminRoutes(app: FastifyInstance) {
           where: { id: u.id },
           data: flagged
             ? { botFlag: true, botReason: 'admin', botFlaggedAt: new Date() }
-            : { botFlag: false, botReason: null, botFlaggedAt: null },
+            : // Recorded so the bot heuristics in the workers don't flag the account again.
+              { botFlag: false, botReason: 'admin_cleared', botFlaggedAt: new Date() },
           include: { market: true },
         });
         adminLog(req, v, flagged ? 'flag_bot' : 'unflag_bot', u.id, { handle });
@@ -246,7 +262,11 @@ export async function adminRoutes(app: FastifyInstance) {
         const u = await userByHandle(req, handle, {});
         if (u.id === v.user.id && !on) throw badRequest('self', 'You can’t remove your own admin access');
         if (on && (!u.joinedAt || u.deletedAt)) throw badRequest('not_member', 'Only members can be admins');
-        const row = await prisma.user.update({ where: { id: u.id }, data: { isAdmin: on }, include: { market: true } });
+        const row = await prisma.user.update({
+          where: { id: u.id },
+          data: { isAdmin: on },
+          include: { market: true },
+        });
         adminLog(req, v, on ? 'grant_admin' : 'revoke_admin', u.id, { handle });
         return memberDTO(row);
       });
@@ -271,7 +291,8 @@ export async function adminRoutes(app: FastifyInstance) {
         const { halted } = body(z.object({ halted: z.boolean() }), req);
         const u = await userByHandle(req, handle, { market: true });
         if (!u.market) throw notFound(`@${handle} has no key market`, 'no_market');
-        if (!chain.operatorEnabled) throw unavailable('chain_unavailable', 'SwayKeys or the operator key is not configured');
+        if (!chain.operatorEnabled)
+          throw unavailable('chain_unavailable', 'SwayKeys or the operator key is not configured');
         const r = await chain.setMarketHalted(u.market.subject as Address, halted);
         if (r.status === 'reverted') throw new ChainError('setMarketHalted reverted', 'reverted');
         adminLog(req, v, halted ? 'halt_market' : 'unhalt_market', u.market.subject, { handle, tx: r.hash });
@@ -285,7 +306,10 @@ export async function adminRoutes(app: FastifyInstance) {
       const FanBody = z.object({
         handle: z.string().trim().min(1).max(30),
         name: z.string().trim().min(1).max(80),
-        xId: z.string().trim().regex(/^\d{1,20}$/, 'must be a numeric X user id'),
+        xId: z
+          .string()
+          .trim()
+          .regex(/^\d{1,20}$/, 'must be a numeric X user id'),
         followers: z.coerce.number().int().min(0).max(2_000_000_000),
         category: z.enum(MARKET_CATEGORIES),
       });
@@ -294,15 +318,19 @@ export async function adminRoutes(app: FastifyInstance) {
         const v = await requireAdmin(req);
         const b = body(FanBody, req);
         const handle = normalizeHandle(b.handle);
-        if (!/^[a-z0-9_]{1,30}$/.test(handle)) throw badRequest('invalid_handle', 'Handles use letters, digits and _');
-        if (b.category === 'creators') throw badRequest('bad_category', 'Fan markets are crypto, football, stocks or rwa');
+        if (!/^[a-z0-9_]{1,30}$/.test(handle))
+          throw badRequest('invalid_handle', 'Handles use letters, digits and _');
+        if (b.category === 'creators')
+          throw badRequest('bad_category', 'Fan markets are crypto, football, stocks or rwa');
         const xId = BigInt(b.xId);
         if (xId === 0n || xId > MAX_UINT64) throw badRequest('bad_xid', 'That is not an X user id');
 
         const existing = await prisma.user.findUnique({ where: { xId: b.xId } });
-        if (existing?.joinedAt) throw conflict('member', `@${existing.handle} is already a member; members open their own market`);
+        if (existing?.joinedAt)
+          throw conflict('member', `@${existing.handle} is already a member; members open their own market`);
         const clash = await prisma.user.findUnique({ where: { handle } });
-        if (clash && clash.xId !== b.xId) throw conflict('handle_taken', `@${handle} belongs to another X account`);
+        if (clash && clash.xId !== b.xId)
+          throw conflict('handle_taken', `@${handle} belongs to another X account`);
         const market0 = await prisma.keyMarket.findUnique({ where: { xId: b.xId } });
         if (market0?.opened) throw conflict('market_exists', `@${handle} already has a key market`);
 
@@ -329,7 +357,15 @@ export async function adminRoutes(app: FastifyInstance) {
         const market = await prisma.keyMarket.upsert({
           where: { xId: b.xId },
           update: { category: b.category },
-          create: { subject, userId: user.id, xId: b.xId, fan: true, claimed: false, category: b.category, opened: false },
+          create: {
+            subject,
+            userId: user.id,
+            xId: b.xId,
+            fan: true,
+            claimed: false,
+            category: b.category,
+            opened: false,
+          },
           include: { user: true },
         });
 
@@ -338,8 +374,14 @@ export async function adminRoutes(app: FastifyInstance) {
           const tx = await chain.openFanMarket(xId);
           if (tx.status === 'reverted') throw new ChainError('openFanMarket reverted', 'reverted');
           result = { txHash: tx.hash, status: tx.status };
-        } else req.log.warn({ subject }, 'fan market opened in the DB only: SwayKeys/operator not configured');
-        adminLog(req, v, 'open_fan_market', subject, { handle, xId: b.xId, category: b.category, tx: result.txHash });
+        } else
+          req.log.warn({ subject }, 'fan market opened in the DB only: SwayKeys/operator not configured');
+        adminLog(req, v, 'open_fan_market', subject, {
+          handle,
+          xId: b.xId,
+          category: b.category,
+          tx: result.txHash,
+        });
         return { ...result, market: marketDTO(market) };
       });
     },

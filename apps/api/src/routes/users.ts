@@ -64,9 +64,20 @@ export async function userRoutes(app: FastifyInstance) {
         : [],
     ]);
     const unclaimed = !!m && !m.claimed;
+    // [D] anti-dump window: the viewer's last buy here per wallet (Trade.ts is the block time, like lastBuyAt onchain)
+    const lastBuys =
+      v && m
+        ? await prisma.trade.groupBy({
+            by: ['trader'],
+            where: { marketId: m.id, isBuy: true, trader: { in: await memberAddresses(prisma, v.user.id) } },
+            _max: { ts: true },
+          })
+        : [];
     // [B] blocks and deleted accounts
     const blocked = v
-      ? !!(await prisma.block.findUnique({ where: { blockerId_blockedId: { blockerId: v.user.id, blockedId: u.id } } }))
+      ? !!(await prisma.block.findUnique({
+          where: { blockerId_blockedId: { blockerId: v.user.id, blockedId: u.id } },
+        }))
       : false;
     return {
       ...marketDtoForUser(u, m ? stats?.get(m.id) : undefined),
@@ -79,6 +90,8 @@ export async function userRoutes(app: FastifyInstance) {
       subscribed: !!sub,
       heldUnits: held.reduce((s, h) => s + h.units, 0n).toString(),
       heldBy: held.map((h) => ({ address: h.address as Address, units: h.units.toString() })),
+      creatorInactive: !!m?.creatorInactive,
+      lastBuyAt: Object.fromEntries(lastBuys.filter((b) => b._max.ts).map((b) => [b.trader, b._max.ts!.toISOString()])),
       history,
     };
   });
@@ -225,7 +238,8 @@ export async function userRoutes(app: FastifyInstance) {
     // [B] no new follows across a block or of a deleted account (unfollowing always works)
     if (!(await prisma.follow.count({ where: key }))) {
       if (u.deletedAt) throw notFound(`No account @${handle}`, 'user_not_found');
-      if (await blockedEitherWay(prisma, v.user.id, u.id)) throw forbidden('blocked', 'You can’t follow this account');
+      if (await blockedEitherWay(prisma, v.user.id, u.id))
+        throw forbidden('blocked', 'You can’t follow this account');
     }
     const removed = await prisma.follow.deleteMany({ where: key });
     if (removed.count) return { following: false };

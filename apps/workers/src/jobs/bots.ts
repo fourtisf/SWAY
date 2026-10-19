@@ -31,7 +31,8 @@ export function botHeuristic(u: BotCandidate, now = new Date()): string | null {
 
 export async function flagBots(c: Clients, now = new Date()): Promise<number> {
   const members = await c.prisma.user.findMany({
-    where: { joinedAt: { not: null }, botFlag: false, deletedAt: null },
+    // An admin's "not a bot" sticks: the heuristic never re-flags an account they cleared.
+    where: { joinedAt: { not: null }, botFlag: false, deletedAt: null, OR: [{ botReason: null }, { botReason: { not: 'admin_cleared' } }] },
     select: { id: true, xId: true, followers: true, verified: true, official: true, xCreatedAt: true, scoreInputs: true },
   });
   let flagged = 0;

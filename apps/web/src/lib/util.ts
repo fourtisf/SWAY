@@ -33,7 +33,7 @@ export function dicebear(handle: string, claimed?: boolean): string {
 }
 
 /** Top-level app routes; any other single segment is a profile handle. */
-export const ROUTE_NAMES = ['explore', 'markets', 'notifications', 'messages', 'tasks', 'wallet', 'leaderboard', 'battles', 'launchpad', 'genesis', 'model', 'staking', /* [B] */ 'post', 'settings', 'admin', 'terms', 'privacy', 'card'] as const;
+export const ROUTE_NAMES = ['explore', 'markets', 'notifications', 'messages', 'tasks', 'wallet', 'leaderboard', 'battles', 'launchpad', 'genesis', 'model', 'staking', /* [B] */ 'post', 'settings', 'admin', 'terms', 'privacy', 'card', /* [D] */ 'referrals', 'watchlist'] as const;
 
 export function routeOf(pathname: string): { view: string; arg: string | null } {
   const seg = pathname.split('/').filter(Boolean);

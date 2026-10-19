@@ -1,7 +1,7 @@
 'use client';
 import { CURVE, LEVEL_CUT, feePercent, keysToUnits, quoteWei, unitsToKeys, weiToEth, type QuoteWei } from '@sway/curve';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useActions } from '@/lib/actions';
 import { useFormat } from '@/lib/format';
 import { useMe, useProfile, useWallets } from '@/lib/queries';
@@ -30,6 +30,17 @@ export function TradeSheet({ handle, side: side0 }: { handle: string; side: 'buy
   const [text, setText] = useState<string | null>(null);
   const [showFees, setShowFees] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Selling: start from a wallet that actually holds this market's keys (once, when the sheet opens).
+  const picked = useRef(false);
+  useEffect(() => {
+    if (picked.current || !p || !active || side0 !== 'sell') return;
+    picked.current = true;
+    const units = (a: string) => BigInt(p.heldBy?.find((x) => x.address.toLowerCase() === a.toLowerCase())?.units ?? '0');
+    if (p.heldBy && units(active.address) === 0n) {
+      const holder = wallets.find((w) => w.usable && units(w.address) > 0n);
+      if (holder) setActive(holder.address);
+    }
+  }, [p, active, wallets, side0, setActive]);
 
   const head = p && (
     <div className="m-h">

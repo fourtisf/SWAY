@@ -112,10 +112,10 @@ export async function walletsRoutes(app: FastifyInstance) {
   });
 
   app.delete('/wallets/:address', async (req): Promise<MeDTO> => {
-    const { v, row } = await linkedOf(req);
+    const { row } = await linkedOf(req);
     // Keys stay onchain at that address; they simply stop counting for this member.
     await prisma.linkedWallet.delete({ where: { id: row.id } });
     resetViewer(req);
-    return buildMe(prisma, (await requireViewer(req)) ?? v);
+    return buildMe(prisma, await requireViewer(req));
   });
 }

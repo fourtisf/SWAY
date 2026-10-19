@@ -3,6 +3,7 @@
 import { weiToEth } from '@sway/curve';
 import type { Format, HistoryRange, PriceHistoryResponse } from '@sway/shared';
 import { useEffect, useRef } from 'react';
+import { THEME_EVENT, chartColors } from '@/lib/chart-colors';
 
 const label = (t: number, range: HistoryRange) => {
   const d = new Date(t);
@@ -42,9 +43,10 @@ export function PriceChart({ data, F }: { data: PriceHistoryResponse | undefined
       hi += pad;
       const X = (t: number) => pl + ((t - t0) / Math.max(1, t1 - t0)) * iw,
         Y = (v: number) => pt + ih - ((v - lo) / (hi - lo)) * ih;
+      const tc = chartColors(cv);
       x.font = '500 11px Inter, Segoe UI, sans-serif';
-      x.fillStyle = '#536471';
-      x.strokeStyle = '#EFF3F4';
+      x.fillStyle = tc.label;
+      x.strokeStyle = tc.grid;
       x.lineWidth = 1;
       for (let i = 0; i <= 4; i++) {
         const v = lo + ((hi - lo) * i) / 4,
@@ -91,16 +93,20 @@ export function PriceChart({ data, F }: { data: PriceHistoryResponse | undefined
       const last = pts[pts.length - 1]!;
       x.beginPath();
       x.arc(X(last.t), Y(last.v), 5, 0, Math.PI * 2);
-      x.fillStyle = '#0F1419';
+      x.fillStyle = tc.ink;
       x.fill();
       x.lineWidth = 2.5;
-      x.strokeStyle = '#fff';
+      x.strokeStyle = tc.ring;
       x.stroke();
     };
     draw();
     window.addEventListener('resize', draw);
+    window.addEventListener(THEME_EVENT, draw);
     document.fonts?.ready.then(draw).catch(() => null);
-    return () => window.removeEventListener('resize', draw);
+    return () => {
+      window.removeEventListener('resize', draw);
+      window.removeEventListener(THEME_EVENT, draw);
+    };
   }, [data, F]);
   return <canvas id="pricechart" ref={ref} aria-label="Key price chart" />;
 }

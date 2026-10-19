@@ -22,7 +22,7 @@ export async function tagList(prisma: PrismaClient, q: string, limit: number): P
   const rows = await prisma.$queryRaw<Array<{ tag: string; posts: number }>>(Prisma.sql`
     SELECT pt.tag, count(*)::int AS posts
     FROM "PostTag" pt JOIN "Post" p ON p.id = pt."postId"
-    WHERE p."deletedAt" IS NULL AND pt.tag ILIKE ${like}
+    WHERE p."deletedAt" IS NULL AND p."hiddenAt" IS NULL AND pt.tag ILIKE ${like}
     GROUP BY pt.tag ORDER BY posts DESC, pt.tag ASC LIMIT ${limit}`);
   const out = new Map<string, TagDTO>();
   for (const r of rows) out.set(r.tag, { tag: DISPLAY_TAG.get(r.tag) ?? r.tag, posts: r.posts });

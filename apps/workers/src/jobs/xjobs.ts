@@ -113,6 +113,8 @@ export async function refreshScore(c: Clients, userId: string): Promise<boolean>
   const ctx = appXContext(c);
   const user = await c.prisma.user.findUnique({ where: { id: userId } });
   if (!ctx || !user || !/^\d+$/.test(user.xId) || BigInt(user.xId) >= 9_000_000_000_000_000_000n) return false; // demo/dev ids aren't on X
+  // A refresh queued before the member deleted their account must not write their X profile back.
+  if (user.deletedAt) return false;
   const xu = await getUserById(ctx, user.xId);
   if (!xu) return false;
   const posts = await getRecentPosts(ctx, user.xId, 50);

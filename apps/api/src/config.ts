@@ -5,7 +5,13 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
-import { BOOST_USD_DEFAULT, LOCAL_CHAIN_ID, normalizeHandle, ROBINHOOD_MAINNET_ID, swayChain } from '@sway/shared';
+import {
+  BOOST_USD_DEFAULT,
+  LOCAL_CHAIN_ID,
+  normalizeHandle,
+  ROBINHOOD_MAINNET_ID,
+  swayChain,
+} from '@sway/shared';
 import type { Address } from '@sway/shared';
 
 const blank = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? undefined : v);

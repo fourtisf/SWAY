@@ -42,7 +42,7 @@ test('launch my token, trade it and claim creator fees', async ({ page }) => {
   await expect(sheet).toContainText('Launch $LAUNCH?');
   await expect(sheet).toContainText('Start cap');
   // The live simulation may have sold someone one of our keys already.
-  await expect(sheet).toContainText(/Nobody else holds your keys yet|To your key holders10%\s+\d+ holder/);
+  await expect(sheet).toContainText(/Nobody else holds your keys yet|10% to \d+ holder/);
   await sheet.getByRole('button', { name: 'Launch $LAUNCH' }).click();
   await expect(page.locator('.toasts')).toContainText('$LAUNCH is live');
   await expect(page.locator('.modal')).toHaveCount(0);

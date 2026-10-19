@@ -122,7 +122,7 @@ function WalletRow({ mw, bal, active, ready }: { mw: MemberWallet; bal: WalletBa
             }}
           >
             {busy ? <Spinner size={12} /> : null}
-            Claim {F.$(weiToEth(earn))}
+            Claim<span className="hm">{F.$(weiToEth(earn))}</span>
           </button>
         )}
         <WalletMenu mw={mw} active={active} />

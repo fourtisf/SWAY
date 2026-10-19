@@ -101,48 +101,55 @@ export async function socialRoutes(app: FastifyInstance) {
       limits: { fileSize: UPLOAD_MAX_BYTES, files: POST_MEDIA_MAX + 1, fields: 10, parts: 20 },
     });
 
-    scope.post('/uploads', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req): Promise<UploadResponse> => {
-      const v = await requireViewer(req);
-      if (!req.isMultipart()) throw badRequest('not_multipart', 'Send the images as multipart/form-data');
-      const files: Array<{ buf: Buffer; mime: UploadMime }> = [];
-      try {
-        for await (const part of req.parts()) {
-          if (part.type !== 'file') continue;
-          if (files.length >= POST_MEDIA_MAX)
+    scope.post(
+      '/uploads',
+      { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } },
+      async (req): Promise<UploadResponse> => {
+        const v = await requireViewer(req);
+        if (!req.isMultipart()) throw badRequest('not_multipart', 'Send the images as multipart/form-data');
+        const files: Array<{ buf: Buffer; mime: UploadMime }> = [];
+        try {
+          for await (const part of req.parts()) {
+            if (part.type !== 'file') continue;
+            if (files.length >= POST_MEDIA_MAX)
+              throw badRequest('too_many_files', `Up to ${POST_MEDIA_MAX} images per post`);
+            const buf = await part.toBuffer();
+            const mime = sniffImage(buf);
+            if (!mime) throw badRequest('bad_image', 'Only JPEG, PNG, WebP and GIF images');
+            files.push({ buf, mime });
+          }
+        } catch (e) {
+          const code = (e as { code?: string }).code;
+          if (code === 'FST_REQ_FILE_TOO_LARGE')
+            throw new HttpError(413, 'too_large', 'Images can be up to 5 MB');
+          if (code === 'FST_FILES_LIMIT' || code === 'FST_PARTS_LIMIT')
             throw badRequest('too_many_files', `Up to ${POST_MEDIA_MAX} images per post`);
-          const buf = await part.toBuffer();
-          const mime = sniffImage(buf);
-          if (!mime) throw badRequest('bad_image', 'Only JPEG, PNG, WebP and GIF images');
-          files.push({ buf, mime });
+          throw e;
         }
-      } catch (e) {
-        const code = (e as { code?: string }).code;
-        if (code === 'FST_REQ_FILE_TOO_LARGE') throw new HttpError(413, 'too_large', 'Images can be up to 5 MB');
-        if (code === 'FST_FILES_LIMIT' || code === 'FST_PARTS_LIMIT')
-          throw badRequest('too_many_files', `Up to ${POST_MEDIA_MAX} images per post`);
-        throw e;
-      }
-      if (!files.length) throw badRequest('no_file', 'Pick an image first');
+        if (!files.length) throw badRequest('no_file', 'Pick an image first');
 
-      await mkdir(config.uploadDir, { recursive: true });
-      const out: UploadDTO[] = [];
-      const written: string[] = [];
-      try {
-        for (const f of files) {
-          const name = `${randomBytes(16).toString('hex')}.${EXT[f.mime]}`;
-          await writeFile(path.join(config.uploadDir, name), f.buf, { flag: 'wx', mode: 0o644 });
-          written.push(name);
-          out.push({ url: uploadUrl(name), name, mime: f.mime, bytes: f.buf.length });
+        await mkdir(config.uploadDir, { recursive: true });
+        const out: UploadDTO[] = [];
+        const written: string[] = [];
+        try {
+          for (const f of files) {
+            const name = `${randomBytes(16).toString('hex')}.${EXT[f.mime]}`;
+            await writeFile(path.join(config.uploadDir, name), f.buf, { flag: 'wx', mode: 0o644 });
+            written.push(name);
+            out.push({ url: uploadUrl(name), name, mime: f.mime, bytes: f.buf.length });
+          }
+          await prisma.upload.createMany({
+            data: out.map((u) => ({ userId: v.user.id, name: u.name, mime: u.mime, bytes: u.bytes })),
+          });
+        } catch (e) {
+          await Promise.all(
+            written.map((n) => unlink(path.join(config.uploadDir, n)).catch(() => undefined)),
+          );
+          throw e;
         }
-        await prisma.upload.createMany({
-          data: out.map((u) => ({ userId: v.user.id, name: u.name, mime: u.mime, bytes: u.bytes })),
-        });
-      } catch (e) {
-        await Promise.all(written.map((n) => unlink(path.join(config.uploadDir, n)).catch(() => undefined)));
-        throw e;
-      }
-      return { uploads: out };
-    });
+        return { uploads: out };
+      },
+    );
 
     scope.get(
       '/uploads/:name',
@@ -180,7 +187,9 @@ export async function socialRoutes(app: FastifyInstance) {
     if (!m) return { range, points: [] };
     const now = new Date();
     const opened = m.openedAt ?? m.createdAt;
-    const since = new Date(Math.max(now.getTime() - RANGE_MS[range], Math.min(opened.getTime(), now.getTime())));
+    const since = new Date(
+      Math.max(now.getTime() - RANGE_MS[range], Math.min(opened.getTime(), now.getTime())),
+    );
     const order = [{ ts: 'asc' as const }, { blockNumber: 'asc' as const }, { logIndex: 'asc' as const }];
     const sel = { isBuy: true, units: true, supplyAfter: true, ts: true } as const;
     const [before, trades] = await Promise.all([
@@ -189,7 +198,12 @@ export async function socialRoutes(app: FastifyInstance) {
         orderBy: [{ ts: 'desc' }, { blockNumber: 'desc' }, { logIndex: 'desc' }],
         select: sel,
       }),
-      prisma.trade.findMany({ where: { marketId: m.id, ts: { gte: since } }, orderBy: order, take: 2000, select: sel }),
+      prisma.trade.findMany({
+        where: { marketId: m.id, ts: { gte: since } },
+        orderBy: order,
+        take: 2000,
+        select: sel,
+      }),
     ]);
     const first = trades[0];
     const startSupply = before

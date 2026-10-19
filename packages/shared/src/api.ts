@@ -592,7 +592,7 @@ export const ROUTES = {
  *   taskVerify/Skip:                                                     R TaskDTO
  *   wallet:                                                              R WalletDTO
  *   withdrawLog:   B { label: string; amountWei: Wei; txHash: string }   R ActivityDTO
- *   faucet:        (dev chains only)                                     R { txHash: string }
+ *   faucet:        (dev chains only)                                     R { txHash: string; swayTxHash?: string } ([C] + 10,000 $SWAY)
  *   leaderboard:   Q { tab: LeaderboardTab }                             R LeaderboardResponse
  *   battles:                                                             R BattlesResponse
  *   createBattle:  B CreateBattleBody                                    R BattleDTO
@@ -1250,6 +1250,13 @@ export const LAUNCH_ROUTES = {
 export type LaunchRouteKey = keyof typeof LAUNCH_ROUTES;
 
 /* ---------------------------------------------------------------- [D] engagement & creator drops */
+
+export interface ProfileDTO {
+  /** Activity bond in effect (SwayKeys.creatorInactive): the 6% creator fee goes to holders. */
+  creatorInactive?: boolean;
+  /** The viewer's last buy in this market per wallet (lowercase address): sells within 24h pay the anti-dump fee. */
+  lastBuyAt?: Record<string, ISODate>;
+}
 
 /** Per-member notification settings (User.notifPrefs). A muted type is hidden from the list and the badge. */
 export interface NotificationPrefs {

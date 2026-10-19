@@ -96,7 +96,10 @@ export function referralFrom(req: FastifyRequest, explicit?: string | null): str
 }
 
 /** [B] Deletes every session of a user (account deletion). Returns how many were live. */
-export async function revokeUserSessions(redis: FastifyInstance['deps']['redis'], userId: string): Promise<number> {
+export async function revokeUserSessions(
+  redis: FastifyInstance['deps']['redis'],
+  userId: string,
+): Promise<number> {
   const sids = await redis.smembers(userSessionsKey(userId));
   const n = sids.length ? await redis.del(...sids.map(sessKey)) : 0;
   await redis.del(userSessionsKey(userId));

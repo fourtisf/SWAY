@@ -370,7 +370,7 @@ function Markets() {
                   {!m.opened && <span className="tag line">Opening…</span>}
                 </div>
                 <div className="hd" style={{ fontSize: 14 }}>
-                  @{m.handle} · {F.keys(unitsToKeys(m.supplyUnits))} keys · {m.holders} holders
+                  @{m.handle} · {F.keys(unitsToKeys(m.supplyUnits))} key{unitsToKeys(m.supplyUnits) === 1 ? '' : 's'} · {m.holders} holder{m.holders === 1 ? '' : 's'}
                 </div>
               </div>
             </Link>

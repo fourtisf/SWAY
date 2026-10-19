@@ -31,6 +31,9 @@ const TITLES: Record<string, [string, string]> = {
   admin: ['Admin', 'Moderation and operations'],
   terms: ['Terms of Service', 'Template: counsel review pending'],
   privacy: ['Privacy Policy', 'Template: counsel review pending'],
+  // [D]
+  referrals: ['Referrals', 'Your invites, points and fees'],
+  watchlist: ['Watchlist', 'Keys you follow, with price alerts'],
 };
 
 /** [B] Pages you reach from somewhere else get a Back button (post page, share card). */

@@ -14,9 +14,10 @@ import {
   type StreakDTO,
   type WatchDTO,
 } from '@sway/shared';
-import { dec, decToBig, type CreatorDrop, type KeyMarket, type Prisma, type PrismaClient, type User, type Watch } from '@sway/db';
+import { dec, decToBig, type CreatorDrop, type KeyMarket, type PrismaClient, type User, type Watch } from '@sway/db';
 import type { AppDeps, Viewer } from '../deps';
 import { badRequest, conflict, unavailable } from '../errors';
+import { memberAddresses } from './access';
 import { appendLedger } from './points';
 import { membersByAddress, userRef } from './dto';
 
@@ -27,15 +28,6 @@ export const MIN_DROP_WEI = 10n ** 12n;
 export const MAX_DROP_WEI = 1_000n * 10n ** 18n;
 export const DROP_MIN_DAYS = 1;
 export const DROP_MAX_DAYS = 365;
-
-/** Every address a member trades from: the account wallet and their linked wallets (lowercase). */
-export async function memberAddresses(prisma: PrismaClient | Prisma.TransactionClient, userId: string): Promise<string[]> {
-  const [w, linked] = await Promise.all([
-    prisma.wallet.findUnique({ where: { userId }, select: { address: true } }),
-    prisma.linkedWallet.findMany({ where: { userId }, select: { address: true } }),
-  ]);
-  return [...(w ? [w.address] : []), ...linked.map((l) => l.address)];
-}
 
 /* ------------------------------------------------------------------ watchlist */
 

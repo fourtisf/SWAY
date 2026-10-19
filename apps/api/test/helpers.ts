@@ -122,7 +122,13 @@ export class FakeChain implements ChainClient {
   async openFanMarket(xId: bigint): Promise<OperatorTxResult> {
     this.calls.push({ fn: 'openFanMarket', args: [xId] });
     const subject = fanSubject(xId).toLowerCase() as Address;
-    this.markets.set(subject, { owner: '0x0000000000000000000000000000000000000000', xId, fan: true, halted: false, supply: 100n });
+    this.markets.set(subject, {
+      owner: '0x0000000000000000000000000000000000000000',
+      xId,
+      fan: true,
+      halted: false,
+      supply: 100n,
+    });
     return { hash: fakeHash(), status: 'success' };
   }
 }

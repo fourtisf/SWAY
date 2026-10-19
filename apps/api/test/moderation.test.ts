@@ -18,7 +18,17 @@ import {
 } from '@sway/shared';
 import { accessKey } from '../src/services/access';
 import { sniffImage } from '../src/services/social';
-import { fakeHash, login, makeApp, member, openMarketRow, prisma, resetState, type Member, type TestCtx } from './helpers';
+import {
+  fakeHash,
+  login,
+  makeApp,
+  member,
+  openMarketRow,
+  prisma,
+  resetState,
+  type Member,
+  type TestCtx,
+} from './helpers';
 
 const uploadDir = mkdtempSync(path.join(tmpdir(), 'sway-uploads-b-'));
 const TREASURY = '0x00000000000000000000000000000000000000ee';
@@ -43,8 +53,14 @@ afterAll(async () => {
 });
 
 const inject = (method: 'GET' | 'POST' | 'DELETE', url: string, cookie?: string, payload?: unknown) =>
-  ctx.app.inject({ method, url, headers: cookie ? { cookie } : {}, ...(payload !== undefined ? { payload: payload as object } : {}) });
-const post = (cookie: string, payload: Record<string, unknown>) => inject('POST', '/api/posts', cookie, payload);
+  ctx.app.inject({
+    method,
+    url,
+    headers: cookie ? { cookie } : {},
+    ...(payload !== undefined ? { payload: payload as object } : {}),
+  });
+const post = (cookie: string, payload: Record<string, unknown>) =>
+  inject('POST', '/api/posts', cookie, payload);
 const feed = (tab: string, cookie?: string) => inject('GET', `/api/feed?tab=${tab}`, cookie);
 const texts = (r: { json: () => unknown }) => (r.json() as FeedResponse).posts.map((p) => p.text);
 
@@ -62,11 +78,19 @@ function multipart(files: Array<{ buf: Buffer; name?: string; type?: string }>) 
     );
   });
   parts.push(Buffer.from(`--${boundary}--\r\n`));
-  return { payload: Buffer.concat(parts), headers: { 'content-type': `multipart/form-data; boundary=${boundary}` } };
+  return {
+    payload: Buffer.concat(parts),
+    headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+  };
 }
 const upload = (cookie: string, files: Array<{ buf: Buffer; name?: string; type?: string }>) => {
   const m = multipart(files);
-  return ctx.app.inject({ method: 'POST', url: '/api/uploads', headers: { cookie, ...m.headers }, payload: m.payload });
+  return ctx.app.inject({
+    method: 'POST',
+    url: '/api/uploads',
+    headers: { cookie, ...m.headers },
+    payload: m.payload,
+  });
 };
 
 describe('deleting posts', () => {
@@ -141,7 +165,12 @@ describe('boosts', () => {
     await post(quiet.cookie, { text: 'high score post' });
     expect(texts(await feed('foryou'))[0]).toBe('high score post');
 
-    const tx = ctx.chain.addTx({ from: author.address, to: TREASURY, value: (wei * 99n) / 100n, status: 'success' });
+    const tx = ctx.chain.addTx({
+      from: author.address,
+      to: TREASURY,
+      value: (wei * 99n) / 100n,
+      status: 'success',
+    });
     const res = await boost(tx);
     expect(res.statusCode).toBe(200);
     const p = res.json<{ post: PostDTO }>().post;
@@ -150,7 +179,9 @@ describe('boosts', () => {
     expect(Math.abs(until - (Date.now() + 24 * 3600e3))).toBeLessThan(10_000);
     const f = (await feed('foryou')).json<FeedResponse>();
     expect(f.posts[0]).toMatchObject({ text: 'boost me', boosted: true });
-    expect((await prisma.activity.findUniqueOrThrow({ where: { ref: `boost:${tx}` } })).label).toBe('Boosted a post');
+    expect((await prisma.activity.findUniqueOrThrow({ where: { ref: `boost:${tx}` } })).label).toBe(
+      'Boosted a post',
+    );
 
     // The window ends: no longer boosted, and the ranking falls back.
     await prisma.post.update({ where: { id: postId }, data: { boostedUntil: new Date(Date.now() - 1000) } });
@@ -160,10 +191,20 @@ describe('boosts', () => {
   });
 
   it('rejects the wrong recipient, too little, a reused tx and someone else’s wallet', async () => {
-    const wrong = ctx.chain.addTx({ from: author.address, to: '0x00000000000000000000000000000000000000aa', value: wei, status: 'success' });
+    const wrong = ctx.chain.addTx({
+      from: author.address,
+      to: '0x00000000000000000000000000000000000000aa',
+      value: wei,
+      status: 'success',
+    });
     expect((await boost(wrong)).json().error).toBe('wrong_recipient');
 
-    const little = ctx.chain.addTx({ from: author.address, to: TREASURY, value: (wei * 97n) / 100n, status: 'success' });
+    const little = ctx.chain.addTx({
+      from: author.address,
+      to: TREASURY,
+      value: (wei * 97n) / 100n,
+      status: 'success',
+    });
     expect((await boost(little)).json().error).toBe('underpaid');
 
     const stranger = await member(ctx, 'stranger');
@@ -199,7 +240,9 @@ describe('boosts', () => {
     const p1 = (await boost(t1)).json<{ post: PostDTO }>().post;
     const t2 = ctx.chain.addTx({ from: author.address, to: TREASURY, value: wei, status: 'success' });
     const p2 = (await boost(t2)).json<{ post: PostDTO }>().post;
-    expect(new Date(p2.boostedUntil!).getTime() - new Date(p1.boostedUntil!).getTime()).toBeGreaterThan(23.9 * 3600e3);
+    expect(new Date(p2.boostedUntil!).getTime() - new Date(p1.boostedUntil!).getTime()).toBeGreaterThan(
+      23.9 * 3600e3,
+    );
   });
 });
 
@@ -214,13 +257,23 @@ describe('reports', () => {
     expect((await report({ handle: '@spammer', reason: 'impersonation' })).statusCode).toBe(200);
     const rows = await prisma.report.findMany({ orderBy: { createdAt: 'asc' } });
     expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatchObject({ postId: p.id, reportedUserId: a.user.id, reason: 'spam', note: 'scam link', status: 'open' });
+    expect(rows[0]).toMatchObject({
+      postId: p.id,
+      reportedUserId: a.user.id,
+      reason: 'spam',
+      note: 'scam link',
+      status: 'open',
+    });
     expect(rows[1]).toMatchObject({ postId: null, reportedUserId: a.user.id, reason: 'impersonation' });
-    expect((await report({ postId: p.id, handle: 'spammer', reason: 'spam' })).json().error).toBe('bad_target');
+    expect((await report({ postId: p.id, handle: 'spammer', reason: 'spam' })).json().error).toBe(
+      'bad_target',
+    );
     expect((await report({ reason: 'spam' })).json().error).toBe('bad_target');
     expect((await report({ handle: 'spammer', reason: 'nonsense' })).statusCode).toBe(400);
     expect((await report({ postId: p.id, reason: 'spam' }, a.cookie)).json().error).toBe('self');
-    expect((await inject('POST', '/api/reports', undefined, { postId: p.id, reason: 'spam' })).statusCode).toBe(401);
+    expect(
+      (await inject('POST', '/api/reports', undefined, { postId: p.id, reason: 'spam' })).statusCode,
+    ).toBe(401);
   });
 });
 
@@ -234,7 +287,9 @@ describe('blocks', () => {
     await post(troll.cookie, { text: 'troll reply', parentId: root.id });
     await post(me.cookie, { text: 'my post' });
     await inject('POST', '/api/users/troll/follow', me.cookie);
-    const thread = (await inject('POST', '/api/messages/dm', troll.cookie, { handle: 'blocker' })).json<{ id: string }>();
+    const thread = (await inject('POST', '/api/messages/dm', troll.cookie, { handle: 'blocker' })).json<{
+      id: string;
+    }>();
     await inject('POST', `/api/messages/dm/${thread.id}`, troll.cookie, { text: 'hi' });
 
     expect((await inject('POST', '/api/users/troll/block', me.cookie)).json()).toEqual({ blocked: true });
@@ -246,7 +301,9 @@ describe('blocks', () => {
     expect(texts(await feed('latest'))).toContain('troll post');
     const t = (await inject('GET', `/api/posts/${root.id}`, me.cookie)).json<PostDetailResponse>();
     expect(t.replies).toEqual([]);
-    expect((await inject('GET', `/api/posts/${root.id}`, friend.cookie)).json<PostDetailResponse>().replies).toHaveLength(1);
+    expect(
+      (await inject('GET', `/api/posts/${root.id}`, friend.cookie)).json<PostDetailResponse>().replies,
+    ).toHaveLength(1);
     expect((await inject('GET', '/api/users/troll/posts', me.cookie)).json()).toEqual([]);
     expect((await inject('GET', '/api/users/troll', me.cookie)).json<ProfileDTO>().blocked).toBe(true);
     expect((await inject('GET', '/api/users/troll', friend.cookie)).json<ProfileDTO>().blocked).toBe(false);
@@ -255,19 +312,29 @@ describe('blocks', () => {
     const send = await inject('POST', `/api/messages/dm/${thread.id}`, troll.cookie, { text: 'again' });
     expect(send.statusCode).toBe(403);
     expect(send.json().error).toBe('blocked');
-    expect((await inject('POST', `/api/messages/dm/${thread.id}`, me.cookie, { text: 'no' })).json().error).toBe('blocked');
-    expect((await inject('POST', '/api/messages/dm', me.cookie, { handle: 'troll' })).json().error).toBe('blocked');
-    expect((await inject('POST', '/api/messages/dm', troll.cookie, { handle: 'blocker' })).json().error).toBe('blocked');
+    expect(
+      (await inject('POST', `/api/messages/dm/${thread.id}`, me.cookie, { text: 'no' })).json().error,
+    ).toBe('blocked');
+    expect((await inject('POST', '/api/messages/dm', me.cookie, { handle: 'troll' })).json().error).toBe(
+      'blocked',
+    );
+    expect((await inject('POST', '/api/messages/dm', troll.cookie, { handle: 'blocker' })).json().error).toBe(
+      'blocked',
+    );
     expect((await inject('GET', '/api/messages', me.cookie)).json().dms).toEqual([]);
     expect((await inject('GET', '/api/me', me.cookie)).json().unreadMessages).toBe(0);
     // No follows or replies across the block.
     expect((await inject('POST', '/api/users/blocker/follow', troll.cookie)).json().error).toBe('blocked');
-    const mine = (await feed('latest', me.cookie)).json<FeedResponse>().posts.find((p) => p.text === 'my post')!;
+    const mine = (await feed('latest', me.cookie))
+      .json<FeedResponse>()
+      .posts.find((p) => p.text === 'my post')!;
     expect((await post(troll.cookie, { text: 'reply', parentId: mine.id })).json().error).toBe('blocked');
 
     expect((await inject('POST', '/api/users/troll/block', me.cookie)).json()).toEqual({ blocked: false });
     expect(texts(await feed('latest', me.cookie))).toContain('troll post');
-    expect((await inject('POST', `/api/messages/dm/${thread.id}`, troll.cookie, { text: 'ok' })).statusCode).toBe(200);
+    expect(
+      (await inject('POST', `/api/messages/dm/${thread.id}`, troll.cookie, { text: 'ok' })).statusCode,
+    ).toBe(200);
     expect((await inject('POST', '/api/users/blocker/block', me.cookie)).json().error).toBe('self');
   });
 });
@@ -279,8 +346,12 @@ describe('hidden posts', () => {
     const boss = await login(ctx, 'boss');
     const p = (await post(a.cookie, { text: 'borderline' })).json<PostDTO>();
     await inject('POST', '/api/reports', viewer.cookie, { postId: p.id, reason: 'abuse' });
-    expect((await inject('POST', `/api/admin/posts/${p.id}/hide`, viewer.cookie, { hidden: true })).statusCode).toBe(403);
-    expect((await inject('POST', `/api/admin/posts/${p.id}/hide`, boss.cookie, { hidden: true })).json()).toEqual({ hidden: true });
+    expect(
+      (await inject('POST', `/api/admin/posts/${p.id}/hide`, viewer.cookie, { hidden: true })).statusCode,
+    ).toBe(403);
+    expect(
+      (await inject('POST', `/api/admin/posts/${p.id}/hide`, boss.cookie, { hidden: true })).json(),
+    ).toEqual({ hidden: true });
     expect((await prisma.report.findFirstOrThrow()).status).toBe('actioned');
 
     expect(texts(await feed('latest'))).toEqual([]);
@@ -304,15 +375,23 @@ describe('images', () => {
     expect(sniffImage(PNG)).toBe('image/png');
     expect(sniffImage(Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0]))).toBe('image/jpeg');
     expect(sniffImage(Buffer.from('GIF89a......'))).toBe('image/gif');
-    expect(sniffImage(Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBPVP8 ')]))).toBe('image/webp');
+    expect(sniffImage(Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBPVP8 ')]))).toBe(
+      'image/webp',
+    );
     expect(sniffImage(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>'))).toBeNull();
     expect(sniffImage(Buffer.from('<html>'))).toBeNull();
   });
 
   it('stores uploads under random names and serves them with safe headers', async () => {
     const a = await login(ctx, 'uploader');
-    expect((await ctx.app.inject({ method: 'POST', url: '/api/uploads', ...multipart([{ buf: PNG }]) })).statusCode).toBe(401);
-    const res = await upload(a.cookie, [{ buf: PNG, name: '../../evil.png' }, { buf: PNG, name: 'b.jpg', type: 'image/jpeg' }]);
+    expect(
+      (await ctx.app.inject({ method: 'POST', url: '/api/uploads', ...multipart([{ buf: PNG }]) }))
+        .statusCode,
+    ).toBe(401);
+    const res = await upload(a.cookie, [
+      { buf: PNG, name: '../../evil.png' },
+      { buf: PNG, name: 'b.jpg', type: 'image/jpeg' },
+    ]);
     expect(res.statusCode).toBe(200);
     const ups = res.json<UploadResponse>().uploads;
     expect(ups).toHaveLength(2);
@@ -342,7 +421,10 @@ describe('images', () => {
     const tooBig = await upload(a.cookie, [{ buf: big }]);
     expect(tooBig.statusCode).toBe(413);
     expect(tooBig.json().error).toBe('too_large');
-    const many = await upload(a.cookie, Array.from({ length: 5 }, () => ({ buf: PNG })));
+    const many = await upload(
+      a.cookie,
+      Array.from({ length: 5 }, () => ({ buf: PNG })),
+    );
     expect(many.statusCode).toBe(400);
     expect(many.json().error).toBe('too_many_files');
     // Nothing was stored for the rejected requests.
@@ -353,20 +435,38 @@ describe('images', () => {
     const creator = await member(ctx, 'imgcreator');
     await openMarketRow(creator);
     const other = await login(ctx, 'imgother');
-    const mine = (await upload(creator.cookie, Array.from({ length: 4 }, () => ({ buf: PNG })))).json<UploadResponse>().uploads;
+    const mine = (
+      await upload(
+        creator.cookie,
+        Array.from({ length: 4 }, () => ({ buf: PNG })),
+      )
+    ).json<UploadResponse>().uploads;
     const theirs = (await upload(other.cookie, [{ buf: PNG }])).json<UploadResponse>().uploads;
     const pubImg = (await upload(creator.cookie, [{ buf: PNG }])).json<UploadResponse>().uploads[0]!;
     const urls = mine.map((u) => u.url);
 
-    expect((await post(creator.cookie, { text: 'x', media: [theirs[0]!.url] })).json().error).toBe('bad_media');
-    expect((await post(creator.cookie, { text: 'x', media: ['https://evil.example/a.png'] })).json().error).toBe('bad_media');
-    expect((await post(creator.cookie, { text: 'x', media: [...urls, theirs[0]!.url] })).json().error).toBe('too_many_media');
+    expect((await post(creator.cookie, { text: 'x', media: [theirs[0]!.url] })).json().error).toBe(
+      'bad_media',
+    );
+    expect(
+      (await post(creator.cookie, { text: 'x', media: ['https://evil.example/a.png'] })).json().error,
+    ).toBe('bad_media');
+    expect((await post(creator.cookie, { text: 'x', media: [...urls, theirs[0]!.url] })).json().error).toBe(
+      'too_many_media',
+    );
     const pub = (await post(creator.cookie, { text: '', media: [pubImg.url, pubImg.url] })).json<PostDTO>();
     expect(pub.media).toEqual([pubImg.url]);
 
-    const gated = (await post(creator.cookie, { text: 'holders only pics', visibility: 'holders', media: urls })).json<PostDTO>();
+    const gated = (
+      await post(creator.cookie, { text: 'holders only pics', visibility: 'holders', media: urls })
+    ).json<PostDTO>();
     expect(gated.media).toEqual(urls);
-    for (const res of [await feed('latest'), await feed('latest', other.cookie), await inject('GET', `/api/posts/${gated.id}`), await inject('GET', '/api/users/imgcreator/posts')]) {
+    for (const res of [
+      await feed('latest'),
+      await feed('latest', other.cookie),
+      await inject('GET', `/api/posts/${gated.id}`),
+      await inject('GET', '/api/users/imgcreator/posts'),
+    ]) {
       for (const u of mine) expect(res.body).not.toContain(u.name);
     }
     const lockedDto = (await feed('latest')).json<FeedResponse>().posts.find((p) => p.id === gated.id)!;
@@ -375,7 +475,9 @@ describe('images', () => {
     const fan = await member(ctx, 'imgfan');
     ctx.chain.setKeys(creator.address, fan.address, 100n);
     await ctx.redis.del(accessKey(creator.address, fan.address));
-    const open = (await feed('latest', fan.cookie)).json<FeedResponse>().posts.find((p) => p.id === gated.id)!;
+    const open = (await feed('latest', fan.cookie))
+      .json<FeedResponse>()
+      .posts.find((p) => p.id === gated.id)!;
     expect(open).toMatchObject({ locked: false, media: urls });
   });
 });
@@ -391,8 +493,12 @@ describe('admin', () => {
     for (const r of adminRoutes) {
       const [method, tpl] = r.split(' ') as ['GET' | 'POST', string];
       const url = tpl.replace(/:(\w+)/g, 'x');
-      expect((await inject(method, url, user.cookie, method === 'POST' ? {} : undefined)).statusCode, r).toBe(403);
-      expect((await inject(method, url, undefined, method === 'POST' ? {} : undefined)).statusCode, r).toBe(401);
+      expect((await inject(method, url, user.cookie, method === 'POST' ? {} : undefined)).statusCode, r).toBe(
+        403,
+      );
+      expect((await inject(method, url, undefined, method === 'POST' ? {} : undefined)).statusCode, r).toBe(
+        401,
+      );
     }
     expect((await inject('GET', '/api/admin/reports', chief.cookie)).statusCode).toBe(200);
   });
@@ -403,24 +509,42 @@ describe('admin', () => {
     const r = await login(ctx, 'goodcitizen');
     const p1 = (await post(a.cookie, { text: 'spam 1', visibility: 'holders' })).json<PostDTO>();
     const p2 = (await post(a.cookie, { text: 'spam 2' })).json<PostDTO>();
-    for (const id of [p1.id, p2.id]) await inject('POST', '/api/reports', r.cookie, { postId: id, reason: 'spam' });
+    for (const id of [p1.id, p2.id])
+      await inject('POST', '/api/reports', r.cookie, { postId: id, reason: 'spam' });
     await inject('POST', '/api/reports', r.cookie, { handle: 'badactor', reason: 'other', note: 'farm' });
 
     const list = (await inject('GET', '/api/admin/reports', boss.cookie)).json<AdminReportDTO[]>();
     expect(list).toHaveLength(3);
     const first = list.find((x) => x.post?.id === p1.id)!;
     // Admins see the full post whatever its visibility.
-    expect(first).toMatchObject({ reason: 'spam', post: { text: 'spam 1', visibility: 'holders', hidden: false }, target: { handle: 'badactor', botFlag: false } });
+    expect(first).toMatchObject({
+      reason: 'spam',
+      post: { text: 'spam 1', visibility: 'holders', hidden: false },
+      target: { handle: 'badactor', botFlag: false },
+    });
 
-    const hid = (await inject('POST', `/api/admin/reports/${first.id}`, boss.cookie, { action: 'hide' })).json<AdminReportDTO>();
+    const hid = (
+      await inject('POST', `/api/admin/reports/${first.id}`, boss.cookie, { action: 'hide' })
+    ).json<AdminReportDTO>();
     expect(hid).toMatchObject({ status: 'actioned', post: { hidden: true } });
     const second = list.find((x) => x.post?.id === p2.id)!;
-    expect((await inject('POST', `/api/admin/reports/${second.id}`, boss.cookie, { action: 'dismiss' })).json<AdminReportDTO>().status).toBe('dismissed');
+    expect(
+      (
+        await inject('POST', `/api/admin/reports/${second.id}`, boss.cookie, { action: 'dismiss' })
+      ).json<AdminReportDTO>().status,
+    ).toBe('dismissed');
     const acct = list.find((x) => !x.post)!;
-    expect((await inject('POST', `/api/admin/reports/${acct.id}`, boss.cookie, { action: 'hide' })).json().error).toBe('no_post');
-    const flagged = (await inject('POST', `/api/admin/reports/${acct.id}`, boss.cookie, { action: 'flag' })).json<AdminReportDTO>();
+    expect(
+      (await inject('POST', `/api/admin/reports/${acct.id}`, boss.cookie, { action: 'hide' })).json().error,
+    ).toBe('no_post');
+    const flagged = (
+      await inject('POST', `/api/admin/reports/${acct.id}`, boss.cookie, { action: 'flag' })
+    ).json<AdminReportDTO>();
     expect(flagged).toMatchObject({ status: 'actioned', target: { botFlag: true } });
-    expect(await prisma.user.findUniqueOrThrow({ where: { id: a.user.id } })).toMatchObject({ botFlag: true, botReason: 'admin' });
+    expect(await prisma.user.findUniqueOrThrow({ where: { id: a.user.id } })).toMatchObject({
+      botFlag: true,
+      botReason: 'admin',
+    });
     expect((await inject('GET', '/api/admin/reports', boss.cookie)).json()).toEqual([]);
     expect((await inject('GET', '/api/admin/reports?status=actioned', boss.cookie)).json()).toHaveLength(2);
   });
@@ -431,22 +555,55 @@ describe('admin', () => {
     const xid = '424242';
     const u = await prisma.user.create({ data: { xId: xid, handle: 'orbitlabs', name: 'Orbit Labs' } });
     const m = await prisma.keyMarket.create({
-      data: { subject: '0x' + 'ab'.repeat(20), userId: u.id, xId: xid, fan: true, claimed: false, opened: true, category: 'crypto' },
+      data: {
+        subject: '0x' + 'ab'.repeat(20),
+        userId: u.id,
+        xId: xid,
+        fan: true,
+        claimed: false,
+        opened: true,
+        category: 'crypto',
+      },
     });
-    await inject('POST', '/api/users/orbitlabs/claim-request', fan.cookie, { kind: 'takedown', contact: 'legal@orbit.example', note: 'not us' });
+    await inject('POST', '/api/users/orbitlabs/claim-request', fan.cookie, {
+      kind: 'takedown',
+      contact: 'legal@orbit.example',
+      note: 'not us',
+    });
     const claims = (await inject('GET', '/api/admin/claims', boss.cookie)).json();
     expect(claims).toHaveLength(1);
-    expect(claims[0]).toMatchObject({ kind: 'takedown', contact: 'legal@orbit.example', market: { handle: 'orbitlabs', subject: m.subject }, from: { handle: 'claimer' } });
-    expect((await inject('POST', `/api/admin/claims/${claims[0].id}/resolve`, boss.cookie)).json().status).toBe('resolved');
+    expect(claims[0]).toMatchObject({
+      kind: 'takedown',
+      contact: 'legal@orbit.example',
+      market: { handle: 'orbitlabs', subject: m.subject },
+      from: { handle: 'claimer' },
+    });
+    expect(
+      (await inject('POST', `/api/admin/claims/${claims[0].id}/resolve`, boss.cookie)).json().status,
+    ).toBe('resolved');
     expect((await inject('GET', '/api/admin/claims', boss.cookie)).json()).toEqual([]);
 
     const found = (await inject('GET', '/api/admin/members?q=claim', boss.cookie)).json<AdminMemberDTO[]>();
     expect(found.map((x) => x.handle)).toEqual(['claimer']);
-    expect((await inject('POST', '/api/admin/members/claimer/bot', boss.cookie, { flagged: true })).json<AdminMemberDTO>()).toMatchObject({ botFlag: true, botReason: 'admin' });
-    expect((await inject('POST', '/api/admin/members/claimer/bot', boss.cookie, { flagged: false })).json<AdminMemberDTO>()).toMatchObject({ botFlag: false, botReason: null });
-    expect((await inject('POST', '/api/admin/members/claimer/admin', boss.cookie, { admin: true })).json<AdminMemberDTO>().isAdmin).toBe(true);
+    expect(
+      (
+        await inject('POST', '/api/admin/members/claimer/bot', boss.cookie, { flagged: true })
+      ).json<AdminMemberDTO>(),
+    ).toMatchObject({ botFlag: true, botReason: 'admin' });
+    expect(
+      (
+        await inject('POST', '/api/admin/members/claimer/bot', boss.cookie, { flagged: false })
+      ).json<AdminMemberDTO>(),
+    ).toMatchObject({ botFlag: false, botReason: 'admin_cleared' });
+    expect(
+      (
+        await inject('POST', '/api/admin/members/claimer/admin', boss.cookie, { admin: true })
+      ).json<AdminMemberDTO>().isAdmin,
+    ).toBe(true);
     expect((await inject('GET', '/api/admin/reports', fan.cookie)).statusCode).toBe(200);
-    expect((await inject('POST', '/api/admin/members/boss/admin', boss.cookie, { admin: false })).json().error).toBe('self');
+    expect(
+      (await inject('POST', '/api/admin/members/boss/admin', boss.cookie, { admin: false })).json().error,
+    ).toBe('self');
   });
 
   it('halts markets onchain through the operator and opens fan markets', async () => {
@@ -460,19 +617,37 @@ describe('admin', () => {
     expect((await prisma.keyMarket.findUniqueOrThrow({ where: { subject: c.address } })).halted).toBe(false);
     await inject('POST', '/api/admin/markets/haltme/halt', boss.cookie, { halted: false });
     expect(ctx.chain.calls).toContainEqual({ fn: 'setMarketHalted', args: [c.address, false] });
-    expect((await inject('GET', '/api/admin/markets?q=halt', boss.cookie)).json().map((m: { handle: string }) => m.handle)).toEqual(['haltme']);
+    expect(
+      (await inject('GET', '/api/admin/markets?q=halt', boss.cookie))
+        .json()
+        .map((m: { handle: string }) => m.handle),
+    ).toEqual(['haltme']);
 
     const body = { handle: '@NewCo', name: 'New Co', xId: '1234567', followers: 50000, category: 'stocks' };
     const r = await inject('POST', '/api/admin/fan-markets', boss.cookie, body);
     expect(r.statusCode).toBe(200);
-    expect(r.json()).toMatchObject({ status: 'success', market: { handle: 'newco', fan: true, claimed: false, category: 'stocks', opened: false } });
+    expect(r.json()).toMatchObject({
+      status: 'success',
+      market: { handle: 'newco', fan: true, claimed: false, category: 'stocks', opened: false },
+    });
     expect(ctx.chain.calls).toContainEqual({ fn: 'openFanMarket', args: [1234567n] });
     const u = await prisma.user.findUniqueOrThrow({ where: { xId: '1234567' }, include: { market: true } });
     expect(u).toMatchObject({ handle: 'newco', name: 'New Co', followers: 50000, joinedAt: null });
     expect(u.bio).toContain('Fan market');
-    expect((await inject('POST', '/api/admin/fan-markets', boss.cookie, { ...body, category: 'creators' })).json().error).toBe('bad_category');
-    expect((await inject('POST', '/api/admin/fan-markets', boss.cookie, { ...body, handle: 'haltme', xId: '99' })).json().error).toBe('handle_taken');
-    expect((await inject('POST', '/api/admin/fan-markets', boss.cookie, { ...body, handle: 'x', xId: c.user.xId })).json().error).toBe('member');
+    expect(
+      (await inject('POST', '/api/admin/fan-markets', boss.cookie, { ...body, category: 'creators' })).json()
+        .error,
+    ).toBe('bad_category');
+    expect(
+      (
+        await inject('POST', '/api/admin/fan-markets', boss.cookie, { ...body, handle: 'haltme', xId: '99' })
+      ).json().error,
+    ).toBe('handle_taken');
+    expect(
+      (
+        await inject('POST', '/api/admin/fan-markets', boss.cookie, { ...body, handle: 'x', xId: c.user.xId })
+      ).json().error,
+    ).toBe('member');
   });
 });
 
@@ -485,8 +660,22 @@ describe('profile price history', () => {
     const trade = (minsAgo: number, supplyAfter: bigint, units = 100n) =>
       prisma.trade.create({
         data: {
-          txHash: fakeHash(), logIndex: 0, blockNumber: BigInt(now - minsAgo), blockHash: '0x', marketId: m.id, trader: c.address, isBuy: true, units,
-          baseWei: '1', creatorFeeWei: '0', protocolFeeWei: '0', holderFeeWei: '0', referralFeeWei: '0', totalWei: '1', supplyAfter, ts: new Date(now - minsAgo * 60000),
+          txHash: fakeHash(),
+          logIndex: 0,
+          blockNumber: BigInt(now - minsAgo),
+          blockHash: '0x',
+          marketId: m.id,
+          trader: c.address,
+          isBuy: true,
+          units,
+          baseWei: '1',
+          creatorFeeWei: '0',
+          protocolFeeWei: '0',
+          holderFeeWei: '0',
+          referralFeeWei: '0',
+          totalWei: '1',
+          supplyAfter,
+          ts: new Date(now - minsAgo * 60000),
         },
       });
     await trade(60 * 30, 200n);
@@ -494,9 +683,13 @@ describe('profile price history', () => {
     await trade(10, 400n);
     const h1 = (await inject('GET', '/api/users/charted/history?range=1h')).json<PriceHistoryResponse>();
     expect(h1.range).toBe('1h');
-    expect(h1.points.map((p) => p.priceWei)).toEqual([priceWei(300n), priceWei(400n), priceWei(400n)].map(String));
+    expect(h1.points.map((p) => p.priceWei)).toEqual(
+      [priceWei(300n), priceWei(400n), priceWei(400n)].map(String),
+    );
     const d1 = (await inject('GET', '/api/users/charted/history?range=1d')).json<PriceHistoryResponse>();
-    expect(d1.points.map((p) => p.priceWei)).toEqual([priceWei(200n), priceWei(300n), priceWei(400n), priceWei(400n)].map(String));
+    expect(d1.points.map((p) => p.priceWei)).toEqual(
+      [priceWei(200n), priceWei(300n), priceWei(400n), priceWei(400n)].map(String),
+    );
     const w = (await inject('GET', '/api/users/charted/history?range=7d')).json<PriceHistoryResponse>();
     expect(w.points).toHaveLength(5);
     expect((await inject('GET', '/api/users/charted/history?range=1y')).statusCode).toBe(400);
@@ -511,7 +704,9 @@ describe('account', () => {
     const t = (await inject('POST', '/api/messages/dm', me.cookie, { handle: 'pal' })).json<{ id: string }>();
     await inject('POST', `/api/messages/dm/${t.id}`, me.cookie, { text: 'secret dm' });
     await inject('POST', `/api/messages/dm/${t.id}`, other.cookie, { text: 'their reply' });
-    await prisma.pointsLedger.create({ data: { userId: me.user.id, kind: 'task', amount: 1000, ref: 'task:follow' } });
+    await prisma.pointsLedger.create({
+      data: { userId: me.user.id, kind: 'task', amount: 1000, ref: 'task:follow' },
+    });
     await inject('POST', '/api/users/pal/block', me.cookie);
 
     const acct = (await inject('GET', '/api/me/account', me.cookie)).json();
@@ -538,11 +733,27 @@ describe('account', () => {
     await prisma.holding.create({ data: { marketId: m.id, address: pal.address, units: 200n } });
     await prisma.trade.create({
       data: {
-        txHash: fakeHash(), logIndex: 0, blockNumber: 1n, blockHash: '0x', marketId: m.id, trader: pal.address, isBuy: true, units: 200n,
-        baseWei: '1', creatorFeeWei: '0', protocolFeeWei: '0', holderFeeWei: '0', referralFeeWei: '0', totalWei: '1', supplyAfter: 300n, ts: new Date(),
+        txHash: fakeHash(),
+        logIndex: 0,
+        blockNumber: 1n,
+        blockHash: '0x',
+        marketId: m.id,
+        trader: pal.address,
+        isBuy: true,
+        units: 200n,
+        baseWei: '1',
+        creatorFeeWei: '0',
+        protocolFeeWei: '0',
+        holderFeeWei: '0',
+        referralFeeWei: '0',
+        totalWei: '1',
+        supplyAfter: 300n,
+        ts: new Date(),
       },
     });
-    await prisma.pointsLedger.create({ data: { userId: me.user.id, kind: 'task', amount: 1000, ref: 'task:follow' } });
+    await prisma.pointsLedger.create({
+      data: { userId: me.user.id, kind: 'task', amount: 1000, ref: 'task:follow' },
+    });
     const img = (await upload(me.cookie, [{ buf: PNG }])).json<UploadResponse>().uploads[0]!;
     const mine = (await post(me.cookie, { text: 'my words #gone', media: [img.url] })).json<PostDTO>();
     const theirs = (await post(pal.cookie, { text: 'pal post' })).json<PostDTO>();
@@ -552,7 +763,9 @@ describe('account', () => {
     await inject('POST', `/api/posts/${theirs.id}/repost`, me.cookie);
     await inject('POST', '/api/users/stayer/follow', me.cookie);
     await inject('POST', '/api/users/leaver/follow', pal.cookie);
-    const t = (await inject('POST', '/api/messages/dm', me.cookie, { handle: 'stayer' })).json<{ id: string }>();
+    const t = (await inject('POST', '/api/messages/dm', me.cookie, { handle: 'stayer' })).json<{
+      id: string;
+    }>();
     await inject('POST', `/api/messages/dm/${t.id}`, me.cookie, { text: 'bye' });
     await inject('POST', '/api/reports', me.cookie, { postId: theirs.id, reason: 'other' });
     await post(pal.cookie, { text: 'hey @leaver' });
@@ -570,7 +783,14 @@ describe('account', () => {
     expect(await ctx.redis.exists(`usess:${me.user.id}`)).toBe(0);
 
     const u = await prisma.user.findUniqueOrThrow({ where: { id: me.user.id } });
-    expect(u).toMatchObject({ name: 'Deleted account', avatarUrl: null, bio: '', scoreInputs: null, joinedAt: null, memberNo: null });
+    expect(u).toMatchObject({
+      name: 'Deleted account',
+      avatarUrl: null,
+      bio: '',
+      scoreInputs: null,
+      joinedAt: null,
+      memberNo: null,
+    });
     expect(u.handle).toMatch(/^deleted_/);
     expect(u.deletedAt).not.toBeNull();
     const posts = await prisma.post.findMany({ where: { authorId: me.user.id } });

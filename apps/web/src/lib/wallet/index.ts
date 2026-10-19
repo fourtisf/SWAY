@@ -15,6 +15,7 @@ import { create } from 'zustand';
 import { getApi } from '../api';
 import { MOCK } from '../env';
 import { useConfig, useMe } from '../queries';
+import { openModal } from '../store';
 import { activeChoice, resolveActive, setActiveChoice, useActiveChoice } from './active';
 import { burnerWalletCached, findBurnerKey, loadOrCreateBurnerKey, newBurnerKey } from './burner';
 import { walletName, useWalletCatalog, type DetectedWallet } from './catalog';
@@ -46,9 +47,9 @@ export const useExternalWallet = create<{
   api: ExternalApi | null;
   /** @deprecated first connected account; use useMemberWallets(). */
   wallet: SwayWallet | null;
-  /** @deprecated opens the connect modal; use openConnectWallet(). */
+  /** @deprecated opens the connect modal; use openConnectWallet() from lib/wallet-actions. */
   openConnect: (() => void) | null;
-}>(() => ({ wallets: [], detected: [], ready: false, api: null, wallet: null, openConnect: null }));
+}>(() => ({ wallets: [], detected: [], ready: false, api: null, wallet: null, openConnect: () => openModal({ type: 'wallets', purpose: 'reconnect' }) }));
 
 /** Bumped when a Sway wallet key is added to or imported into this browser. */
 export const useKeyring = create<{ v: number }>(() => ({ v: 0 }));
@@ -115,7 +116,8 @@ export function useMemberWallets(): {
   const extReady = useExternalWallet((s) => s.ready);
   const keys = useKeyring((s) => s.v);
   const choice = useActiveChoice((s) => (me ? s.byUser[me.user.id] : undefined));
-  const apps = useWalletCatalog();
+  // Logos load for signed-in members only; guests never fetch the wallet catalog.
+  const apps = useWalletCatalog(!!me);
   return useMemo(() => {
     if (!me) return { wallets: [], active: null, ready: true, setActive: () => undefined };
     const wallets = memberWalletsOf(me, config, externals, (w) => walletName(w.connector, apps, detected, w.kind));

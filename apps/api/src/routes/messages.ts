@@ -38,7 +38,8 @@ export async function messageRoutes(app: FastifyInstance) {
     if (!other || (!other.joinedAt && !other.official))
       throw notFound(`@${handle} isn’t on Sway yet`, 'user_not_found');
     if (other.id === v.user.id) throw badRequest('self', 'You can’t message yourself');
-    if (await blockedEitherWay(prisma, v.user.id, other.id)) throw forbidden('blocked', 'You can’t message this account'); // [B]
+    if (await blockedEitherWay(prisma, v.user.id, other.id))
+      throw forbidden('blocked', 'You can’t message this account'); // [B]
     const [aId, bId] = orderPair(v.user.id, other.id);
     const now = new Date();
     const thread = await prisma.dmThread.upsert({
@@ -83,7 +84,8 @@ export async function messageRoutes(app: FastifyInstance) {
       const v = await requireViewer(req);
       const t = await threadFor(req, v.user.id);
       const b = body(z.object({ text: text(2000) }), req);
-      if (await blockedEitherWay(prisma, t.aId, t.bId)) throw forbidden('blocked', 'You can’t message this account'); // [B]
+      if (await blockedEitherWay(prisma, t.aId, t.bId))
+        throw forbidden('blocked', 'You can’t message this account'); // [B]
       const now = new Date();
       const read = t.aId === v.user.id ? { aReadAt: now } : { bReadAt: now };
       const [msg] = await prisma.$transaction([

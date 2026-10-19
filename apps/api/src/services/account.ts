@@ -25,7 +25,11 @@ export async function exportAccount(prisma: PrismaClient, user: User): Promise<A
     prisma.dmMessage.findMany({
       where: { authorId: userId },
       orderBy: { createdAt: 'asc' },
-      include: { thread: { include: { a: { select: { id: true, handle: true } }, b: { select: { id: true, handle: true } } } } },
+      include: {
+        thread: {
+          include: { a: { select: { id: true, handle: true } }, b: { select: { id: true, handle: true } } },
+        },
+      },
     }),
     prisma.notification.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
     prisma.pointsLedger.findMany({ where: { userId }, orderBy: { id: 'asc' } }),
@@ -81,12 +85,29 @@ export async function exportAccount(prisma: PrismaClient, user: User): Promise<A
       createdAt: n.createdAt.toISOString(),
       read: n.readAt !== null,
     })),
-    pointsLedger: ledger.map((l) => ({ kind: l.kind, amount: l.amount, ref: l.ref, createdAt: l.createdAt.toISOString() })),
+    pointsLedger: ledger.map((l) => ({
+      kind: l.kind,
+      amount: l.amount,
+      ref: l.ref,
+      createdAt: l.createdAt.toISOString(),
+    })),
     wallets: [
       ...(wallet
-        ? [{ address: wallet.address as Address, kind: wallet.kind, linked: false, createdAt: wallet.createdAt.toISOString() }]
+        ? [
+            {
+              address: wallet.address as Address,
+              kind: wallet.kind,
+              linked: false,
+              createdAt: wallet.createdAt.toISOString(),
+            },
+          ]
         : []),
-      ...linked.map((l) => ({ address: l.address as Address, kind: l.kind, linked: true, createdAt: l.createdAt.toISOString() })),
+      ...linked.map((l) => ({
+        address: l.address as Address,
+        kind: l.kind,
+        linked: true,
+        createdAt: l.createdAt.toISOString(),
+      })),
     ],
     trades: trades.map((t) => ({
       txHash: t.txHash,
@@ -106,7 +127,10 @@ export async function exportAccount(prisma: PrismaClient, user: User): Promise<A
 
 export const deletedHandle = (userId: string) => `deleted_${userId.slice(-8)}`;
 
-export async function deleteAccount(deps: Pick<AppDeps, 'prisma' | 'redis' | 'config'>, userId: string): Promise<void> {
+export async function deleteAccount(
+  deps: Pick<AppDeps, 'prisma' | 'redis' | 'config'>,
+  userId: string,
+): Promise<void> {
   const { prisma, redis, config } = deps;
   const now = new Date();
   const uploads = await prisma.upload.findMany({ where: { userId }, select: { name: true } });

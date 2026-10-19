@@ -259,7 +259,7 @@ export function OnboardingModal({ handle, followers }: { handle?: string; follow
   const steps = STEPS.map((s, i) => (i === 3 ? (walletStep ?? (choice ? 'Set up your wallet' : s)) : s));
   // Privy / CDP embedded wallets are stubs until a provider is chosen: only wallet apps work then.
   const embeddedOk = MOCK || !cfg || cfg.wallets.embedded === 'burner';
-  const stack = (['metaMask', 'coinbaseWallet', 'rabby'] as const).flatMap((id) => (apps[id]?.icon ? [apps[id]!] : []));
+  const stack = (['metaMask', 'coinbaseWallet', 'rabby', 'walletConnect'] as const).flatMap((id) => (apps[id]?.icon ? [apps[id]!] : []));
   return (
     <>
       <div className="m-h">
@@ -283,13 +283,15 @@ export function OnboardingModal({ handle, followers }: { handle?: string; follow
               <LogoBox logo={{ kind: 'sway' }} size={38} />
               <span className="wopt-t">
                 <b>Create a Sway wallet</b>
-                <small>{embeddedOk ? 'Made in this browser in a second. No extension.' : 'Not available on this server yet'}</small>
+                <small>{embeddedOk ? 'Made in this browser. No extension.' : 'Not available on this server yet'}</small>
               </span>
               {embeddedOk && <span className="tag">Recommended</span>}
             </button>
             <button className="wopt" onClick={() => setChoice('picker')}>
               <span className="wstack">
-                {stack.length ? stack.map((m) => <LogoBox key={m.id} logo={{ kind: 'img', src: m.icon!, bg: m.iconBackground, name: m.name }} size={26} />) : <LogoBox logo={{ kind: 'generic', name: 'Wallet' }} size={26} />}
+                {stack.map((m) => (
+                  <LogoBox key={m.id} logo={{ kind: 'img', src: m.icon!, bg: m.iconBackground, name: m.name }} size={17} />
+                ))}
               </span>
               <span className="wopt-t">
                 <b>Connect a wallet</b>

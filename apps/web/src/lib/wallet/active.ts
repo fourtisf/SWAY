@@ -17,13 +17,10 @@ function read(userId: string): string | null {
 
 export const useActiveChoice = create<{ byUser: Record<string, string | null> }>(() => ({ byUser: {} }));
 
-/** The stored choice for a member (lowercase address or null). */
+/** The stored choice for a member (lowercase address or null). Pure read: safe during render. */
 export function activeChoice(userId: string): string | null {
   const s = useActiveChoice.getState().byUser;
-  if (userId in s) return s[userId] ?? null;
-  const v = read(userId);
-  useActiveChoice.setState({ byUser: { ...s, [userId]: v } });
-  return v;
+  return userId in s ? (s[userId] ?? null) : read(userId);
 }
 
 export function setActiveChoice(userId: string, address: string | null): void {
