@@ -12,7 +12,7 @@ contract GenesisPassTest is Test {
     address internal bob = makeAddr("bob");
 
     function setUp() public {
-        pass = new GenesisPass(admin, issuer, "https://sway.fam/genesis/");
+        pass = new GenesisPass(admin, issuer, "https://swayfamily.com/genesis/");
     }
 
     function _commit() internal {
@@ -38,7 +38,7 @@ contract GenesisPassTest is Test {
         pass.mint(alice, 7);
         assertEq(pass.ownerOf(7), alice);
         assertTrue(pass.locked(7));
-        assertEq(pass.tokenURI(7), "https://sway.fam/genesis/7");
+        assertEq(pass.tokenURI(7), "https://swayfamily.com/genesis/7");
         assertEq(pass.totalMinted(), 1);
         assertTrue(pass.supportsInterface(0xb45a3c0e));
     }

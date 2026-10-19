@@ -61,7 +61,7 @@ contract Deploy is Script {
         c.issuer = vm.envOr("ISSUER", c.operator);
         c.launchSigner = vm.envOr("LAUNCH_SIGNER", c.operator);
         c.swayToken = vm.envOr("SWAY_TOKEN", address(0));
-        c.baseURI = vm.envOr("GENESIS_BASE_URI", string("https://sway.fam/genesis/"));
+        c.baseURI = vm.envOr("GENESIS_BASE_URI", string("https://swayfamily.com/genesis/"));
     }
 
     function run() external {

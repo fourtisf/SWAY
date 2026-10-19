@@ -16,7 +16,7 @@ export interface VapidKeys {
 
 const b64u = (b: Buffer) => b.toString('base64url');
 
-export function generateVapidKeys(subject = 'mailto:ops@sway.fam'): VapidKeys {
+export function generateVapidKeys(subject = 'mailto:ops@swayfamily.com'): VapidKeys {
   const { publicKey, privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
   const pub = publicKey.export({ format: 'jwk' });
   const priv = privateKey.export({ format: 'jwk' });

@@ -12,11 +12,11 @@ import { goTag } from '../shell/Rail';
 import { Avatar, Spark, VB } from '../ui';
 import { PostMenu } from './PostMenu';
 
-/** Mentions → profiles, #tags → Explore, sway.fam/model → /model (prototype linkify()). */
+/** Mentions → profiles, #tags → Explore, swayfamily.com/model → /model (prototype linkify()). */
 export function Linkify({ text }: { text: string }) {
   const router = useRouter();
   const out: ReactNode[] = [];
-  const re = /@([a-z0-9_]+)|#(\w+)|sway\.fam\/model/gi;
+  const re = /@([a-z0-9_]+)|#(\w+)|swayfamily\.com\/model/gi;
   let last = 0;
   let m: RegExpExecArray | null;
   let i = 0;

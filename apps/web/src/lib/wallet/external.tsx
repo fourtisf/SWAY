@@ -136,7 +136,7 @@ export default function ExternalWalletRoot({ config }: { config: ConfigDTO }) {
   const cfg = useMemo(() => {
     const chain = swayChain({ chainId: config.chainId, rpcUrl: config.rpcUrl, explorerUrl: config.explorerUrl, name: config.chainName });
     const projectId = config.wallets.walletConnectProjectId;
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://sway.fam';
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://swayfamily.com';
     return createConfig({
       chains: [chain],
       connectors: [

@@ -16,7 +16,7 @@ export interface TaskCheckInput {
   joinedAt?: Date | null;
   /** Id of the official launch post for the 'repost' task. */
   launchPostId?: string | null;
-  /** Hosts that identify a Sway card share, e.g. ["sway.fam", "localhost:3000"]. */
+  /** Hosts that identify a Sway card share, e.g. ["swayfamily.com", "localhost:3000"]. */
   cardHosts?: string[];
   officialHandle?: string;
 }

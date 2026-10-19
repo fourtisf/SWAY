@@ -63,7 +63,7 @@ export async function runVerifyTask(c: Clients, job: VerifyTaskJob): Promise<'ve
   try {
     const r = await checkTaskOnX(ctx, {
       taskId: job.taskId, xUserId: user.xId, day: dayDate(job.day), joinedAt: user.joinedAt,
-      launchPostId: c.cfg.launchPostId || null, cardHosts: [new URL(c.cfg.webUrl).host, 'sway.fam'],
+      launchPostId: c.cfg.launchPostId || null, cardHosts: [new URL(c.cfg.webUrl).host, 'swayfamily.com'],
     });
     if (r === 'verified') await completeTask(c, job, 'verified');
     else {

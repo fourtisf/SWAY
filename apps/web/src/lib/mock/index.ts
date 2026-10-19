@@ -264,7 +264,7 @@ export function getMockApi(): SwayApi {
 
     async tasks() {
       if (!w.user) throw new ApiRequestError(401, 'auth_required', 'Connect X first');
-      return { points: w.points(), tasks: w.taskList(), inviteLink: `sway.fam/i/${w.user.handle}`, invitesCredited: w.refs };
+      return { points: w.points(), tasks: w.taskList(), inviteLink: `swayfamily.com/i/${w.user.handle}`, invitesCredited: w.refs };
     },
     async taskVerify(id) {
       needUser(w);

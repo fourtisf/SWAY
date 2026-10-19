@@ -82,6 +82,9 @@ holders until they post again (activity bond), and selling within 24 hours of yo
 
 ## Deploy
 
+Step by step for the VPS (swayfamily.com): [deploy/DEPLOY.md](deploy/DEPLOY.md) (`install-server.sh` once, then
+`update.sh` for every release).
+
 - Contracts: `cd contracts && forge script script/Deploy.s.sol --rpc-url $RPC_URL --private-key … --broadcast`
   with `ADMIN` (multisig behind a timelock), `TREASURY`, `OPERATOR`, `FAN_ADMIN`, `ISSUER`, `LAUNCH_SIGNER`,
   `SWAY_TOKEN`. Addresses land in `contracts/deployments/<chainId>.json`. The admin must `acceptOwnership()`.

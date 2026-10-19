@@ -164,7 +164,7 @@ A faster trade sheet for keys, priced in dollars
 Wallet in dollars, with every earning in one card to claim
 Launchpad: turn your reach into a token with one switch
 
-The scoring model is public. Read it on sway.fam/model`;
+The scoring model is public. Read it on swayfamily.com/model`;
 
 export interface DemoPost {
   author: string;

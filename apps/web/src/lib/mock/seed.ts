@@ -131,7 +131,7 @@ A faster trade sheet for keys, priced in dollars
 Wallet in dollars, with every earning in one card to claim
 Launchpad: turn your reach into a token with one switch
 
-The scoring model is public. Read it on sway.fam/model`;
+The scoring model is public. Read it on swayfamily.com/model`;
 
 export const POSTS_SEED: Array<[string, string, number, Visibility, number, number, number, boolean]> = [
   ['novareyes', 'Holders room tonight: the 3 wallets that front-ran every Robinhood Chain listing this month. Charts and addresses inside.', 38, 'holders', 412, 61, 88, true],

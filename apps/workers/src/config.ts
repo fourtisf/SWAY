@@ -86,7 +86,7 @@ export function loadConfig(): WorkerConfig {
     webUrl: str('WEB_URL', 'http://localhost:3000'),
     push:
       str('VAPID_PUBLIC_KEY') && str('VAPID_PRIVATE_KEY')
-        ? { publicKey: str('VAPID_PUBLIC_KEY'), privateKey: str('VAPID_PRIVATE_KEY'), subject: str('VAPID_SUBJECT', 'mailto:ops@sway.fam') }
+        ? { publicKey: str('VAPID_PUBLIC_KEY'), privateKey: str('VAPID_PRIVATE_KEY'), subject: str('VAPID_SUBJECT', 'mailto:ops@swayfamily.com') }
         : null,
     pushDevHosts: process.env.NODE_ENV === 'production' ? [] : str('PUSH_DEV_HOSTS').split(',').map((h) => h.trim()).filter(Boolean),
   };

@@ -19,7 +19,7 @@ const server = createServer((req, res) => {
   res.end();
 });
 let base = '';
-const vapid = generateVapidKeys('mailto:test@sway.fam');
+const vapid = generateVapidKeys('mailto:test@swayfamily.com');
 
 async function member(extra: Record<string, unknown> = {}) {
   n++;
@@ -82,7 +82,7 @@ describe('web push', () => {
     const pub = Buffer.from(vapid.publicKey, 'base64url');
     const key = createPublicKey({ key: { kty: 'EC', crv: 'P-256', x: pub.subarray(1, 33).toString('base64url'), y: pub.subarray(33).toString('base64url') }, format: 'jwk' });
     expect(verify('sha256', Buffer.from(`${h}.${p}`), { key, dsaEncoding: 'ieee-p1363' }, Buffer.from(s!, 'base64url'))).toBe(true);
-    expect(JSON.parse(Buffer.from(p!, 'base64url').toString())).toEqual({ aud: 'https://fcm.googleapis.com', exp: Date.parse('2026-10-19T12:00:00Z') / 1000, sub: 'mailto:test@sway.fam' });
+    expect(JSON.parse(Buffer.from(p!, 'base64url').toString())).toEqual({ aud: 'https://fcm.googleapis.com', exp: Date.parse('2026-10-19T12:00:00Z') / 1000, sub: 'mailto:test@swayfamily.com' });
   });
 
   it('pushes once per member per run, drops gone and foreign endpoints, honours prefs', async () => {
