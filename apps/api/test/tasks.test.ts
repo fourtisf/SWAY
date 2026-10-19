@@ -85,7 +85,7 @@ describe('tasks', () => {
     expect(notes).toHaveLength(2);
     expect(notes.map((n) => n.body)).toContainEqual([
       { t: 'Task verified on X: ' },
-      { t: 'Follow @swaydotfam on X', b: true },
+      { t: 'Follow @swaydotfamily on X', b: true },
       { t: '. +1,000 points.' },
     ]);
     const tc = await prisma.taskCompletion.findUniqueOrThrow({
@@ -164,8 +164,8 @@ describe('X-backed verification', () => {
     const xFetch = (async (input: string | URL | Request) => {
       const u = new URL(String(input));
       seen.push(u.pathname);
-      if (u.pathname === '/2/users/by/username/swaydotfam')
-        return ok({ data: { id: '4663', username: 'swaydotfam', name: 'Sway' } });
+      if (u.pathname === '/2/users/by/username/swaydotfamily')
+        return ok({ data: { id: '4663', username: 'swaydotfamily', name: 'Sway' } });
       if (u.pathname.endsWith('/following')) return ok({ data: [{ id: '1' }, { id: '4663' }] });
       return ok({ data: [] });
     }) as typeof fetch;
@@ -175,7 +175,7 @@ describe('X-backed verification', () => {
       const cookie = await xSession(x, user.id);
       const r = await verify2(x, cookie, 'follow');
       expect(r.json<TaskDTO>().status).toBe('verified');
-      expect(seen).toEqual(['/2/users/by/username/swaydotfam', `/2/users/${user.xId}/following`]);
+      expect(seen).toEqual(['/2/users/by/username/swaydotfamily', `/2/users/${user.xId}/following`]);
       // Not found on X: 422, the task stays open.
       const d = await verify2(x, cookie, 'daily');
       expect(d.statusCode).toBe(422);

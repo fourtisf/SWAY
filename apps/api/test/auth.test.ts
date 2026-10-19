@@ -301,6 +301,26 @@ describe('X OAuth 2.0 PKCE', () => {
     }
   });
 
+  it('marks the official X account as official when it signs in', async () => {
+    const xFetch = (async (input: string | URL | Request) => {
+      const url = new URL(String(input));
+      const res = (b: unknown) => new Response(JSON.stringify(b), { status: 200, headers: { 'content-type': 'application/json' } });
+      if (url.pathname === '/2/oauth2/token') return res({ access_token: 'AT', expires_in: 7200 });
+      if (url.pathname === '/2/users/me') return res({ data: { id: '7777', username: 'SwayDotFamily', name: 'Sway', public_metrics: { followers_count: 10 } } });
+      return res({ data: [] });
+    }) as typeof fetch;
+    const x = await makeApp({ env: { X_CLIENT_ID: 'cid' }, xFetch });
+    try {
+      const start = await x.app.inject({ url: '/api/auth/x/start' });
+      const state = new URL(start.headers.location as string).searchParams.get('state')!;
+      const done = await x.app.inject({ url: `/api/auth/x/callback?code=c&state=${state}` });
+      expect(done.headers.location).toBe('http://localhost:3000/?onboard=1');
+      expect(await prisma.user.findUniqueOrThrow({ where: { xId: '7777' } })).toMatchObject({ handle: 'swaydotfamily', official: true });
+    } finally {
+      await x.close();
+    }
+  });
+
   it('answers 503 x_disabled when X is not configured', async () => {
     const res = await ctx.app.inject('/api/auth/x/start');
     expect(res.statusCode).toBe(503);

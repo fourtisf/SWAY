@@ -13,7 +13,7 @@ const ICON: Record<NotificationType, [IconName, string]> = {
   points: ['bolt', 'pts'],
   mention: ['chat', 'men'],
 };
-const OFFICIAL = { handle: 'swaydotfam', name: 'Sway', official: true, avatarUrl: null };
+const OFFICIAL = { handle: 'swaydotfamily', name: 'Sway', official: true, avatarUrl: null };
 
 export default function NotificationsPage() {
   const me = useMe();

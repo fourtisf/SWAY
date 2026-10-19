@@ -15,7 +15,7 @@ import {
   scoreXAccount,
   XAuthError,
 } from '@sway/x';
-import { normalizeHandle, type MeDTO } from '@sway/shared';
+import { OFFICIAL_HANDLE, normalizeHandle, type MeDTO } from '@sway/shared';
 import { body, query } from './_util';
 import { getViewer, requireViewer } from '../plugins/auth';
 import { createSession, destroySession, referralFrom } from '../plugins/session';
@@ -128,6 +128,8 @@ export async function authRoutes(app: FastifyInstance) {
       };
       const { user } = await upsertMember(prisma, profile, scored, { ref: st.ref });
       await bootstrapAdmin(prisma, config, user.id, user.handle); // [B]
+      // The X account behind OFFICIAL_HANDLE is Sway's own: pinned posts, the gold badge, points notifications.
+      if (user.handle === OFFICIAL_HANDLE && !user.official) await prisma.user.update({ where: { id: user.id }, data: { official: true } });
       if (refresh) await app.deps.jobs.enqueueRefreshScore(user.id).catch(() => undefined);
       await createSession(req, reply, {
         userId: user.id,

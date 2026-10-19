@@ -224,7 +224,7 @@ export function engageMockApi(w: MockWorld): Pick<
     },
     async pushTest() {
       needUser(w);
-      w.pushNotif({ type: 'points', from: 'swaydotfam', body: [{ t: 'Push notifications are on.', b: true }], link: '/settings' });
+      w.pushNotif({ type: 'points', from: 'swaydotfamily', body: [{ t: 'Push notifications are on.', b: true }], link: '/settings' });
       return { ok: true as const };
     },
     async dropPlan(body) {

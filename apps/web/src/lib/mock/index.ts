@@ -274,7 +274,7 @@ export function getMockApi(): SwayApi {
       w.tasks[id] = { busy: true };
       setTimeout(() => {
         w.tasks[id] = { done: true, pts: def.pts };
-        w.pushNotif({ type: 'points', from: 'swaydotfam', body: [{ t: 'Task verified on X: ' }, { t: def.title, b: true }, { t: `. +${def.pts.toLocaleString('en-US')} points.` }], link: '/tasks' });
+        w.pushNotif({ type: 'points', from: 'swaydotfamily', body: [{ t: 'Task verified on X: ' }, { t: def.title, b: true }, { t: `. +${def.pts.toLocaleString('en-US')} points.` }], link: '/tasks' });
       }, 1300);
       return { ...def, status: 'pending' };
     },

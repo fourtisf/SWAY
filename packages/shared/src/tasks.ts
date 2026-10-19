@@ -20,11 +20,11 @@ export interface TaskDef {
   daily?: boolean;
 }
 
-export const OFFICIAL_HANDLE = 'swaydotfam';
+export const OFFICIAL_HANDLE = 'swaydotfamily';
 export const DAILY_TAG = 'SwayDaily';
 
 export const TASKS: readonly TaskDef[] = [
-  { id: 'follow', title: 'Follow @swaydotfam on X', pts: 1000, icon: 'x', group: 'Join checklist' },
+  { id: 'follow', title: 'Follow @swaydotfamily on X', pts: 1000, icon: 'x', group: 'Join checklist' },
   { id: 'repost', title: 'Repost the launch post', pts: 1000, icon: 'repeat', group: 'Join checklist' },
   { id: 'tg', title: 'Join the Telegram', pts: 500, icon: 'telegram', group: 'Join checklist', skippable: true },
   { id: 'card', title: 'Share your Sway card on X', pts: 2000, icon: 'share', group: 'Join checklist' },

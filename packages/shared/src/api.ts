@@ -31,7 +31,7 @@ export interface UserRef {
   name: string;
   avatarUrl: string | null;
   verified: boolean;
-  /** The official @swaydotfam account (black logo avatar, gold badge). */
+  /** The official @swaydotfamily account (black logo avatar, gold badge). */
   official?: boolean;
   /** false for an unclaimed fan market. */
   claimed?: boolean;

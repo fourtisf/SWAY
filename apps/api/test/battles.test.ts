@@ -185,7 +185,7 @@ describe('leaderboard, genesis, launchpad', () => {
     await prisma.user.create({
       data: {
         xId: '1',
-        handle: 'swaydotfam',
+        handle: 'swaydotfamily',
         name: 'Sway',
         official: true,
         joinedAt: new Date(),

@@ -43,7 +43,7 @@ export interface DemoCreator {
   category: MarketCategory;
 }
 
-export const OFFICIAL = { name: 'Sway', handle: 'swaydotfam', bio: 'The official Sway account.' };
+export const OFFICIAL = { name: 'Sway', handle: 'swaydotfamily', bio: 'The official Sway account.' };
 
 export const CREATORS_SEED: Array<[string, string, number, string, number]> = [
   ['Nova Reyes', 'novareyes', 412000, 'Onchain sleuth. I trace the wallets so you don’t have to. Holders get the addresses first.', 1],

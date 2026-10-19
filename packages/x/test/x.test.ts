@@ -220,12 +220,12 @@ describe('reads', () => {
   it('isFollowing resolves the target and pages the following list', async () => {
     const { fetch, calls } = mockFetch((u) => {
       if (u.pathname.startsWith('/2/users/by/username/'))
-        return json({ data: { ...rawUser, id: '999', username: 'swaydotfam' } });
+        return json({ data: { ...rawUser, id: '999', username: 'swaydotfamily' } });
       if (!u.searchParams.get('pagination_token'))
         return json({ data: [{ id: '1' }, { id: '2' }], meta: { next_token: 'p2' } });
       return json({ data: [{ id: '999' }] });
     });
-    expect(await createXClient(ctx(fetch)).isFollowing('12345', 'swaydotfam')).toBe(true);
+    expect(await createXClient(ctx(fetch)).isFollowing('12345', 'swaydotfamily')).toBe(true);
     expect(calls.filter((c) => c.url.pathname.endsWith('/following'))).toHaveLength(2);
   });
 

@@ -36,7 +36,7 @@ export interface Creator {
   extraHolders?: Record<string, number>;
 }
 
-export const OFFICIAL = { name: 'Sway', handle: 'swaydotfam', official: true, verified: true };
+export const OFFICIAL = { name: 'Sway', handle: 'swaydotfamily', official: true, verified: true };
 
 export const CREATORS_SEED: Array<[string, string, number, string, number]> = [
   ['Nova Reyes', 'novareyes', 412000, 'Onchain sleuth. I trace the wallets so you don’t have to. Holders get the addresses first.', 1],

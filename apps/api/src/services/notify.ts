@@ -32,7 +32,7 @@ export async function notify(prisma: PrismaClient, redis: Redis, n: NotifyInput)
 
 let officialId: { id: string | null; at: number } | null = null;
 
-/** Id of the official @swaydotfam account (sender of points notifications), cached for a minute. */
+/** Id of the official @swaydotfamily account (sender of points notifications), cached for a minute. */
 export async function officialUserId(prisma: PrismaClient): Promise<string | null> {
   if (officialId && Date.now() - officialId.at < 60_000) return officialId.id;
   const u = await prisma.user.findFirst({ where: { handle: OFFICIAL_HANDLE }, select: { id: true } });

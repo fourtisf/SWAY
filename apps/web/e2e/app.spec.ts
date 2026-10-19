@@ -109,7 +109,7 @@ test('connect, trade, room, post, task, claim', async ({ page }) => {
 
   // Verify the first task: spinner, then Verified.
   await nav(page, 'Tasks');
-  const follow = page.locator('.task').filter({ hasText: 'Follow @swaydotfam on X' });
+  const follow = page.locator('.task').filter({ hasText: 'Follow @swaydotfamily on X' });
   await follow.getByRole('button', { name: 'Verify' }).click();
   await expect(follow.locator('.tag.aqua')).toHaveText('Verified', { timeout: 15_000 });
   await expect(page.locator('.toasts')).toContainText('Verified on X. +1,000 pts');
