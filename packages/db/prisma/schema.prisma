@@ -64,6 +64,8 @@ enum PointsKind {
   battle_back_payout
   weekly_prize
   reorg_correction
+  /// Daily check-in streak bonus (ref "streak:<YYYY-MM-DD>").
+  streak
   /// Local demo data from prisma/seed.ts only.
   seed
 }
@@ -91,40 +93,45 @@ enum BattleWinner {
 /// An X account. Members (signed in with X) have joinedAt and memberNo; accounts that only back an
 /// unclaimed fan market have neither until they sign in and claim.
 model User {
-  id           String    @id @default(cuid())
-  xId          String    @unique
-  handle       String    @unique
-  name         String
-  avatarUrl    String?
-  bio          String    @default("")
-  followers    Int       @default(0)
-  verified     Boolean   @default(false)
-  xCreatedAt   DateTime?
-  official     Boolean   @default(false)
+  id            String    @id @default(cuid())
+  xId           String    @unique
+  handle        String    @unique
+  name          String
+  avatarUrl     String?
+  bio           String    @default("")
+  followers     Int       @default(0)
+  verified      Boolean   @default(false)
+  xCreatedAt    DateTime?
+  official      Boolean   @default(false)
   /// Sway score 1..100 and reach value (USD), from @sway/scoring.
-  score        Int       @default(1)
-  reachValue   Float     @default(0)
-  scoreInputs  Json?
-  scoredAt     DateTime?
-  memberNo     Int?      @unique
-  joinedAt     DateTime?
-  tier         String    @default("Murmur")
+  score         Int       @default(1)
+  reachValue    Float     @default(0)
+  scoreInputs   Json?
+  scoredAt      DateTime?
+  memberNo      Int?      @unique
+  joinedAt      DateTime?
+  tier          String    @default("Murmur")
   /// Bot/farm flag: points stay, reward eligibility is removed.
-  botFlag      Boolean   @default(false)
+  botFlag       Boolean   @default(false)
   /// Live points for keys held (400K per ETH of sell value), recounted every minute. Not a ledger entry.
-  heldPoints   Int       @default(0)
+  heldPoints    Int       @default(0)
   /// Cached ledger sum, rebuilt from PointsLedger by the points worker.
-  ledgerPoints Int       @default(0)
-  stakingLevel Int       @default(0)
+  ledgerPoints  Int       @default(0)
+  stakingLevel  Int       @default(0)
   /// Moderation and operations access (/admin). Bootstrapped from ADMIN_HANDLES.
-  isAdmin      Boolean   @default(false)
+  isAdmin       Boolean   @default(false)
   /// Why the bot/farm flag was set (heuristic name or "admin"), and when.
-  botReason    String?
-  botFlaggedAt DateTime?
+  botReason     String?
+  botFlaggedAt  DateTime?
   /// Account deleted by its owner: personal data removed, onchain history kept under a neutral name.
-  deletedAt    DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  deletedAt     DateTime?
+  /// Daily check-in streak: consecutive UTC days ending on streakLastDay ("YYYY-MM-DD").
+  streakDays    Int       @default(0)
+  streakLastDay String?
+  /// NotificationPrefs (packages/shared/src/api.ts); null = defaults.
+  notifPrefs    Json?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   wallet          Wallet?
   market          KeyMarket?
@@ -160,6 +167,10 @@ model User {
   blocks          Block[]            @relation("blocker")
   blockedBy       Block[]            @relation("blocked")
   uploads         Upload[]
+  watches         Watch[]            @relation("watcher")
+  watchers        Watch[]            @relation("watched")
+  pushSubs        PushSubscription[]
+  dropPlans       DropPlan[]
 
   @@index([joinedAt])
 }
@@ -198,37 +209,37 @@ model LinkedWallet {
 }
 
 model KeyMarket {
-  id           String         @id @default(cuid())
+  id                   String         @id @default(cuid())
   /// SwayKeys subject: the member's wallet, or fanSubject(xId) for fan markets. Lowercase hex.
-  subject      String         @unique
-  userId       String         @unique
-  xId          String         @unique
-  fan          Boolean        @default(false)
-  claimed      Boolean        @default(true)
-  category     MarketCategory @default(creators)
+  subject              String         @unique
+  userId               String         @unique
+  xId                  String         @unique
+  fan                  Boolean        @default(false)
+  claimed              Boolean        @default(true)
+  category             MarketCategory @default(creators)
   /// Opened onchain (MarketOpened seen by the indexer).
-  opened       Boolean        @default(false)
-  openTx       String?
-  openedAt     DateTime?
+  opened               Boolean        @default(false)
+  openTx               String?
+  openedAt             DateTime?
   /// Blocks of MarketOpened / FanMarketClaimed, so a reorg can roll them back.
-  openBlock    BigInt?
-  claimBlock   BigInt?
-  halted       Boolean        @default(false)
+  openBlock            BigInt?
+  claimBlock           BigInt?
+  halted               Boolean        @default(false)
   /// Creator activity bond in effect (SwayKeys.creatorInactive): no room post for 7 days, so the 6% creator
   /// fee goes to holders until the creator posts again.
-  creatorInactive Boolean     @default(false)
+  creatorInactive      Boolean        @default(false)
   creatorInactiveSince DateTime?
-  supplyUnits  BigInt         @default(100)
-  priceWei     Decimal        @default(0) @db.Decimal(78, 0)
-  volumeWei    Decimal        @default(0) @db.Decimal(78, 0)
-  escrowWei    Decimal        @default(0) @db.Decimal(78, 0)
-  creatorFeesWei Decimal      @default(0) @db.Decimal(78, 0)
-  holders      Int            @default(1)
+  supplyUnits          BigInt         @default(100)
+  priceWei             Decimal        @default(0) @db.Decimal(78, 0)
+  volumeWei            Decimal        @default(0) @db.Decimal(78, 0)
+  escrowWei            Decimal        @default(0) @db.Decimal(78, 0)
+  creatorFeesWei       Decimal        @default(0) @db.Decimal(78, 0)
+  holders              Int            @default(1)
   /// Percent change of price over the last 24 trades.
-  change       Float          @default(0)
-  lastTradeAt  DateTime?
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  change               Float          @default(0)
+  lastTradeAt          DateTime?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
 
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   holdings      Holding[]
@@ -287,32 +298,32 @@ model Trade {
 }
 
 model Post {
-  id          String     @id @default(cuid())
-  authorId    String
-  text        String
-  visibility  Visibility @default(public)
-  pinned      Boolean    @default(false)
-  boosted     Boolean    @default(false)
-  parentId    String?
-  likeCount   Int        @default(0)
-  repostCount Int        @default(0)
-  replyCount  Int        @default(0)
+  id           String     @id @default(cuid())
+  authorId     String
+  text         String
+  visibility   Visibility @default(public)
+  pinned       Boolean    @default(false)
+  boosted      Boolean    @default(false)
+  parentId     String?
+  likeCount    Int        @default(0)
+  repostCount  Int        @default(0)
+  replyCount   Int        @default(0)
   /// Image URLs (served by the API from UPLOAD_DIR).
-  media       String[]   @default([])
+  media        String[]   @default([])
   /// Paid boost window; `boosted` stays for official/promoted posts.
   boostedUntil DateTime?
-  boostTx     String?    @unique
+  boostTx      String?    @unique
   /// Hidden by a moderator.
-  hiddenAt    DateTime?
-  createdAt   DateTime   @default(now())
-  deletedAt   DateTime?
-  author      User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  parent      Post?      @relation("replies", fields: [parentId], references: [id], onDelete: SetNull)
-  replies     Post[]     @relation("replies")
-  likes       Like[]
-  reposts     Repost[]
-  tags        PostTag[]
-  reports     Report[]
+  hiddenAt     DateTime?
+  createdAt    DateTime   @default(now())
+  deletedAt    DateTime?
+  author       User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent       Post?      @relation("replies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies      Post[]     @relation("replies")
+  likes        Like[]
+  reposts      Repost[]
+  tags         PostTag[]
+  reports      Report[]
 
   @@index([createdAt])
   @@index([authorId, createdAt])
@@ -738,4 +749,86 @@ model IndexedBlock {
   hash       String
   parentHash String
   createdAt  DateTime @default(now())
+}
+
+/// Watchlist entry with a price alert: notify when the key price moves alertPct percent from baselineWei,
+/// then move the baseline to the new price.
+model Watch {
+  userId      String
+  subjectId   String
+  /// 0 = watch only, no alerts.
+  alertPct    Int      @default(10)
+  baselineWei Decimal  @db.Decimal(78, 0)
+  createdAt   DateTime @default(now())
+  user        User     @relation("watcher", fields: [userId], references: [id], onDelete: Cascade)
+  subject     User     @relation("watched", fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@id([userId, subjectId])
+  @@index([subjectId])
+}
+
+/// Web Push subscription (the browser's PushSubscription JSON). Pushes carry no payload; the service worker
+/// fetches the newest notification itself.
+model PushSubscription {
+  id        String    @id @default(cuid())
+  userId    String
+  endpoint  String    @unique
+  p256dh    String
+  auth      String
+  failures  Int       @default(0)
+  lastOkAt  DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Holder allocations for a creator drop, built by the API from key balances before the creator funds it
+/// onchain (SwayDrops.create(root, duration)). Offchain data; the onchain side is CreatorDrop.
+model DropPlan {
+  /// Merkle root, lowercase hex.
+  root        String           @id
+  creatorId   String
+  totalWei    Decimal          @db.Decimal(78, 0)
+  holders     Int
+  createdAt   DateTime         @default(now())
+  creator     User             @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  allocations DropAllocation[]
+
+  @@index([creatorId, createdAt])
+}
+
+model DropAllocation {
+  root       String
+  /// Lowercase hex.
+  address    String
+  userId     String?
+  amountWei  Decimal  @db.Decimal(78, 0)
+  /// Merkle proof (bytes32[] as hex strings).
+  proof      Json
+  /// Written by the indexer from DropClaimed.
+  claimTx    String?
+  claimBlock BigInt?
+  plan       DropPlan @relation(fields: [root], references: [root], onDelete: Cascade)
+
+  @@id([root, address])
+  @@index([address])
+}
+
+/// SwayDrops mirror, written only by the indexer. root matches a DropPlan when Sway built the tree.
+model CreatorDrop {
+  id          Int      @id
+  /// Lowercase hex.
+  creator     String
+  root        String
+  totalWei    Decimal  @db.Decimal(78, 0)
+  claimedWei  Decimal  @default(0) @db.Decimal(78, 0)
+  expiresAt   DateTime
+  reclaimed   Boolean  @default(false)
+  txHash      String
+  blockNumber BigInt
+  createdAt   DateTime
+
+  @@index([root])
+  @@index([creator])
 }

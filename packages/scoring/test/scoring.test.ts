@@ -10,6 +10,9 @@ import {
   rankGenesis,
   score,
   scorePoints,
+  nextStreak,
+  streakPoints,
+  utcDay,
   settleBackings,
   settleStakes,
   tierOf,
@@ -143,5 +146,19 @@ describe('battles', () => {
       { userId: 'b', prize: 1500 },
       { userId: 'c', prize: 1000 },
     ]);
+  });
+});
+
+describe('daily streak', () => {
+  it('pays n × 100 up to day 7', () => {
+    expect([0, 1, 2, 7, 8, 30].map(streakPoints)).toEqual([0, 100, 200, 700, 700, 700]);
+  });
+  it('continues, holds or restarts by UTC day', () => {
+    expect(nextStreak(null, 0, '2026-10-19')).toEqual({ days: 1, already: false });
+    expect(nextStreak('2026-10-18', 4, '2026-10-19')).toEqual({ days: 5, already: false });
+    expect(nextStreak('2026-10-19', 5, '2026-10-19')).toEqual({ days: 5, already: true });
+    expect(nextStreak('2026-10-16', 9, '2026-10-19')).toEqual({ days: 1, already: false });
+    expect(nextStreak('2026-02-28', 2, '2026-03-01')).toEqual({ days: 3, already: false });
+    expect(utcDay(Date.parse('2026-10-19T23:59:59Z'))).toBe('2026-10-19');
   });
 });

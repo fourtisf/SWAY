@@ -26,6 +26,7 @@ export interface WorkerConfig {
     swayStaking: Address | null;
     genesisPass: Address | null;
     launchpad: Address | null;
+    drops: Address | null;
   };
   operatorKey: Hex | null;
   issuerKey: Hex | null;
@@ -41,6 +42,10 @@ export interface WorkerConfig {
   devAuth: boolean;
   launchPostId: string;
   webUrl: string;
+  /** VAPID keys for web push; null = push off. */
+  push: { publicKey: string; privateKey: string; subject: string } | null;
+  /** host:port receivers allowed besides the browser push services (local tests only). */
+  pushDevHosts: string[];
 }
 
 export function loadConfig(): WorkerConfig {
@@ -59,6 +64,7 @@ export function loadConfig(): WorkerConfig {
       swayStaking: addrOrNull('SWAY_STAKING_ADDRESS'),
       genesisPass: addrOrNull('GENESIS_PASS_ADDRESS'),
       launchpad: addrOrNull('LAUNCHPAD_ADDRESS'),
+      drops: addrOrNull('DROPS_ADDRESS'),
     },
     operatorKey: keyOrNull('OPERATOR_PRIVATE_KEY'),
     issuerKey: keyOrNull('ISSUER_PRIVATE_KEY'),
@@ -78,5 +84,10 @@ export function loadConfig(): WorkerConfig {
     devAuth: str('DEV_AUTH') === '1' && process.env.NODE_ENV !== 'production',
     launchPostId: str('X_LAUNCH_POST_ID'),
     webUrl: str('WEB_URL', 'http://localhost:3000'),
+    push:
+      str('VAPID_PUBLIC_KEY') && str('VAPID_PRIVATE_KEY')
+        ? { publicKey: str('VAPID_PUBLIC_KEY'), privateKey: str('VAPID_PRIVATE_KEY'), subject: str('VAPID_SUBJECT', 'mailto:ops@sway.fam') }
+        : null,
+    pushDevHosts: process.env.NODE_ENV === 'production' ? [] : str('PUSH_DEV_HOSTS').split(',').map((h) => h.trim()).filter(Boolean),
   };
 }

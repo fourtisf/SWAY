@@ -18,6 +18,8 @@ import { loadConfig } from '../config';
 import { makeClients } from '../clients';
 
 const devKey = (handle: string): Hex => keccak256(toBytes(`sway-dev:${handle}`));
+// Seed trades go out faster than blocks; a gas estimate taken before the earlier ones land can come up short.
+const SEED_GAS = 600_000n;
 
 async function main() {
   const cfg = loadConfig();
@@ -81,8 +83,20 @@ async function main() {
   await test.increaseTime({ seconds: 400 });
   await test.mine({ blocks: 1 });
 
-  // 4. spread the rest of each market's supply over its holders, with a few sells for price history
+  // 4. spread the rest of each market's supply over its holders, with a few sells for price history.
+  //    Different buyers' transactions can land in one block in any order, so each buy sends what it would
+  //    cost at 1.25 × the target supply (the most it can reach: every buy plus every buyback, a quarter of a
+  //    buy at most; buy() refunds the change) and each market settles before the next.
   const pending: Hex[] = [];
+  let failed = 0;
+  let total = 0;
+  const settle = async () => {
+    total += pending.length;
+    for (const h of pending.splice(0)) {
+      const rcpt = await c.pub.waitForTransactionReceipt({ hash: h });
+      if (rcpt.status !== 'success') failed++;
+    }
+  };
   for (const m of markets) {
     let supply = await readSupply(m.subject);
     if (supply >= m.target) continue;
@@ -93,27 +107,19 @@ async function main() {
       const units = i === n - 1 ? left : BigInt(Math.max(1, Math.round(Number(left) * (0.2 + r() * 0.5))));
       const u = units > left ? left : units;
       const b = buyers[(hash(m.seed) + i) % buyers.length]!;
-      const q = quoteWei(supply, 'buy', u);
-      pending.push(await b.writeContract({ address: keys, abi: swayKeysAbi, functionName: 'buy', args: [m.subject, u], value: (q.total * 3n) / 2n }));
+      const cap = quoteWei(m.target + m.target / 4n, 'buy', u).total;
+      pending.push(await b.writeContract({ address: keys, abi: swayKeysAbi, functionName: 'buy', args: [m.subject, u], value: cap, gas: SEED_GAS }));
       supply += u;
       left -= u;
       if (r() < 0.3 && u > 20n) {
         const sell = u / 4n;
-        pending.push(await b.writeContract({ address: keys, abi: swayKeysAbi, functionName: 'sell', args: [m.subject, sell, 0n] }));
-        const back = quoteWei(supply - sell, 'buy', sell);
-        pending.push(await b.writeContract({ address: keys, abi: swayKeysAbi, functionName: 'buy', args: [m.subject, sell], value: (back.total * 3n) / 2n }));
+        pending.push(await b.writeContract({ address: keys, abi: swayKeysAbi, functionName: 'sell', args: [m.subject, sell, 0n], gas: SEED_GAS }));
+        const back = quoteWei(m.target + m.target / 4n, 'buy', sell).total;
+        pending.push(await b.writeContract({ address: keys, abi: swayKeysAbi, functionName: 'buy', args: [m.subject, sell], value: back, gas: SEED_GAS }));
       }
     }
+    await settle();
   }
-  let failed = 0;
-  let total = pending.length;
-  const settle = async () => {
-    for (const h of pending.splice(0)) {
-      const rcpt = await c.pub.waitForTransactionReceipt({ hash: h });
-      if (rcpt.status !== 'success') failed++;
-    }
-  };
-  await settle();
 
   // 5. churn: two dozen small round trips around the target so "change over the last 24 trades" reads
   //    like a market at equilibrium (a few percent either way) instead of the whole run-up.
@@ -127,15 +133,14 @@ async function main() {
     for (let i = 0; i < 13; i++) {
       const u = size();
       const q = quoteWei(supply, 'buy', u);
-      pending.push(await trader.writeContract({ address: keys, abi: swayKeysAbi, functionName: 'buy', args: [m.subject, u], value: (q.total * 3n) / 2n }));
+      pending.push(await trader.writeContract({ address: keys, abi: swayKeysAbi, functionName: 'buy', args: [m.subject, u], value: (q.total * 3n) / 2n, gas: SEED_GAS }));
       const drift = (size() / 2n) * (r() < 0.5 ? 1n : -1n);
       let sell = u + drift;
       if (sell > held + u) sell = held + u;
       if (sell < 1n) sell = 1n;
-      pending.push(await trader.writeContract({ address: keys, abi: swayKeysAbi, functionName: 'sell', args: [m.subject, sell, 0n] }));
+      pending.push(await trader.writeContract({ address: keys, abi: swayKeysAbi, functionName: 'sell', args: [m.subject, sell, 0n], gas: SEED_GAS }));
       held += u - sell;
       supply += u - sell;
-      total += 2;
     }
   }
   await settle();

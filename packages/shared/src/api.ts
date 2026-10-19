@@ -609,3 +609,189 @@ export type RouteKey = keyof typeof ROUTES;
 /* ---------------------------------------------------------------- [B] social, moderation, account & admin */
 
 /* ---------------------------------------------------------------- [C] launchpad, staking & genesis */
+
+/* ---------------------------------------------------------------- [D] engagement & creator drops */
+
+/** Per-member notification settings (User.notifPrefs). A muted type is hidden from the list and the badge. */
+export interface NotificationPrefs {
+  trade: boolean;
+  mention: boolean;
+  battle: boolean;
+  points: boolean;
+  /** Watchlist price alerts (delivered as `trade` notifications). */
+  alerts: boolean;
+  /** Web push for every unmuted type, on every browser the member subscribed. */
+  push: boolean;
+}
+
+export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
+  trade: true,
+  mention: true,
+  battle: true,
+  points: true,
+  alerts: true,
+  push: true,
+};
+
+export interface WatchDTO extends UserRef {
+  priceWei: Wei;
+  /** Percent alert threshold; 0 = watch only. */
+  alertPct: number;
+  baselineWei: Wei;
+  /** Percent change of priceWei against baselineWei. */
+  change: number;
+  createdAt: ISODate;
+}
+
+export interface WatchlistResponse {
+  items: WatchDTO[];
+}
+
+export interface WatchBody {
+  /** 0 (no alerts) or 5..100. Default 10. */
+  alertPct?: number;
+}
+
+export interface StreakDTO {
+  days: number;
+  checkedInToday: boolean;
+  /** UTC day of the last check-in, "YYYY-MM-DD". */
+  lastDay: string | null;
+  /** Points a check-in pays now (0 once checked in today) and tomorrow if the streak holds. */
+  nowPoints: number;
+  nextPoints: number;
+  perDay: number;
+  capDays: number;
+}
+
+export interface ReferralRowDTO extends UserRef {
+  status: 'pending' | 'credited' | 'rejected';
+  reason: string | null;
+  joinedAt: ISODate | null;
+  creditedAt: ISODate | null;
+  /** The invitee's curve volume on Sway (all their wallets). */
+  volumeWei: Wei;
+}
+
+export interface ReferralsResponse {
+  /** Invite link (`${WEB_URL}/?ref=<handle>`). */
+  link: string;
+  invited: number;
+  credited: number;
+  pending: number;
+  /** Points from the invite ledger entries. */
+  points: number;
+  dailyCap: number;
+  creditedToday: number;
+  pointsPerInvite: number;
+  /** Onchain referral earnings waiting in SwayKeys across the viewer's wallets (claim from the Wallet page). */
+  referralPendingWei: Wei;
+  /** Estimate of the referral fee halves your invitees generated (trader half of their trades, creator half of
+   *  trades in their markets). */
+  referralEarnedWei: Wei;
+  rows: ReferralRowDTO[];
+}
+
+export interface PushConfigDTO {
+  /** false when the server has no VAPID keys. */
+  enabled: boolean;
+  publicKey: string | null;
+  /** Browsers subscribed for the viewer. */
+  subscriptions: number;
+}
+
+export interface PushSubscribeBody {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+}
+
+export interface DropPlanBody {
+  /** ETH to split across holders. */
+  amountWei: Wei;
+}
+
+export interface DropAllocationDTO {
+  address: Address;
+  user: UserRef | null;
+  amountWei: Wei;
+  units: Units;
+}
+
+export interface DropPlanDTO {
+  /** Pass to SwayDrops.create(root, durationSeconds) with msg.value = totalWei. */
+  root: `0x${string}`;
+  totalWei: Wei;
+  holders: number;
+  contract: Address;
+  minDays: number;
+  maxDays: number;
+  /** Largest allocations first (at most 20). */
+  top: DropAllocationDTO[];
+}
+
+export interface CreatorDropDTO {
+  id: number;
+  creator: UserRef;
+  totalWei: Wei;
+  claimedWei: Wei;
+  holders: number;
+  claims: number;
+  expiresAt: ISODate;
+  reclaimed: boolean;
+  createdAt: ISODate;
+  txHash: string;
+  /** The viewer is the creator and the drop expired with ETH left. */
+  canReclaim: boolean;
+}
+
+export interface ClaimableDropDTO {
+  id: number;
+  creator: UserRef;
+  /** The viewer's wallet that holds this allocation (claim from it). */
+  address: Address;
+  amountWei: Wei;
+  proof: `0x${string}`[];
+  expiresAt: ISODate;
+  contract: Address;
+}
+
+/**
+ * [D] routes. Q/B/R as in ROUTES (all need a session except userDrops):
+ *   watchlist:                                                          R WatchlistResponse
+ *   watch:          B WatchBody (upsert; baseline = current price)      R WatchDTO   404 not_found / 409 no_market
+ *   unwatch:                                                            R { watching: false }
+ *   streak:                                                             R StreakDTO
+ *   checkIn:        (idempotent per UTC day; ledger kind `streak`)      R StreakDTO
+ *   referrals:                                                          R ReferralsResponse
+ *   notifPrefs:                                                         R NotificationPrefs
+ *   setNotifPrefs:  B Partial<NotificationPrefs>                        R NotificationPrefs
+ *   pushConfig:                                                         R PushConfigDTO
+ *   pushSubscribe:  B PushSubscribeBody (https endpoints only)          R { ok: true }
+ *   pushUnsubscribe: B { endpoint: string }                             R { ok: true }
+ *   pushTest:       (sends a test notification to the viewer)          R { ok: true }
+ *   dropPlan:       B DropPlanBody (creator with an opened market; holders pro rata to units across their
+ *                   wallets, excluding the creator's own wallets, the fan escrow and bot-flagged members)
+ *                                                                       R DropPlanDTO
+ *                   400 bad_amount / 409 no_holders / 503 drops_unavailable
+ *   userDrops:                                                          R CreatorDropDTO[]
+ *   claimableDrops: (unclaimed, unexpired allocations across all the viewer's wallets) R ClaimableDropDTO[]
+ */
+export const ENGAGE_ROUTES = {
+  watchlist: 'GET /api/watchlist',
+  watch: 'PUT /api/users/:handle/watch',
+  unwatch: 'DELETE /api/users/:handle/watch',
+  streak: 'GET /api/streak',
+  checkIn: 'POST /api/streak/check-in',
+  referrals: 'GET /api/referrals',
+  notifPrefs: 'GET /api/me/notification-prefs',
+  setNotifPrefs: 'PUT /api/me/notification-prefs',
+  pushConfig: 'GET /api/push',
+  pushSubscribe: 'POST /api/push/subscribe',
+  pushUnsubscribe: 'POST /api/push/unsubscribe',
+  pushTest: 'POST /api/push/test',
+  dropPlan: 'POST /api/drops/plan',
+  userDrops: 'GET /api/users/:handle/drops',
+  claimableDrops: 'GET /api/drops/claimable',
+} as const;
+
+export type EngageRouteKey = keyof typeof ENGAGE_ROUTES;

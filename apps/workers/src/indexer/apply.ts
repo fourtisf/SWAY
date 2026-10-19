@@ -33,7 +33,7 @@ const keysLabel = (units: bigint) => {
 };
 
 /** The member owning `address`: their account wallet or one of their linked wallets. */
-async function memberByAddress(tx: Tx, address: string) {
+export async function memberByAddress(tx: Tx, address: string) {
   const a = addr(address);
   const w = await tx.wallet.findUnique({ where: { address: a }, include: { user: true } });
   if (w) return w.user;

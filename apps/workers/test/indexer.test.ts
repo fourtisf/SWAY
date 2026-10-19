@@ -6,8 +6,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Redis } from 'ioredis';
 import type { Address } from 'viem';
 import { priceWei, quoteWei } from '@sway/curve';
-import { fanSubject } from '@sway/shared';
-import { swayKeysAbi, swayLaunchpadAbi } from '@sway/shared/abi';
+import { buildAirdrop, fanSubject } from '@sway/shared';
+import { swayDropsAbi, swayKeysAbi, swayLaunchpadAbi } from '@sway/shared/abi';
 import { privateKeyToAccount } from 'viem/accounts';
 import { erc20Abi } from 'viem';
 import { prisma, decToBig } from '@sway/db';
@@ -51,6 +51,7 @@ beforeAll(async () => {
     SWAY_STAKING_ADDRESS: chain.deployment.swayStaking,
     GENESIS_PASS_ADDRESS: chain.deployment.genesisPass,
     LAUNCHPAD_ADDRESS: chain.deployment.launchpad,
+    DROPS_ADDRESS: chain.deployment.drops,
     OPERATOR_PRIVATE_KEY: KEYS[0],
     INDEXER_START_BLOCK: '0',
     INDEXER_CONFIRMATIONS: '0',
@@ -225,5 +226,55 @@ describe('indexer', () => {
     expect(r2.cleared).toBe(1);
     await catchUp();
     expect((await prisma.keyMarket.findUniqueOrThrow({ where: { subject: alice } })).creatorInactive).toBe(false);
+  });
+  it('mirrors a creator drop, its claims, and rolls a claim back on reorg', async () => {
+    const drops = chain.deployment.drops as Address;
+    const alice = chain.wallet(1);
+    const aliceAddr = alice.address.toLowerCase();
+    const market = await prisma.keyMarket.findUniqueOrThrow({ where: { subject: aliceAddr } });
+    const aliceUser = await prisma.user.findUniqueOrThrow({ where: { handle: 'alice' } });
+    const rows = await prisma.holding.findMany({ where: { marketId: market.id, units: { gt: 0n }, address: { not: aliceAddr } } });
+    expect(rows.length).toBeGreaterThan(0);
+    const total = 10n ** 16n;
+    const tree = buildAirdrop(rows.map((h) => ({ address: h.address, units: h.units })), total);
+    const members = new Map((await prisma.wallet.findMany()).map((w) => [w.address, w.userId]));
+    await prisma.dropPlan.create({
+      data: {
+        root: tree.root.toLowerCase(), creatorId: aliceUser.id, totalWei: total.toString(), holders: tree.entries.length,
+        allocations: {
+          create: tree.entries.map((e) => ({
+            address: e.address.toLowerCase(), userId: members.get(e.address.toLowerCase()) ?? null, amountWei: e.amount.toString(), proof: e.proof,
+          })),
+        },
+      },
+    });
+    let hash = await alice.writeContract({ address: drops, abi: swayDropsAbi, functionName: 'create', args: [tree.root, 86_400n], value: total, chain: alice.chain, account: alice.account! });
+    await chain.pub.waitForTransactionReceipt({ hash });
+    await catchUp();
+    const d = await prisma.creatorDrop.findUniqueOrThrow({ where: { id: 0 } });
+    expect(d.root).toBe(tree.root.toLowerCase());
+    expect(decToBig(d.totalWei)).toBe(total);
+    const bob = chain.wallet(2);
+    const bobUser = await prisma.user.findUniqueOrThrow({ where: { handle: 'bob' } });
+    expect(await prisma.notification.count({ where: { userId: bobUser.id, fromUserId: aliceUser.id, link: '/wallet' } })).toBe(1);
+
+    const mine = tree.entries.find((e) => e.address.toLowerCase() === bob.address.toLowerCase())!;
+    const snap = await chain.test.snapshot();
+    hash = await bob.writeContract({ address: drops, abi: swayDropsAbi, functionName: 'claim', args: [0n, mine.amount, mine.proof], chain: bob.chain, account: bob.account! });
+    await chain.pub.waitForTransactionReceipt({ hash });
+    await catchUp();
+    const al = await prisma.dropAllocation.findUniqueOrThrow({ where: { root_address: { root: d.root, address: bob.address.toLowerCase() } } });
+    expect(al.claimTx).toBe(hash);
+    expect(decToBig((await prisma.creatorDrop.findUniqueOrThrow({ where: { id: 0 } })).claimedWei)).toBe(mine.amount);
+    expect(await prisma.activity.count({ where: { userId: bobUser.id, txHash: hash } })).toBe(1);
+
+    await chain.test.revert({ id: snap });
+    await chain.test.mine({ blocks: 3 });
+    expect((await indexer.tick())?.reorgedTo).toBeDefined();
+    await catchUp();
+    const back = await prisma.dropAllocation.findUniqueOrThrow({ where: { root_address: { root: d.root, address: bob.address.toLowerCase() } } });
+    expect(back.claimTx).toBeNull();
+    expect(decToBig((await prisma.creatorDrop.findUniqueOrThrow({ where: { id: 0 } })).claimedWei)).toBe(0n);
+    expect(await prisma.activity.count({ where: { txHash: hash } })).toBe(0);
   });
 });

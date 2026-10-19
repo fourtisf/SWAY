@@ -3,7 +3,8 @@
  * - indexer: chain → Postgres mirror (one active instance, guarded by a Redis lock)
  * - x-jobs queue: verify-task / refresh-score jobs enqueued by the API
  * - schedules (BullMQ job schedulers, so several processes never double-run them): ETH/USD price,
- *   points recount, referrals, battles, weekly prizes, score sweep, trusted-task re-checks, Genesis
+ *   points recount, referrals, battles, weekly prizes, score sweep, trusted-task re-checks, Genesis, bot flags,
+ *   the activity bond, watchlist price alerts and web push delivery
  */
 import { randomUUID } from 'node:crypto';
 import { Queue, Worker, type Job } from 'bullmq';
@@ -16,6 +17,8 @@ import { creditReferrals } from './jobs/referrals';
 import { payWeeklyPrizes, refreshLiveBattles, simulatedBattleReader, tickBattles, xBattleReader } from './jobs/battles';
 import { flagBots } from './jobs/bots';
 import { enforceActivityBond } from './jobs/activity-bond';
+import { checkPriceAlerts } from './jobs/alerts';
+import { deliverPushes } from './jobs/push';
 import { recordJob, startHealthServer } from './health';
 import { genesisTick } from './jobs/genesis';
 import { X_QUEUE, recheckTrusted, refreshScore, runVerifyTask, sweepScores, type VerifyTaskJob } from './jobs/xjobs';
@@ -45,6 +48,8 @@ async function main() {
   await cron.upsertJobScheduler('live-battles', every(10 * 60_000));
   await cron.upsertJobScheduler('bot-flags', every(10 * 60_000));
   await cron.upsertJobScheduler('activity-bond', every(5 * 60_000));
+  await cron.upsertJobScheduler('price-alerts', every(60_000));
+  await cron.upsertJobScheduler('push', every(10_000));
 
   const handlers: Record<string, () => Promise<unknown>> = {
     price: () => refreshPrice(c),
@@ -58,6 +63,8 @@ async function main() {
     'live-battles': () => refreshLiveBattles(c, battleReader),
     'bot-flags': () => flagBots(c),
     'activity-bond': () => enforceActivityBond(c),
+    'price-alerts': () => checkPriceAlerts(c),
+    push: () => deliverPushes(c),
   };
   const cronWorker = new Worker(
     CRON_QUEUE,

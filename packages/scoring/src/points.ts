@@ -96,3 +96,21 @@ export function totalPoints(scoreValue: number, ledgerSum: number, heldPts: numb
   const s = scorePoints(scoreValue);
   return { score: s, ledger: ledgerSum, held: heldPts, total: Math.max(0, Math.round(s + ledgerSum + heldPts)) };
 }
+
+/** Daily check-in: day n of an unbroken streak pays n × 100 points, capped at day 7 (700 a day after that). */
+export const STREAK_POINTS_PER_DAY = 100;
+export const STREAK_CAP_DAYS = 7;
+export const streakPoints = (day: number): number => Math.max(0, Math.min(day, STREAK_CAP_DAYS)) * STREAK_POINTS_PER_DAY;
+
+/** UTC day key "YYYY-MM-DD". */
+export const utcDay = (d: Date | number = Date.now()): string => new Date(d).toISOString().slice(0, 10);
+
+/**
+ * Next streak length for a check-in on `today`: continues when the last check-in was yesterday (UTC), stays
+ * when it was today (already checked in), otherwise restarts at 1.
+ */
+export function nextStreak(lastDay: string | null | undefined, days: number, today: string): { days: number; already: boolean } {
+  if (lastDay === today) return { days, already: true };
+  const y = utcDay(Date.parse(`${today}T00:00:00Z`) - 86_400_000);
+  return { days: lastDay === y ? days + 1 : 1, already: false };
+}

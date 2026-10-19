@@ -1,12 +1,12 @@
 /**
- * Chain → Postgres mirror. Polls confirmed blocks, decodes SwayKeys / SwayStaking / GenesisPass events,
- * applies them in one transaction per batch, then publishes bus events. Reorg-safe: the cursor stores
- * the last block hash; on mismatch it walks back through IndexedBlock to the common ancestor, deletes
+ * Chain → Postgres mirror. Polls confirmed blocks, decodes SwayKeys / SwayStaking / GenesisPass / SwayLaunchpad /
+ * SwayDrops events, applies them in one transaction per batch, then publishes bus events. Reorg-safe: the
+ * cursor stores the last block hash; on mismatch it walks back through IndexedBlock to the common ancestor, deletes
  * mirrored rows above it, rebuilds affected markets from their remaining trades and writes compensating
  * (append-only) points entries.
  */
 import { parseEventLogs, type Log } from 'viem';
-import { genesisPassAbi, swayKeysAbi, swayLaunchpadAbi, swayStakingAbi } from '@sway/shared/abi';
+import { genesisPassAbi, swayDropsAbi, swayKeysAbi, swayLaunchpadAbi, swayStakingAbi } from '@sway/shared/abi';
 import { addr } from '@sway/db';
 import type { Clients } from '../clients';
 import { publishNotifications } from '../notify';
@@ -25,6 +25,7 @@ import {
 } from './apply';
 import { rebuildMarket } from './rebuild';
 import { onAirdropClaimed, onCreatorFeesClaimed, onGraduated, onLaunched, onLaunchTraded, resyncLaunches } from './launchpad';
+import { onDropClaimed, onDropCreated, onDropReclaimed, resyncDrops, rollbackDrops } from './drops';
 
 export const CURSOR = 'sway';
 const KEEP_BLOCKS = 2_000n;
@@ -42,8 +43,8 @@ export class Indexer {
   constructor(private readonly c: Clients) {}
 
   private get addresses(): `0x${string}`[] {
-    const { swayKeys, swayStaking, genesisPass, launchpad } = this.c.cfg.contracts;
-    return [swayKeys, swayStaking, genesisPass, launchpad].filter(Boolean) as `0x${string}`[];
+    const { swayKeys, swayStaking, genesisPass, launchpad, drops } = this.c.cfg.contracts;
+    return [swayKeys, swayStaking, genesisPass, launchpad, drops].filter(Boolean) as `0x${string}`[];
   }
 
   async run(): Promise<void> {
@@ -126,13 +127,14 @@ export class Indexer {
   }
 
   private decode(raw: Log[]) {
-    const { swayKeys, swayStaking, genesisPass, launchpad } = this.c.cfg.contracts;
+    const { swayKeys, swayStaking, genesisPass, launchpad, drops } = this.c.cfg.contracts;
     const pick = (a: string | null) => raw.filter((l) => a && l.address.toLowerCase() === a.toLowerCase());
     const all = [
       ...parseEventLogs({ abi: swayKeysAbi, logs: pick(swayKeys) }).map((e) => ({ src: 'keys' as const, e, log: e as Log })),
       ...parseEventLogs({ abi: swayStakingAbi, logs: pick(swayStaking) }).map((e) => ({ src: 'staking' as const, e, log: e as Log })),
       ...parseEventLogs({ abi: genesisPassAbi, logs: pick(genesisPass) }).map((e) => ({ src: 'genesis' as const, e, log: e as Log })),
       ...parseEventLogs({ abi: swayLaunchpadAbi, logs: pick(launchpad) }).map((e) => ({ src: 'launchpad' as const, e, log: e as Log })),
+      ...parseEventLogs({ abi: swayDropsAbi, logs: pick(drops) }).map((e) => ({ src: 'drops' as const, e, log: e as Log })),
     ];
     return all.sort((x, y) => (x.log.blockNumber === y.log.blockNumber ? x.log.logIndex! - y.log.logIndex! : x.log.blockNumber! < y.log.blockNumber! ? -1 : 1));
   }
@@ -187,6 +189,19 @@ export class Indexer {
           return;
       }
     }
+    if (ev.src === 'drops') {
+      const e = ev.e as ReturnType<typeof parseEventLogs<typeof swayDropsAbi>>[number];
+      switch (e.eventName) {
+        case 'DropCreated':
+          return onDropCreated(ctx, m, e.args);
+        case 'DropClaimed':
+          return onDropClaimed(ctx, m, e.args);
+        case 'DropReclaimed':
+          return onDropReclaimed(ctx, m, e.args);
+        default:
+          return;
+      }
+    }
     const e = ev.e as ReturnType<typeof parseEventLogs<typeof genesisPassAbi>>[number];
     if (e.eventName === 'Transfer' && /^0x0{40}$/i.test(e.args.from)) return onGenesisMint(ctx, m, { to: e.args.to, tokenId: e.args.tokenId });
   }
@@ -237,6 +252,7 @@ export class Indexer {
           affected.add(mk.id);
         }
         for (const id of affected) await rebuildMarket(tx, id, fanEscrow);
+        await rollbackDrops(tx, to);
         await tx.indexedBlock.deleteMany({ where: { number: { gt: to } } });
         const anc = await tx.indexedBlock.findUnique({ where: { number: to } });
         if (anc) await tx.indexerCursor.update({ where: { name: CURSOR }, data: { blockNumber: to, blockHash: anc.hash } });
@@ -245,6 +261,7 @@ export class Indexer {
       { timeout: 120_000 },
     );
     await resyncLaunches(this.c).catch((e) => console.error('[indexer] launch resync after reorg failed', e));
+    await resyncDrops(this.c).catch((e) => console.error('[indexer] drop resync after reorg failed', e));
     return to;
   }
 }
