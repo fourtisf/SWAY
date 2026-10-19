@@ -10,17 +10,8 @@ Before you start: the domain's `A` record points at the server (`@` → server I
 
 ```bash
 adduser --disabled-password --gecos '' sway
-mkdir -p /srv/sway && chown sway:sway /srv/sway
-sudo -iu sway ssh-keygen -t ed25519 -N '' -f /home/sway/.ssh/id_ed25519
-cat /home/sway/.ssh/id_ed25519.pub
-```
-
-Add that key on GitHub: repository → Settings → Deploy keys → Add (read-only). Then:
-
-```bash
-sudo -iu sway bash -c 'ssh -o StrictHostKeyChecking=accept-new -T git@github.com; \
-  git clone -b claude/new-session-rwx8b5 git@github.com:fourtisf/SWAY.git /srv/sway && \
-  cd /srv/sway && git submodule update --init --recursive'
+git clone -b claude/new-session-rwx8b5 https://github.com/fourtisf/SWAY.git /srv/sway
+cd /srv/sway && git submodule update --init --recursive
 ```
 
 ## 2. Server setup (as root)
