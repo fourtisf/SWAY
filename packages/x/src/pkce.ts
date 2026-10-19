@@ -40,6 +40,9 @@ export function buildAuthorizeUrl(p: AuthorizeUrlParams): string {
   u.searchParams.set('state', p.state);
   u.searchParams.set('code_challenge', p.codeChallenge);
   u.searchParams.set('code_challenge_method', 'S256');
+  // URLSearchParams writes spaces as '+'; X's docs and examples use %20 between scopes. A literal '+' in any
+  // value is already %2B here, so every remaining '+' is a space.
+  u.search = u.search.replace(/\+/g, '%20');
   return u.toString();
 }
 
