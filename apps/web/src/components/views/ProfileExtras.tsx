@@ -115,7 +115,7 @@ export function ChartCard({ c }: { c: ProfileDTO }) {
               Curve
             </span>
             <span>
-              <i style={{ background: '#0F1419' }} />
+              <i style={{ background: 'var(--tx)' }} />
               Current supply
             </span>
           </div>

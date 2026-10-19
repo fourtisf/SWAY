@@ -10,7 +10,7 @@
  */
 import { createPublicClient, createWalletClient, http, type Address, type Hex } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
-import { quoteWei } from '@sway/curve';
+import { inAntiDumpWindow, quoteWei } from '@sway/curve';
 import { swayChain, type MeDTO, type ProfileDTO, type RoomResponse, type WalletDTO, type FeedResponse, type NotificationDTO } from '@sway/shared';
 import { swayKeysAbi } from '@sway/shared/abi';
 
@@ -121,24 +121,27 @@ async function main() {
   if (BigInt(w.earnings.creatorWei) !== q.creatorFee) fail(`creator earnings ${w.earnings.creatorWei} != 6% ${q.creatorFee}`);
   step(`creator notified ("${notes[0]!.body.map((b) => b.t).join('')}") and can claim exactly the 6% fee`);
 
-  const sellQ = quoteWei(200n, 'sell', 100n);
+  // Selling inside 24h of the buy pays the 5% anti-dump fee to holders (here, the creator's locked key).
+  const afterBuy = await fan.s.call<ProfileDTO>('GET', `/users/${creator.handle}`);
+  if (!inAntiDumpWindow(afterBuy.lastBuyAt?.[fan.address.toLowerCase()])) fail('profile does not report the fan\'s last buy (anti-dump window)');
+  const sellQ = quoteWei(200n, 'sell', 100n, { antiDump: true });
   const sellHash = await fan.wallet.writeContract({ address: keys, abi: swayKeysAbi, functionName: 'sell', args: [creator.address, 100n, sellQ.total], chain, account: fan.wallet.account! });
   await pub.waitForTransactionReceipt({ hash: sellHash });
   await until('room re-locked', async () => (await fan.s.call<RoomResponse>('GET', `/users/${creator.handle}/room`)).access === 'locked');
-  step(`sold the last key for ${Number(sellQ.total) / 1e18} ETH; the room is locked again`);
+  step(`sold the last key for ${Number(sellQ.total) / 1e18} ETH (5% anti-dump fee to holders); the room is locked again`);
 
   const before = await pub.getBalance({ address: creator.address });
   const claimHash = await creator.wallet.writeContract({ address: keys, abi: swayKeysAbi, functionName: 'claim', args: [w.earnings.claimSubjects], chain, account: creator.wallet.account! });
   const cr = await pub.waitForTransactionReceipt({ hash: claimHash });
   const gas = cr.gasUsed * cr.effectiveGasPrice;
   const got = (await pub.getBalance({ address: creator.address })) - before + gas;
-  const expected = q.creatorFee + sellQ.creatorFee;
-  if (got < expected) fail(`claimed ${got}, expected at least the two creator fees ${expected}`);
+  const expected = q.creatorFee + sellQ.creatorFee + sellQ.antiDumpFee;
+  if (got < expected) fail(`claimed ${got}, expected at least the two creator fees and the anti-dump fee ${expected}`);
   await until('claim mirrored', async () => {
     const ww = await creator.s.call<WalletDTO>('GET', '/wallet');
     return BigInt(ww.earnings.claimedWei) > 0n ? ww : null;
   });
-  step(`creator claimed ${Number(got) / 1e18} ETH onchain (both creator fees + holder rewards on the first key)`);
+  step(`creator claimed ${Number(got) / 1e18} ETH onchain (both creator fees + holder rewards on the first key, anti-dump fee included)`);
   console.log('\nPhase 1 definition of done: OK');
 }
 

@@ -119,7 +119,7 @@ function Profile({ handle }: { handle: string }) {
   const claimable = wallet ? weiToEth(wallet.earnings.totalWei) : 0;
   return (
     <>
-      <div className="p-banner" style={{ background: `linear-gradient(135deg,hsl(${hue} 90% 95%),hsl(${hue + 40} 85% 89%))` }}>
+      <div className="p-banner" style={{ '--hue': hue } as CSSProperties}>
         <Voiceprint seed={handle + 'b'} score={c.score} bars={90} id="pb" />
       </div>
       <div className="p-body">

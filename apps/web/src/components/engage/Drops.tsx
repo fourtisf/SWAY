@@ -19,7 +19,7 @@ function endsIn(iso: string): string {
   if (m <= 0) return 'ended';
   if (m < 60) return `ends in ${Math.ceil(m)}m`;
   if (m < 48 * 60) return `ends in ${Math.ceil(m / 60)}h`;
-  return `ends in ${Math.ceil(m / 1440)}d`;
+  return `ends in ${Math.round(m / 1440)}d`;
 }
 
 /** Wallet page: ETH drops waiting for the viewer, one Claim per allocation (from the wallet that holds it). */
@@ -33,7 +33,7 @@ export function DropsCard() {
   const list = data ?? [];
   if (!list.length) return null;
   return (
-    <div className="glass earn" id="drops">
+    <div className="glass drop-claim" id="drops">
       <div className="t3" style={{ fontSize: 12.5, fontWeight: 600 }}>
         ETH airdrops to claim
       </div>
@@ -207,18 +207,19 @@ export function DropModal() {
           </>
         ) : (
           <>
-            <div className="params">
-              <div>
+            <div className="sum">
+              <div className="sum-r tot">
                 <span>Total</span>
                 <span>
-                  {F.eth(weiToEth(BigInt(plan.totalWei)))} ETH · {F.$(weiToEth(BigInt(plan.totalWei)))}
+                  <b>{F.$(weiToEth(BigInt(plan.totalWei)))}</b>
+                  <small>{F.eth(weiToEth(BigInt(plan.totalWei)))} ETH</small>
                 </span>
               </div>
-              <div>
+              <div className="sum-r">
                 <span>Holders</span>
                 <span>{plan.holders}</span>
               </div>
-              <div>
+              <div className="sum-r">
                 <span>Claim window</span>
                 <span>{days} days</span>
               </div>
