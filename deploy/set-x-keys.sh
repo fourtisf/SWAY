@@ -3,17 +3,22 @@
 #   bash /srv/sway/deploy/set-x-keys.sh
 # The keys come from developer.x.com → your app → "Keys and tokens" (OAuth 2.0 Client ID and Client Secret,
 # and the app's Bearer Token). The app's callback URL must be <WEB_URL>/api/auth/x/callback.
+# Only needed to set or change keys: to deploy code updates run deploy/update.sh, which keeps .env as is.
 set -euo pipefail
 [ "$(id -u)" = 0 ] || { echo "run as root: bash $0" >&2; exit 1; }
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ENV="$ROOT/.env"
 [ -f "$ENV" ] || { echo "no $ENV: run deploy/install-server.sh first" >&2; exit 1; }
 
-read -rp "X OAuth 2.0 Client ID: " CID
-read -rsp "X OAuth 2.0 Client Secret (hidden): " CSECRET; echo
-read -rsp "X Bearer Token (hidden, Enter to skip): " BEARER; echo
-read -rp "Your X handle for the admin panel, without @ (Enter to skip): " ADMIN
-[ -n "$CID" ] && [ -n "$CSECRET" ] || { echo "Client ID and Client Secret are required" >&2; exit 1; }
+# Enter keeps the value already in .env, so re-running only asks for what you want to change.
+current() { sed -n "s/^$1=//p" "$ENV" | tail -1; }
+saved() { [ -n "$(current "$1")" ] && echo " [saved, Enter keeps it]" || true; }
+read -rp "X OAuth 2.0 Client ID$(saved X_CLIENT_ID): " CID
+read -rsp "X OAuth 2.0 Client Secret (hidden)$(saved X_CLIENT_SECRET): " CSECRET; echo
+read -rsp "X Bearer Token (hidden)$(saved X_BEARER_TOKEN): " BEARER; echo
+read -rp "Your X handle for the admin panel, without @$(saved ADMIN_HANDLES): " ADMIN
+[ -n "$CID$(current X_CLIENT_ID)" ] && [ -n "$CSECRET$(current X_CLIENT_SECRET)" ] \
+  || { echo "Client ID and Client Secret are required" >&2; exit 1; }
 
 # node writes the values verbatim (tokens can hold characters sed would treat as syntax).
 CID="$CID" CSECRET="$CSECRET" BEARER="$BEARER" ADMIN="${ADMIN#@}" node -e '
