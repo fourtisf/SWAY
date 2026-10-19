@@ -3,7 +3,8 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * e2e runs against the web app in mock mode (NEXT_PUBLIC_API_MOCK=1): no API, chain or wallet needed.
  * Default: `next dev`. E2E_PROD=1 builds and serves a production bundle instead (into .next-e2e).
- * Chromium comes from PLAYWRIGHT_BROWSERS_PATH; never run `playwright install` here.
+ * Chromium comes from PLAYWRIGHT_BROWSERS_PATH in the dev container (never run `playwright install` there);
+ * CI installs it in the web-e2e job.
  */
 const PORT = Number(process.env.E2E_PORT || 3100);
 const prod = process.env.E2E_PROD === '1';

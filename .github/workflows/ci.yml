@@ -59,6 +59,30 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
+  # Browser walkthroughs of every feature in mock mode (no backend), on a production build.
+  web-e2e:
+    runs-on: ubuntu-latest
+    needs: [apps]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # CI runners have no browser; the dev container ships one, so this step is CI-only.
+      - run: pnpm --filter @sway/web exec playwright install --with-deps chromium
+      - run: pnpm --filter @sway/web e2e
+        env:
+          E2E_PROD: '1'
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: apps/web/test-results
+          retention-days: 7
+
   # The Phase 1 definition of done against a real local stack: anvil + api + workers.
   e2e-stack:
     runs-on: ubuntu-latest
