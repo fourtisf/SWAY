@@ -10,6 +10,8 @@ p.on('pageerror', (e) => console.log('PAGEERROR', e.message));
 await p.route('**/api.dicebear.com/**', (r) => r.abort());
 // No demo activity in the ad: hide toasts, the trades ticker and the Live trades / Live battle widgets.
 const HIDE = `.toasts,.ticker,#ltList{display:none!important}`;
+// The video leaves out the token ticker: hide the rail's contract-address card on the page shots.
+const HIDE_CA = `#rail .comm{display:none!important}`;
 const hideDemo = async () => {
   await p.addStyleTag({ content: HIDE });
   await p.evaluate(() => document.querySelectorAll('#rail .glass').forEach((g) => { if (/Live trades|Live battle/.test(g.textContent || '')) g.style.display = 'none'; }));
@@ -37,6 +39,8 @@ const go = async (label, ready) => {
   await p.waitForTimeout(3500); await hideDemo(); if (ready) await ready();
 };
 await go('Profile');
+await p.waitForURL('**/yourhandle'); await p.locator('#main').getByText('Key price').waitFor();
+await p.addStyleTag({ content: HIDE_CA });
 await p.waitForTimeout(800);
 await p.screenshot({ path: `${out}/profile-full.png`, animations: 'disabled' });
 await shot(p.locator('#main'), 'profile-main');
