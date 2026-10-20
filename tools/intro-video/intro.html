@@ -1,181 +1,117 @@
 <!doctype html><html><head><meta charset="utf-8"><style>
-@font-face{font-family:IS;font-style:italic;src:url(fonts/instrument-serif-italic.woff2) format('woff2')}
+/* The website's tokens (apps/web/src/app/globals.css) */
+:root{--bg:#FFFFFF;--bg2:#F7F9F9;--line:#EFF3F4;--line2:#CFD9DE;--tx:#0F1419;--tx2:#536471;--blue:#1D9BF0;--green:#00BA7C;--pink:#F91880;--purple:#7856FF}
 *{box-sizing:border-box;margin:0;padding:0;transition:none!important;animation:none!important}
-html,body{width:1920px;height:1080px;overflow:hidden;background:#040507;-webkit-font-smoothing:antialiased}
-#s{position:relative;width:1920px;height:1080px;overflow:hidden;background:#040507;font-family:'Inter Display',Inter,sans-serif;color:#fff}
-.L{position:absolute;inset:0;will-change:opacity,transform}
-.aur{position:absolute;border-radius:50%;filter:blur(110px)}
-.grain{position:absolute;inset:-50px;opacity:.10;mix-blend-mode:overlay;pointer-events:none;
-  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='260' height='260'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1.3 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
-.vig{position:absolute;inset:0;background:radial-gradient(120% 120% at 50% 45%,transparent 48%,rgba(0,0,0,.65) 100%);pointer-events:none}
-.frame{position:absolute;inset:32px;border:1px solid rgba(255,255,255,.06);border-radius:24px;pointer-events:none}
-.cn{position:absolute;width:20px;height:20px;border-color:rgba(255,255,255,.32);border-style:solid}
-.tl{left:32px;top:32px;border-width:1px 0 0 1px;border-top-left-radius:24px}.tr{right:32px;top:32px;border-width:1px 1px 0 0;border-top-right-radius:24px}
-.bl{left:32px;bottom:32px;border-width:0 0 1px 1px;border-bottom-left-radius:24px}.br{right:32px;bottom:32px;border-width:0 1px 1px 0;border-bottom-right-radius:24px}
-.hud{position:absolute;font-family:Inter,sans-serif;font-size:15px;font-weight:600;letter-spacing:.32em;text-transform:uppercase;color:rgba(255,255,255,.45)}
-.ring{position:absolute;border-radius:50%;left:50%;top:50%;transform:translate(-50%,-50%);border:1px solid rgba(255,255,255,.08)}
-.arc{position:absolute;border-radius:50%;left:50%;top:50%;padding:1.5px;
-  background:conic-gradient(from 0deg,transparent 0 55%,rgba(29,155,240,.95) 70%,rgba(120,86,255,.95) 80%,rgba(249,24,128,.95) 88%,transparent 96%);
-  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
-.pill{position:absolute;border-radius:999px;transform-origin:50% 50%;
-  background:linear-gradient(180deg,rgba(255,255,255,.96) 0%,var(--c1) 38%,var(--c2) 100%);
-  box-shadow:0 0 0 1px rgba(255,255,255,.28) inset,0 3px 0 rgba(255,255,255,.7) inset,-8px 0 18px rgba(255,255,255,.18) inset,0 0 50px var(--g),0 0 120px var(--g)}
-.pill::after{content:"";position:absolute;left:22%;top:10px;bottom:12px;width:18%;border-radius:999px;background:linear-gradient(180deg,rgba(255,255,255,.75),rgba(255,255,255,0))}
+html,body{width:1920px;height:1080px;overflow:hidden;background:#fff;-webkit-font-smoothing:antialiased}
+#s{position:relative;width:1920px;height:1080px;overflow:hidden;background:#fff;font-family:Inter,sans-serif;color:var(--tx)}
+.L{position:absolute;inset:0}
+.blob{position:absolute;border-radius:50%}
 .c{position:absolute;left:0;right:0;text-align:center}
 .w{display:inline-block;white-space:pre}
-.serif{font-family:IS,serif;font-style:italic;font-weight:400}
-.grad{background:linear-gradient(92deg,#F4F1FF 0%,#C9BEFF 35%,#A98BFF 60%,#F06BB6 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
-.grad2{background:linear-gradient(92deg,#7CC4FF 0%,#9C8CFF 40%,#E39BFF 70%,#FF8CC6 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
-.muted{color:#8C929A}
-.card{position:absolute;top:290px;width:500px;height:540px;border-radius:28px;padding:40px;
-  background:linear-gradient(160deg,rgba(255,255,255,.09),rgba(255,255,255,.025));border:1px solid rgba(255,255,255,.12);
-  box-shadow:0 40px 100px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.12)}
-.kick{font-family:Inter,sans-serif;font-size:15px;font-weight:700;letter-spacing:.28em;color:rgba(255,255,255,.5)}
-.ct{font-size:44px;font-weight:600;letter-spacing:-1.2px;line-height:1.08;margin-top:18px}
-.bar{height:10px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:8px}
-.bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#1D9BF0,#7856FF,#F91880)}
-.bl2{display:flex;justify-content:space-between;font-family:Inter;font-size:17px;font-weight:600;color:#C9CDD2;margin-top:16px}
-.btn{display:inline-flex;align-items:center;gap:12px;height:64px;padding:0 34px;border-radius:999px;background:#fff;color:#0F1419;font-family:Inter;font-weight:700;font-size:24px}
-.bub{display:inline-block;padding:14px 20px;border-radius:20px 20px 20px 6px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);font-family:Inter;font-size:19px;font-weight:500;color:#E7E9EA;margin-top:12px}
-.row{position:absolute;left:150px;display:flex;gap:28px;align-items:flex-start}
-.num{width:58px;height:58px;border-radius:18px;display:grid;place-items:center;font-family:Inter;font-weight:800;font-size:20px;color:#fff;
-  background:linear-gradient(135deg,rgba(29,155,240,.35),rgba(120,86,255,.35),rgba(249,24,128,.35));border:1px solid rgba(255,255,255,.18)}
-.rt{font-size:44px;font-weight:600;letter-spacing:-1px}
-.rd{font-family:Inter;font-size:24px;color:#8C929A;margin-top:6px;font-weight:500}
-.gpass{position:absolute;left:1270px;top:250px;width:480px;height:620px;border-radius:32px;padding:44px;
-  background:linear-gradient(150deg,rgba(120,86,255,.28),rgba(15,20,25,.6) 45%,rgba(249,24,128,.22));border:1px solid rgba(255,255,255,.18);
-  box-shadow:0 50px 120px rgba(0,0,0,.6),0 0 80px rgba(120,86,255,.25),inset 0 1px 0 rgba(255,255,255,.2)}
+.h{font-weight:800;letter-spacing:-.035em}
+.t2{color:var(--tx2)}
+.blue{color:var(--blue)}
+.ui{position:absolute;border-radius:24px;overflow:hidden;background:#fff;box-shadow:0 40px 90px rgba(15,20,25,.14),0 0 0 1px var(--line)}
+.ui img{display:block;width:100%;height:auto}
+.win{position:absolute;border-radius:22px;overflow:hidden;background:#fff;box-shadow:0 50px 120px rgba(15,20,25,.18),0 0 0 1px var(--line)}
+.bar{height:46px;background:var(--bg2);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:9px;padding:0 20px}
+.dot{width:13px;height:13px;border-radius:50%}
+.addr{margin-left:24px;height:28px;padding:0 16px;border-radius:999px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:var(--tx)}
+.step{position:absolute;left:150px;top:300px;width:720px}
+.num{display:inline-grid;place-items:center;width:64px;height:64px;border-radius:50%;background:var(--blue);color:#fff;font-weight:800;font-size:28px}
+.st{font-size:84px;font-weight:800;letter-spacing:-.035em;line-height:1.02;margin-top:30px}
+.sd{font-size:32px;line-height:1.4;color:var(--tx2);margin-top:22px;font-weight:500}
+.pips{position:absolute;left:150px;top:820px;display:flex;gap:10px}
+.pips i{display:block;height:8px;border-radius:8px;background:var(--line2)}
+.chip{position:absolute;padding:10px 18px;border-radius:999px;background:#fff;box-shadow:0 10px 30px rgba(15,20,25,.12),0 0 0 1px var(--line);font-weight:700;font-size:20px;white-space:nowrap}
+.btn{display:inline-flex;align-items:center;gap:14px;height:76px;padding:0 40px;border-radius:9999px;background:var(--tx);color:#fff;font-weight:700;font-size:28px}
+.tag{display:inline-flex;align-items:center;height:34px;padding:0 14px;border-radius:8px;font-size:18px;font-weight:700;background:rgba(249,24,128,.1);color:#C4126A}
 </style></head><body><div id="s">
 <div class="L" id="bg">
-  <div class="aur" id="a1" style="width:900px;height:640px;background:radial-gradient(closest-side,rgba(120,86,255,.55),transparent)"></div>
-  <div class="aur" id="a2" style="width:700px;height:540px;background:radial-gradient(closest-side,rgba(249,24,128,.38),transparent)"></div>
-  <div class="aur" id="a3" style="width:680px;height:520px;background:radial-gradient(closest-side,rgba(29,155,240,.34),transparent)"></div>
+  <div class="blob" id="b1" style="width:1300px;height:900px;background:radial-gradient(closest-side,rgba(29,155,240,.16),rgba(29,155,240,0))"></div>
+  <div class="blob" id="b2" style="width:1200px;height:900px;background:radial-gradient(closest-side,rgba(120,86,255,.13),rgba(120,86,255,0))"></div>
+  <div class="blob" id="b3" style="width:1100px;height:800px;background:radial-gradient(closest-side,rgba(249,24,128,.09),rgba(249,24,128,0))"></div>
 </div>
 
-<!-- S1 logo reveal -->
+<!-- S1: the logo as on the site (bars + wordmark) -->
 <div class="L" id="s1">
-  <div id="halo1" style="position:absolute;left:960px;top:470px;width:0;height:0">
-    <div class="ring" style="width:520px;height:520px;border-color:rgba(255,255,255,.11)"></div>
-    <div class="ring" style="width:700px;height:700px"></div>
-    <div class="ring" style="width:900px;height:900px;border-color:rgba(255,255,255,.05)"></div>
-    <div class="ring" style="width:1140px;height:1140px;border-color:rgba(255,255,255,.035)"></div>
-    <div class="arc" id="arc1" style="width:700px;height:700px"></div>
+  <div id="lg1" style="position:absolute;left:0;right:0;top:330px;display:flex;justify-content:center;align-items:center;gap:34px">
+    <svg id="mk1" width="230" height="230" viewBox="0 0 20 20"></svg>
+    <div id="wm1" class="h" style="font-size:230px;line-height:1">Sway</div>
   </div>
-  <div id="p1"></div>
-  <div class="c" id="wm1" style="top:800px;font-size:92px;font-weight:700;letter-spacing:-3px">Sway</div>
-  <div class="c hud" id="tg1" style="top:925px;font-size:17px;color:rgba(255,255,255,.6)">SocialFi on X</div>
+  <svg id="vp1" style="position:absolute;left:560px;top:690px" width="800" height="110" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+  <div class="c t2" id="tg1" style="top:850px;font-size:40px;font-weight:600;letter-spacing:-.01em">Your X reach, as a market.</div>
 </div>
 
 <!-- S2 -->
 <div class="L" id="s2">
-  <div class="c" id="s2a" style="top:400px;font-size:112px;font-weight:600;letter-spacing:-4px">Every day, you move people.</div>
-  <div class="c muted" id="s2b" style="top:580px;font-family:Inter;font-size:38px;font-weight:500">You start the conversation. You call what’s next.</div>
+  <svg id="vp2" style="position:absolute;left:160px;top:760px" width="1600" height="200" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+  <div class="c h" id="s2a" style="top:360px;font-size:124px">Every day, you move people.</div>
+  <div class="c t2" id="s2b" style="top:540px;font-size:42px;font-weight:500">You start the conversation. You call what’s next.</div>
 </div>
 
 <!-- S3 -->
 <div class="L" id="s3">
-  <div class="c" id="s3a" style="top:330px;font-size:104px;font-weight:600;letter-spacing:-4px">But your reach</div>
-  <div class="c serif" id="s3b" style="top:460px;font-size:150px;color:#E7E3F5;letter-spacing:-2px">has never had a price.</div>
-  <div class="c serif grad" id="s3c" style="top:330px;font-size:290px;letter-spacing:-6px;padding-right:20px;line-height:1.2">Until now.</div>
+  <div class="c h" id="s3a" style="top:320px;font-size:118px">But your reach</div>
+  <div class="c h" id="s3b" style="top:470px;font-size:118px">has never had a <span class="blue">price.</span></div>
+  <div id="ul3" style="position:absolute;left:1180px;top:615px;height:12px;width:330px;border-radius:12px;background:var(--blue);transform-origin:0 50%"></div>
+  <div class="c h" id="s3c" style="top:330px;font-size:300px;line-height:1.1">Until now.</div>
 </div>
 
-<!-- S4 -->
+<!-- S4: the product in a browser window -->
 <div class="L" id="s4">
-  <svg id="chart" width="1920" height="1080" style="position:absolute;left:0;top:0">
-    <defs><linearGradient id="cl" x1="0" x2="1"><stop offset="0" stop-color="#1D9BF0"/><stop offset=".55" stop-color="#7856FF"/><stop offset="1" stop-color="#F91880"/></linearGradient>
-    <linearGradient id="ca" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7856FF" stop-opacity=".22"/><stop offset="1" stop-color="#7856FF" stop-opacity="0"/></linearGradient></defs>
-    <path id="carea" fill="url(#ca)"/><path id="cline" fill="none" stroke="url(#cl)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle id="cdot" r="9" fill="#F91880"/><circle id="cdot2" r="24" fill="#F91880" opacity=".25"/>
-  </svg>
-  <div id="halo4" style="position:absolute;left:1440px;top:470px;width:0;height:0">
-    <div class="ring" style="width:420px;height:420px;border-color:rgba(255,255,255,.1)"></div>
-    <div class="ring" style="width:580px;height:580px"></div>
-    <div class="arc" id="arc4" style="width:580px;height:580px"></div>
+  <div class="c h" id="s4h" style="top:30px;font-size:62px">Your reach, <span class="blue">as a market.</span></div>
+  <div class="win" id="win" style="left:260px;top:130px;width:1400px">
+    <div class="bar"><span class="dot" style="background:#FF5F57"></span><span class="dot" style="background:#FEBC2E"></span><span class="dot" style="background:#28C840"></span>
+      <span class="addr"><svg width="14" height="14" viewBox="0 0 20 20"><g fill="#0F1419"><rect x="1" y="7" width="2.6" height="6" rx="1.3"/><rect x="5.2" y="3" width="2.6" height="14" rx="1.3"/><rect x="9.4" y="5.5" width="2.6" height="9" rx="1.3"/><rect x="13.6" y="1" width="2.6" height="18" rx="1.3"/><rect x="17" y="8" width="2.4" height="4" rx="1.2"/></g></svg>Sway</span></div>
+    <div style="overflow:hidden;height:875px"><img id="pf" src="assets/profile-full.png" style="display:block;width:1400px;transform-origin:30% 40%"></div>
   </div>
-  <div id="p4"></div>
-  <div id="s4a" style="position:absolute;left:150px;top:250px;font-size:140px;font-weight:600;letter-spacing:-5.5px;line-height:1">Your reach,</div>
-  <div id="s4b" class="serif grad" style="position:absolute;left:146px;top:380px;font-size:178px;letter-spacing:-3px;line-height:1.05;padding-right:24px">as a market.</div>
-  <div id="s4c" class="muted" style="position:absolute;left:152px;top:610px;font-family:Inter;font-size:36px;font-weight:500">Creator keys for the voices you believe in.</div>
 </div>
 
-<!-- S5 -->
+<!-- S5: how it works, with the real screens -->
 <div class="L" id="s5">
-  <div class="c hud" id="s5h" style="top:170px;font-size:17px">How it works</div>
-  <div class="card" id="k1" style="left:150px">
-    <div class="kick">01 — CONNECT X</div>
-    <div class="ct">Get your Sway score</div>
-    <div style="display:flex;align-items:baseline;gap:10px;margin-top:26px"><span id="cnt" style="font-size:132px;font-weight:700;letter-spacing:-5px">0</span><span class="muted" style="font-family:Inter;font-size:30px;font-weight:600">/100</span></div>
-    <div class="bl2"><span>Reach</span><span>35%</span></div><div class="bar"><i id="b1"></i></div>
-    <div class="bl2"><span>Engagement</span><span>35%</span></div><div class="bar"><i id="b2"></i></div>
-    <div class="bl2"><span>Authenticity</span><span>20%</span></div><div class="bar"><i id="b3"></i></div>
-  </div>
-  <div class="card" id="k2" style="left:710px">
-    <div class="kick">02 — CREATOR KEYS</div>
-    <div class="ct">Back the voices you believe in.</div>
-    <svg width="420" height="190" style="margin-top:26px;overflow:visible">
-      <path id="k2a" fill="url(#ca)"/><path id="k2l" fill="none" stroke="url(#cl)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle id="k2d" r="7" fill="#F91880"/>
-    </svg>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:30px">
-      <div><div class="kick" style="font-size:13px">KEY PRICE</div><div style="font-family:Inter;color:#00BA7C;font-weight:700;font-size:24px;margin-top:6px">▲ rising</div></div>
-      <div class="btn" id="buy" style="height:58px;font-size:21px">Buy key</div>
-    </div>
-  </div>
-  <div class="card" id="k3" style="left:1270px">
-    <div class="kick">03 — HOLDER ROOMS</div>
-    <div class="ct">One key opens the room.</div>
-    <svg width="120" height="140" viewBox="0 0 120 140" style="display:block;margin:26px 0 8px;overflow:visible">
-      <defs><linearGradient id="lk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7CC4FF"/><stop offset=".5" stop-color="#A98BFF"/><stop offset="1" stop-color="#FF8CC6"/></linearGradient></defs>
-      <path id="shackle" d="M32 64 V44 a28 28 0 0 1 56 0 V64" fill="none" stroke="url(#lk)" stroke-width="10" stroke-linecap="round"/>
-      <rect x="14" y="62" width="92" height="72" rx="18" fill="url(#lk)"/><circle cx="60" cy="96" r="9" fill="#0B0D12"/>
-    </svg>
-    <div id="bb1" class="bub">Welcome to the room</div><br>
-    <div id="bb2" class="bub">Holders hear it first</div><br>
-    <div id="bb3" class="bub">Only key holders can read this</div>
-  </div>
+  <div class="step" id="st1"><span class="num">1</span><div class="st">Connect X</div><div class="sd">Read-only. Sway never posts for you or sees your password.</div></div>
+  <div class="step" id="st2"><span class="num">2</span><div class="st">Get your<br>Sway score</div><div class="sd">An open model scores your reach, engagement and history.</div></div>
+  <div class="step" id="st3"><span class="num">3</span><div class="st">Your key<br>market opens</div><div class="sd">Fans buy your keys to back you. Holders get your room.</div></div>
+  <div class="pips"><i id="pp1"></i><i id="pp2"></i><i id="pp3"></i></div>
+  <div class="ui" id="u1" style="left:1040px;top:150px;width:640px"><img src="assets/connect.png"></div>
+  <div class="ui" id="u2" style="left:1040px;top:150px;width:640px"><img class="sc" src="assets/scoring0.png"><img class="sc" src="assets/scoring1.png" style="display:none"><img class="sc" src="assets/scoring2.png" style="display:none"><img class="sc" src="assets/scoring3.png" style="display:none"><img class="sc" src="assets/scoring4.png" style="display:none"><img class="sc" src="assets/scoring5.png" style="display:none"></div>
+  <div class="ui" id="u3" style="left:1040px;top:200px;width:640px"><img src="assets/cardlive.png"></div>
+  <div class="ui" id="u4" style="left:1060px;top:110px;width:600px"><img src="assets/profile-top.png"></div>
 </div>
 
-<!-- S6 -->
+<!-- S6: more than keys -->
 <div class="L" id="s6">
-  <div id="s6h" class="serif grad" style="position:absolute;left:146px;top:150px;font-size:150px;letter-spacing:-2px;padding-right:20px">Fair by design.</div>
-  <div class="row" id="r1" style="top:400px"><div class="num">01</div><div><div class="rt">Open-source score</div><div class="rd">A public formula. Nobody picks winners by hand.</div></div></div>
-  <div class="row" id="r2" style="top:540px"><div class="num">02</div><div><div class="rt">Activity bond</div><div class="rd">Creators who go quiet send their 6% to holders.</div></div></div>
-  <div class="row" id="r3" style="top:680px"><div class="num">03</div><div><div class="rt">Flip fee</div><div class="rd">Quick flips pay an extra fee to holders.</div></div></div>
-  <div class="row" id="r4" style="top:820px"><div class="num">04</div><div><div class="rt">Genesis pass</div><div class="rd">500 soulbound passes. Earned, never bought.</div></div></div>
-  <div class="gpass" id="gp">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <svg width="54" height="54" viewBox="0 0 1024 1024"><rect width="1024" height="1024" rx="250" fill="#fff"/><g fill="#0B0D12"><rect x="263.6" y="431" width="70.2" height="162" rx="35.1"/><rect x="377" y="323" width="70.2" height="378" rx="35.1"/><rect x="490.4" y="390.5" width="70.2" height="243" rx="35.1"/><rect x="603.8" y="269" width="70.2" height="486" rx="35.1"/><rect x="695.6" y="458" width="64.8" height="108" rx="32.4"/></g></svg>
-      <div class="kick" style="font-size:14px">SOULBOUND</div>
-    </div>
-    <div class="kick" style="margin-top:150px;font-size:16px">GENESIS PASS</div>
-    <div class="serif" style="font-size:150px;line-height:1;margin-top:8px">N° 001</div>
-    <div class="kick" style="margin-top:40px;font-size:14px;color:rgba(255,255,255,.45)">RANK 1 OF 500</div>
-  </div>
+  <div id="s6a" class="h" style="position:absolute;left:150px;top:330px;font-size:104px;line-height:1">More than<br>keys.</div>
+  <div id="s6b" class="t2" style="position:absolute;left:152px;top:560px;font-size:34px;font-weight:500;line-height:1.4;width:640px">Points for every verified task, a launchpad for your own token, and 500 Genesis passes.</div>
+  <div class="ui" id="g1" style="left:900px;top:90px;width:420px"><img src="assets/tasks-crop.png"></div>
+  <div class="ui" id="g2" style="left:1360px;top:150px;width:420px"><img src="assets/launch-crop.png"></div>
+  <div class="ui" id="g3" style="left:900px;top:660px;width:420px"><img src="assets/model-crop.png"></div>
+  <div class="ui" id="g4" style="left:1360px;top:540px;width:420px"><img src="assets/genesis-crop.png"></div>
+  <div class="chip" id="c1" style="left:930px;top:62px">Points &amp; tasks</div>
+  <div class="chip" id="c2" style="left:1390px;top:122px">Launchpad</div>
+  <div class="chip" id="c3" style="left:930px;top:632px">Open model</div>
+  <div class="chip" id="c4" style="left:1390px;top:512px">Genesis pass</div>
 </div>
 
-<!-- S7 end card -->
+<!-- S7: end card -->
 <div class="L" id="s7">
-  <div id="halo7" style="position:absolute;left:960px;top:390px;width:0;height:0">
-    <div class="ring" style="width:420px;height:420px;border-color:rgba(255,255,255,.1)"></div>
-    <div class="ring" style="width:600px;height:600px"></div>
-    <div class="ring" style="width:820px;height:820px;border-color:rgba(255,255,255,.04)"></div>
-    <div class="arc" id="arc7" style="width:600px;height:600px"></div>
+  <div id="lg7" style="position:absolute;left:0;right:0;top:250px;display:flex;justify-content:center;align-items:center;gap:26px">
+    <svg id="mk7" width="170" height="170" viewBox="0 0 20 20"></svg>
+    <div class="h" style="font-size:170px;line-height:1">Sway</div>
   </div>
-  <div id="p7"></div>
-  <div class="c" id="e1" style="top:640px;font-size:110px;font-weight:700;letter-spacing:-4px">Sway</div>
-  <div class="c serif grad" id="e2" style="top:770px;font-size:72px;letter-spacing:-1px"><span style="padding-right:14px">Your reach, as a market.</span></div>
-  <div class="c" id="e3" style="top:885px"><span class="btn"><svg width="24" height="24" viewBox="0 0 24 24" fill="#0F1419"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>Follow @swaydotfamily</span></div>
-  <div class="c hud" id="e4" style="top:985px;font-size:14px">$SWAY  ·  CA coming soon  ·  Robinhood Chain</div>
+  <div class="c t2" id="e2" style="top:480px;font-size:50px;font-weight:600;letter-spacing:-.015em">Your reach, as a market.</div>
+  <div class="c" id="e3" style="top:600px"><span class="btn"><svg width="28" height="28" viewBox="0 0 24 24" fill="#fff"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>Follow @swaydotfamily</span></div>
+  <div class="c" id="e4" style="top:740px;display:flex;justify-content:center;gap:16px;align-items:center;font-size:26px;font-weight:700"><span>$SWAY</span><span class="tag">CA coming soon</span><span class="t2" style="font-weight:600">· Robinhood Chain</span></div>
+  <svg id="vp7" style="position:absolute;left:660px;top:850px" width="600" height="90" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
 </div>
 
-<div class="grain" id="grain"></div><div class="vig"></div>
 <div class="L" id="chrome">
-  <div class="frame"></div><div class="cn tl"></div><div class="cn tr"></div><div class="cn bl"></div><div class="cn br"></div>
-  <div id="hl" style="position:absolute;left:72px;top:66px;display:flex;align-items:center;gap:14px;font-family:Inter;font-weight:700;font-size:24px">
-    <svg width="34" height="34" viewBox="0 0 1024 1024"><rect width="1024" height="1024" rx="250" fill="#fff"/><g fill="#040507"><rect x="263.6" y="431" width="70.2" height="162" rx="35.1"/><rect x="377" y="323" width="70.2" height="378" rx="35.1"/><rect x="490.4" y="390.5" width="70.2" height="243" rx="35.1"/><rect x="603.8" y="269" width="70.2" height="486" rx="35.1"/><rect x="695.6" y="458" width="64.8" height="108" rx="32.4"/></g></svg>Sway</div>
-  <div class="hud" id="hr" style="right:72px;top:76px">@swaydotfamily</div>
+  <div id="hl" style="position:absolute;left:72px;top:58px;display:flex;align-items:center;gap:12px;font-weight:800;font-size:34px;letter-spacing:-.03em">
+    <svg width="40" height="40" viewBox="0 0 20 20"><g fill="#0F1419"><rect x="1" y="7" width="2.6" height="6" rx="1.3"/><rect x="5.2" y="3" width="2.6" height="14" rx="1.3"/><rect x="9.4" y="5.5" width="2.6" height="9" rx="1.3"/><rect x="13.6" y="1" width="2.6" height="18" rx="1.3"/><rect x="17" y="8" width="2.4" height="4" rx="1.2"/></g></svg>Sway</div>
+  <div id="hr" class="t2" style="position:absolute;right:76px;top:68px;font-size:22px;font-weight:600">@swaydotfamily</div>
 </div>
-<div class="L" id="black" style="background:#000;opacity:0"></div>
+<div class="L" id="white" style="background:#fff;opacity:0"></div>
 </div>
 <script>
 const $ = (id) => document.getElementById(id);
@@ -183,126 +119,110 @@ const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
 const seg = (t, a, b) => clamp((t - a) / (b - a));
 const eo = (x) => 1 - Math.pow(1 - x, 3);
 const eio = (x) => (x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
-const eback = (x) => { const c1 = 1.4, c3 = c1 + 1; return x <= 0 ? 0 : 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
-function put(el, o, x = 0, y = 0, s = 1, b = 0) {
+const eback = (x) => { const c1 = 1.5, c3 = c1 + 1; return x <= 0 ? 0 : 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+function put(el, o, x = 0, y = 0, s = 1, b = 0, r = 0) {
   el.style.opacity = o.toFixed(4);
-  el.style.transform = `translate(${x.toFixed(2)}px,${y.toFixed(2)}px) scale(${s.toFixed(4)})`;
-  el.style.filter = b > 0.05 ? `blur(${b.toFixed(2)}px)` : 'none';
+  el.style.transform = `translate(${x.toFixed(2)}px,${y.toFixed(2)}px) scale(${s.toFixed(4)}) rotate(${r.toFixed(2)}deg)`;
+  el.style.filter = b > .05 ? `blur(${b.toFixed(2)}px)` : 'none';
 }
-// in at a (dur d), out at e (dur od)
-function vis(t, a, e, d = .8, od = .5) {
-  const i = eo(seg(t, a, a + d)), o = eio(seg(t, e, e + od));
-  return { o: i * (1 - o), y: (1 - i) * 40 - o * 30, b: (1 - i) * 16 + o * 12 };
-}
-function reveal(el, t, a, e, d, od, extra = {}) { const v = vis(t, a, e, d, od); put(el, v.o, extra.x || 0, v.y + (extra.y || 0), extra.s || 1, v.b); return v; }
+function vis(t, a, e, d = .7, od = .45) { const i = eo(seg(t, a, a + d)), o = eio(seg(t, e, e + od)); return { o: i * (1 - o), y: (1 - i) * 44 - o * 30, b: (1 - i) * 10 + o * 8 }; }
+function reveal(el, t, a, e, d, od, k = 1) { const v = vis(t, a, e, d, od); put(el, v.o, 0, v.y * k, 1, v.b); return v; }
 function splitWords(el) {
-  const parts = el.textContent.split(/(\s+)/);
-  el.textContent = '';
-  return parts.map((p) => { const s = document.createElement('span'); s.className = 'w'; s.textContent = p; el.appendChild(s); return s; });
-}
-function wordsIn(spans, t, a, e, stagger = .08) { spans.forEach((s, i) => reveal(s, t, a + i * stagger, e, .75, .45)); }
-
-// The Sway mark (five bars of the avatar SVG) as lit glass pillars.
-const BARS = [[263.6, 431, 70.2, 162], [377, 323, 70.2, 378], [490.4, 390.5, 70.2, 243], [603.8, 269, 70.2, 486], [695.6, 458, 64.8, 108]];
-const COLS = [['#7CC4FF', '#1D9BF0', 'rgba(29,155,240,.45)'], ['#9C8CFF', '#5B5BF6', 'rgba(91,91,246,.45)'], ['#B7A2FF', '#7856FF', 'rgba(120,86,255,.5)'], ['#E39BFF', '#B03CE0', 'rgba(176,60,224,.5)'], ['#FF8CC6', '#F91880', 'rgba(249,24,128,.5)']];
-function pillars(host, cx, cy, k) {
-  return BARS.map(([x, y, w, h], i) => {
-    const el = document.createElement('div'); el.className = 'pill';
-    Object.assign(el.style, { left: cx + (x - 512) * k + 'px', top: cy + (y - 512) * k + 'px', width: w * k + 'px', height: h * k + 'px' });
-    el.style.setProperty('--c1', COLS[i][0]); el.style.setProperty('--c2', COLS[i][1]); el.style.setProperty('--g', COLS[i][2]);
-    $(host).appendChild(el); return el;
+  const nodes = [...el.childNodes]; el.textContent = ''; const spans = [];
+  nodes.forEach((n) => {
+    if (n.nodeType === 3) n.textContent.split(/(\s+)/).forEach((p) => { if (!p) return; const s = document.createElement('span'); s.className = 'w'; s.textContent = p; el.appendChild(s); spans.push(s); });
+    else { n.classList.add('w'); el.appendChild(n); spans.push(n); }
   });
+  return spans;
 }
-function grow(ps, t, a, stagger, dur) {
-  ps.forEach((p, i) => { const x = eback(seg(t, a + i * stagger, a + i * stagger + dur)); p.style.transform = `scaleY(${Math.max(0.001, x).toFixed(4)})`; p.style.opacity = clamp(x * 3).toFixed(3); });
+const words = (spans, t, a, e, st = .085) => spans.forEach((s, i) => reveal(s, t, a + i * st, e, .65, .4));
+
+// Logo bars (apps/web/src/components/icons.tsx Logo)
+const BARS = [[1, 7, 2.6, 6], [5.2, 3, 2.6, 14], [9.4, 5.5, 2.6, 9], [13.6, 1, 2.6, 18], [17, 8, 2.4, 4]];
+function mark(svg) { return BARS.map(([x, y, w, h]) => { const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect'); Object.entries({ x, y, width: w, height: h, rx: w / 2, fill: '#0F1419' }).forEach(([k, v]) => r.setAttribute(k, v)); svg.appendChild(r); return { r, y, h }; }); }
+function growMark(m, t, a, st, d) { m.forEach(({ r, y, h }, i) => { const k = Math.max(.001, eback(seg(t, a + i * st, a + i * st + d))); r.setAttribute('height', (h * k).toFixed(3)); r.setAttribute('y', (y + h / 2 - h * k / 2).toFixed(3)); r.setAttribute('opacity', clamp(k * 3).toFixed(3)); }); }
+const M1 = mark($('mk1')), M7 = mark($('mk7'));
+
+// Voiceprint (apps/web/src/components/ui.tsx), animated
+function voiceprint(svg, bars, seed, score) {
+  let s = seed; const r = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  const gid = 'g' + seed; svg.innerHTML = `<defs><linearGradient id="${gid}" x1="0" x2="1"><stop offset="0" stop-color="#1D9BF0"/><stop offset=".5" stop-color="#7856FF"/><stop offset="1" stop-color="#1D9BF0"/></linearGradient></defs>`;
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g'); g.setAttribute('fill', `url(#${gid})`); svg.appendChild(g);
+  const w = 100 / bars; const out = [];
+  for (let i = 0; i < bars; i++) {
+    const x = i / (bars - 1); const env = Math.pow(Math.sin(Math.PI * x), .8) * .78 + .22; const h = Math.max(7, env * (.35 + r() * .65) * (34 + score * .66));
+    const el = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    el.setAttribute('x', (i * w + w * .22).toFixed(2)); el.setAttribute('width', (w * .56).toFixed(2)); el.setAttribute('rx', (w * .28).toFixed(2)); g.appendChild(el);
+    out.push({ el, h, ph: r() * 6.28 });
+  }
+  return out;
 }
-const P1 = pillars('p1', 960, 470, .95), P4 = pillars('p4', 1440, 470, .62), P7 = pillars('p7', 960, 390, .58);
+function vpAt(vp, t, p) { vp.forEach(({ el, h, ph }, i) => { const k = clamp(p * vp.length - i * .6, 0, 1); const hh = Math.max(2, h * eo(k) * (.78 + .22 * Math.sin(t * 5.5 + ph))); el.setAttribute('y', (50 - hh / 2).toFixed(2)); el.setAttribute('height', hh.toFixed(2)); }); }
+const V1 = voiceprint($('vp1'), 64, 7, 70), V2 = voiceprint($('vp2'), 120, 11, 80), V7 = voiceprint($('vp7'), 48, 23, 70);
 const W2a = splitWords($('s2a')), W2b = splitWords($('s2b')), W3a = splitWords($('s3a')), W3b = splitWords($('s3b'));
 
-// Price curve used by the hero chart and the key card.
-function curve(n, w, h, x0, y0, seed) {
-  const pts = [];
-  for (let i = 0; i <= n; i++) { const u = i / n; const y = .12 + .78 * Math.pow(u, 1.8) + .05 * Math.sin(u * 17 + seed) + .025 * Math.sin(u * 43 + seed * 2); pts.push([x0 + u * w, y0 + h - y * h]); }
-  return pts;
-}
-const C4 = curve(80, 1920, 420, 0, 560, 1), C2 = curve(40, 420, 170, 0, 10, 3);
-const dOf = (pts) => 'M' + pts.map((p) => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' L');
-function drawCurve(pts, line, area, dot, dot2, p, baseY) {
-  const n = Math.max(1, Math.round(p * (pts.length - 1))); const sub = pts.slice(0, n + 1);
-  line.setAttribute('d', dOf(sub)); area.setAttribute('d', dOf(sub) + ` L${sub[sub.length - 1][0]} ${baseY} L${sub[0][0]} ${baseY} Z`);
-  const last = sub[sub.length - 1]; dot.setAttribute('cx', last[0]); dot.setAttribute('cy', last[1]);
-  if (dot2) { dot2.setAttribute('cx', last[0]); dot2.setAttribute('cy', last[1]); }
-}
-let seedN = 1; const rnd = () => ((seedN = (seedN * 16807) % 2147483647) / 2147483647);
+window.render = function (t) {
+  put($('b1'), 1, -360 + 140 * Math.sin(t * .2), -320 + 90 * Math.cos(t * .17));
+  put($('b2'), 1, 1000 + 150 * Math.cos(t * .19), 380 + 100 * Math.sin(t * .23));
+  put($('b3'), 1, 1150 + 170 * Math.sin(t * .15 + 1), -360 + 110 * Math.cos(t * .21));
 
-window.render = function (t, frame) {
-  // background drift
-  put($('a1'), 1, 760 + 160 * Math.sin(t * .21), 120 + 80 * Math.cos(t * .17));
-  put($('a2'), .9, 1180 + 140 * Math.cos(t * .19), 560 + 90 * Math.sin(t * .23));
-  put($('a3'), .9, 220 + 180 * Math.sin(t * .15 + 1), 300 + 120 * Math.cos(t * .2));
-  seedN = 1 + frame * 7919; $('grain').style.transform = `translate(${(rnd() * 50 - 25).toFixed(1)}px,${(rnd() * 50 - 25).toFixed(1)}px)`;
-
-  // S1 0–4: the mark rises
-  const s1out = eio(seg(t, 3.35, 4.0));
-  put($('s1'), 1 - s1out, 0, 0, 1 + .18 * s1out, s1out * 10);
-  const h1 = eo(seg(t, .3, 2.0)); put($('halo1'), h1, 0, 0, .7 + .3 * h1);
-  $('arc1').style.transform = `translate(-50%,-50%) rotate(${(-140 + t * 40).toFixed(1)}deg)`;
-  grow(P1, t, .35, .14, .8);
-  reveal($('wm1'), t, 1.6, 99, .8); reveal($('tg1'), t, 2.1, 99, .8);
+  // S1 0–4
+  const o1 = eio(seg(t, 3.4, 4.0)); put($('s1'), 1 - o1, 0, -40 * o1, 1 - .05 * o1, o1 * 8);
+  growMark(M1, t, .3, .13, .7);
+  const wm = eo(seg(t, 1.1, 1.9)); $('wm1').style.opacity = wm.toFixed(3); $('wm1').style.transform = `translateX(${((1 - wm) * 60).toFixed(1)}px)`;
+  $('mk1').style.transform = `translateX(${((1 - wm) * 130).toFixed(1)}px)`; $('wm1').style.clipPath = `inset(0 ${((1 - wm) * 100).toFixed(1)}% 0 0)`;
+  vpAt(V1, t, seg(t, 1.6, 2.6)); reveal($('tg1'), t, 2.2, 99, .7);
 
   // S2 4–8
-  $('s2').style.opacity = t > 3.8 && t < 8.1 ? 1 : 0;
-  wordsIn(W2a, t, 4.15, 7.45, .09); wordsIn(W2b, t, 5.25, 7.55, .05);
+  $('s2').style.opacity = t > 3.9 && t < 8.1 ? 1 : 0;
+  words(W2a, t, 4.15, 7.45); words(W2b, t, 5.2, 7.5, .05);
+  vpAt(V2, t, seg(t, 4.3, 5.6)); $('vp2').style.opacity = (.22 * (1 - eio(seg(t, 7.4, 7.9)))).toFixed(3);
 
   // S3 8–12
-  $('s3').style.opacity = t > 7.9 && t < 12.2 ? 1 : 0;
-  wordsIn(W3a, t, 8.1, 9.85, .09); wordsIn(W3b, t, 8.55, 9.9, .08);
-  const u = eo(seg(t, 10.2, 11.0)), uo = eio(seg(t, 11.55, 12.0));
-  put($('s3c'), u * (1 - uo), 0, 0, 1.12 - .12 * u + .35 * uo, (1 - u) * 20 + uo * 18);
+  $('s3').style.opacity = t > 7.9 && t < 12.1 ? 1 : 0;
+  words(W3a, t, 8.1, 9.85); words(W3b, t, 8.5, 9.9, .08);
+  $('ul3').style.transform = `scaleX(${(eio(seg(t, 9.2, 9.6)) * (1 - eio(seg(t, 9.85, 10.2)))).toFixed(3)})`;
+  const u = eo(seg(t, 10.2, 10.9)), uo = eio(seg(t, 11.5, 12.0));
+  put($('s3c'), u * (1 - uo), 0, -uo * 120, 1.1 - .1 * u - .25 * uo, (1 - u) * 14 + uo * 10);
 
   // S4 12–16
-  $('s4').style.opacity = t > 11.8 && t < 16.2 ? 1 : 0;
-  const s4o = eio(seg(t, 15.55, 16.0));
-  reveal($('s4a'), t, 12.05, 15.5, .8, .45); reveal($('s4b'), t, 12.35, 15.55, .9, .45); reveal($('s4c'), t, 12.9, 15.6, .8, .4);
-  const h4 = eo(seg(t, 12.0, 13.2)); put($('halo4'), h4 * (1 - s4o), 0, 0, .75 + .25 * h4);
-  $('arc4').style.transform = `translate(-50%,-50%) rotate(${(-200 + t * 40).toFixed(1)}deg)`;
-  grow(P4, t, 12.1, .1, .7); $('p4').style.opacity = 1 - s4o;
-  drawCurve(C4, $('cline'), $('carea'), $('cdot'), $('cdot2'), eio(seg(t, 12.4, 15.3)), 1080);
-  $('chart').style.opacity = (eo(seg(t, 12.3, 12.8)) * (1 - s4o)).toFixed(3);
+  $('s4').style.opacity = t > 11.6 && t < 16.2 ? 1 : 0;
+  const wi = eo(seg(t, 11.6, 12.6)), wo = eio(seg(t, 15.55, 16.0));
+  put($('win'), wi * (1 - wo), 0, (1 - wi) * 700 - wo * 60, .92 + .08 * wi);
+  reveal($('s4h'), t, 12.3, 15.5, .7, .4);
+  const z = eio(seg(t, 13.3, 15.6)); $('pf').style.transform = `scale(${(1 + .42 * z).toFixed(4)})`;
 
   // S5 16–22
   $('s5').style.opacity = t > 15.9 && t < 22.2 ? 1 : 0;
-  reveal($('s5h'), t, 16.05, 21.5, .7, .4);
-  ['k1', 'k2', 'k3'].forEach((id, i) => { const v = vis(t, 16.25 + i * .28, 21.45 + i * .08, .9, .5); put($(id), v.o, 0, v.y * 2.2, 1, v.b * .6); });
-  const sc = eio(seg(t, 16.9, 18.7)); $('cnt').textContent = Math.round(87 * sc);
-  [[ 'b1', .35 ], [ 'b2', .35 ], [ 'b3', .20 ]].forEach(([id, w], i) => { $(id).style.width = (eio(seg(t, 17.1 + i * .2, 18.7 + i * .2)) * w / .35 * 100).toFixed(1) + '%'; });
-  drawCurve(C2, $('k2l'), $('k2a'), $('k2d'), null, eio(seg(t, 17.2, 19.2)), 190);
-  const bp = seg(t, 19.3, 19.8); $('buy').style.transform = `scale(${(1 + .07 * Math.sin(bp * Math.PI)).toFixed(4)})`;
-  const sh = eback(seg(t, 18.9, 19.5)); $('shackle').setAttribute('transform', `translate(${(sh * 22).toFixed(2)} ${(-sh * 14).toFixed(2)}) rotate(${(sh * 18).toFixed(2)} 88 64)`);
-  ['bb1', 'bb2', 'bb3'].forEach((id, i) => reveal($(id), t, 19.55 + i * .3, 99, .6));
+  const steps = [[16.05, 17.75], [18.0, 19.75], [20.0, 21.5]];
+  steps.forEach(([a, e], i) => { reveal($('st' + (i + 1)), t, a, e, .6, .3); });
+  [1, 2, 3].forEach((i) => { const on = t >= steps[i - 1][0] - .1 && t < (steps[i] ? steps[i][0] - .1 : 99); $('pp' + i).style.width = on ? '44px' : '12px'; $('pp' + i).style.background = on ? '#1D9BF0' : '#CFD9DE'; });
+  $('s5').querySelector('.pips').style.opacity = (eo(seg(t, 16.1, 16.6)) * (1 - eio(seg(t, 21.5, 21.95)))).toFixed(3);
+  const card = (id, a, e, s0 = .94) => { const i = eo(seg(t, a, a + .6)), o = eio(seg(t, e, e + .35)); put($(id), i * (1 - o), (1 - i) * 80, -o * 40, s0 + (1 - s0) * i, (1 - i) * 6); };
+  card('u1', 16.15, 17.7); card('u2', 18.05, 19.4); card('u3', 19.35, 19.75, .97); card('u4', 20.05, 21.5);
+  const si = Math.min(5, Math.max(0, Math.floor((t - 18.1) / .22))); document.querySelectorAll('#u2 .sc').forEach((im, i) => { im.style.display = i === si ? 'block' : 'none'; });
+  $('u4').querySelector('img').style.transform = `translateY(${(-eio(seg(t, 20.6, 21.5)) * 140).toFixed(1)}px)`;
 
   // S6 22–26
   $('s6').style.opacity = t > 21.9 && t < 26.2 ? 1 : 0;
-  reveal($('s6h'), t, 22.05, 25.5, .9, .45);
-  ['r1', 'r2', 'r3', 'r4'].forEach((id, i) => reveal($(id), t, 22.55 + i * .32, 25.45 + i * .04, .8, .45));
-  const g = vis(t, 22.4, 25.5, 1.1, .5);
-  $('gp').style.opacity = g.o.toFixed(3);
-  $('gp').style.transform = `translateY(${(g.y * 1.5).toFixed(1)}px) perspective(1400px) rotateY(${(-14 + 10 * Math.sin((t - 22) * .9)).toFixed(2)}deg) rotateX(${(6 * Math.cos((t - 22) * .7)).toFixed(2)}deg)`;
-  $('gp').style.filter = g.b > .05 ? `blur(${g.b.toFixed(2)}px)` : 'none';
+  reveal($('s6a'), t, 22.05, 25.45, .7, .4); reveal($('s6b'), t, 22.4, 25.5, .7, .4);
+  [['g1', 'c1', 22.3, -1.5], ['g2', 'c2', 22.5, 1.2], ['g3', 'c3', 22.7, 1], ['g4', 'c4', 22.9, -1]].forEach(([g, c, a, r], i) => {
+    const v = vis(t, a, 25.45 + i * .03, .8, .45); const drift = Math.sin((t - 22) * .9 + i) * 8;
+    put($(g), v.o, 0, v.y * 2 + drift, 1, v.b * .5, r * (1 - eo(seg(t, a, a + 1.2)) * .4));
+    const cv = vis(t, a + .35, 25.45 + i * .03, .5, .4); put($(c), cv.o, 0, cv.y + drift, .9 + .1 * eo(seg(t, a + .35, a + .85)));
+  });
 
-  // S7 26–30: end card
+  // S7 26–30
   $('s7').style.opacity = t > 25.9 ? 1 : 0;
-  const h7 = eo(seg(t, 26.0, 27.2)); put($('halo7'), h7, 0, 0, .7 + .3 * h7);
-  $('arc7').style.transform = `translate(-50%,-50%) rotate(${(-260 + t * 40).toFixed(1)}deg)`;
-  grow(P7, t, 26.1, .11, .75);
-  reveal($('e1'), t, 26.7, 99, .8); reveal($('e2'), t, 27.1, 99, .9); reveal($('e3'), t, 27.6, 99, .8); reveal($('e4'), t, 28.0, 99, .8);
+  growMark(M7, t, 26.05, .1, .65);
+  const l7 = eo(seg(t, 26.0, 26.7)); $('lg7').style.opacity = l7.toFixed(3);
+  reveal($('e2'), t, 26.7, 99, .7); reveal($('e3'), t, 27.15, 99, .7); reveal($('e4'), t, 27.6, 99, .7);
+  vpAt(V7, t, seg(t, 27.4, 28.4));
 
-  // chrome: corner logo from S2 on, hidden on the end card
-  const ch = eo(seg(t, 4.0, 4.8)) * (1 - eo(seg(t, 25.9, 26.4)));
+  const ch = eo(seg(t, 4.0, 4.6)) * (1 - eo(seg(t, 11.6, 12.0))) + eo(seg(t, 16.0, 16.5)) * (1 - eo(seg(t, 25.9, 26.3)));
   $('hl').style.opacity = ch.toFixed(3); $('hr').style.opacity = ch.toFixed(3);
-  $('black').style.opacity = (1 - eo(seg(t, 0, .5))).toFixed(3) * 1 + 0;
-  if (t > 29.55) $('black').style.opacity = eio(seg(t, 29.55, 30)).toFixed(3);
+  $('white').style.opacity = (t < .4 ? 1 - eo(seg(t, 0, .4)) : eio(seg(t, 29.6, 30))).toFixed(3);
 };
-window.render(0, 0);
+window.render(0);
 </script>
 </body></html>
