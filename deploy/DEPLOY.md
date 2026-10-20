@@ -44,6 +44,8 @@ Never paste these keys into chats or commit them; `.env` is git-ignored and read
 
 To turn on Connect X later without editing the file by hand: `bash /srv/sway/deploy/set-x-keys.sh` (as root) asks for
 the Client ID, Client Secret, Bearer Token and your admin handle, saves them and redeploys.
+If X shows "Something went wrong", run `bash /srv/sway/deploy/check-x.sh` (as root): it checks the keys with X
+and the callback URL, and prints the exact values for the app's User authentication settings.
 
 ## 4. Deploy the contracts (as sway, once per chain)
 
