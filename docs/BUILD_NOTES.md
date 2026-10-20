@@ -68,6 +68,7 @@ deviates from it, and what is still open. Keep this current.
 | Post menu & pages | "···" menu: own post Delete / Boost / Copy link, others Copy link / Report / Block, admins also Hide; @swaydotfamily (and admins) Pin to Home / Unpin on its top-level posts, one pinned at a time. Post page `/post/:id` shows the chain above, the post, a reply composer and two levels of replies. `/settings`, `/admin`, `/terms` and `/privacy` (templates, marked for counsel review) are linked from the nav, the rail footer, the drawer and the Connect X modal. |
 | Share card | `/card/:handle` is public; its `opengraph-image` (next/og) draws the card, and the X intent carries the card URL so X unfurls it. Set `NEXT_PUBLIC_SITE_URL` (else `WEB_URL`) to the public origin for absolute OG URLs. Mock-mode admins: handles starting with "admin". |
 | $SWAY card | Not in the prototype. The rail (desktop) and the drawer (mobile) show the $SWAY contract address with a copy button and a "Follow @swaydotfamily" link (also in the rail footer). The address is `NEXT_PUBLIC_SWAY_CA`, baked in at build time; empty shows "CA: Coming soon". |
+| Fan markets by handle | The admin form needs only the X handle and category: the API reads the X user id, name, followers, avatar, checkmark and account age from X with the app bearer token (`users/by/username`) and scores the profile from them. Fields the admin fills in win; without a bearer token they are required. |
 
 ## Open items before mainnet
 

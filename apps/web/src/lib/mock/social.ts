@@ -422,9 +422,11 @@ export function socialMockApi(w: MockWorld): Pick<SwayApi, SocialKeys> {
       const h = normalizeHandle(b.handle);
       if (!h) throw err(400, 'invalid_handle', 'Handles use letters, digits and _');
       if (b.category === 'creators') throw err(400, 'bad_category', 'Fan markets are crypto, football, stocks or rwa');
-      if (!/^\d{1,20}$/.test(b.xId) || /^0+$/.test(b.xId)) throw err(400, 'bad_xid', 'That is not an X user id');
+      // The API reads left-out fields from X; the mock has no X, so it makes them up.
+      const xId = b.xId ?? String(1e9 + (h.length * 7919) % 1e8);
+      if (!/^\d{1,20}$/.test(xId) || /^0+$/.test(xId)) throw err(400, 'bad_xid', 'That is not an X user id');
       if (w.C[h]) throw err(409, 'market_exists', `@${h} already has a key market`);
-      const c = mkFan(b.category as MarketCategory, b.name.trim() || h, h, Math.max(1, b.followers));
+      const c = mkFan(b.category as MarketCategory, b.name?.trim() || h, h, Math.max(1, b.followers ?? 100_000));
       Object.assign(c, { supply: 1, holders: 1, volume: 0, escrow: 0 });
       w.C[h] = c;
       return { txHash: fakeHash('fan' + h), status: 'success', market: marketDTO(h) };

@@ -992,10 +992,11 @@ export interface AdminMarketDTO extends UserRef {
 
 export interface OpenFanMarketBody {
   handle: string;
-  name: string;
+  /** name, xId and followers left out are read from X (app bearer token), along with the avatar. */
+  name?: string;
   /** Numeric X user id (uint64) as a string. */
-  xId: string;
-  followers: number;
+  xId?: string;
+  followers?: number;
   category: MarketCategory;
 }
 
@@ -1064,6 +1065,7 @@ export const SOCIAL_ROUTES = {
  *   adminMarkets:       Q { q?: string }                                 R AdminMarketDTO[]
  *   adminHaltMarket:    B { halted: boolean }                            R AdminTxResult & { halted: boolean }
  *   adminOpenFanMarket: B OpenFanMarketBody                              R AdminTxResult & { market: AdminMarketDTO }
+ *                       400 x_lookup_unavailable (no bearer token) / x_lookup_failed, 404 x_user_not_found
  */
 export type SocialRouteKey = keyof typeof SOCIAL_ROUTES;
 

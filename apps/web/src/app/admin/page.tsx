@@ -269,12 +269,12 @@ function FanMarketForm() {
   const [f, setF] = useState({ handle: '', name: '', xId: '', followers: '', category: 'crypto' as MarketCategory });
   const { busy, run } = useRun();
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
-  const ok = f.handle.trim() && f.name.trim() && /^\d{1,20}$/.test(f.xId.trim());
+  const ok = !!f.handle.trim() && (!f.xId.trim() || /^\d{1,20}$/.test(f.xId.trim()));
   return (
     <div className="glass adm-card" id="fanform">
       <b style={{ fontSize: 16 }}>Open a fan market</b>
       <p className="t2" style={{ fontSize: 13.5, margin: '4px 0 12px' }}>
-        For an X account that hasn’t joined. Creates the profile and calls openFanMarket onchain; the creator fee is escrowed until the owner claims.
+        For an X account that hasn’t joined. Creates the profile and calls openFanMarket onchain; the creator fee is escrowed until the owner claims. Only the handle is needed: name, X user id, followers and avatar are read from X when left empty.
       </p>
       <div className="grid2">
         <div>
@@ -287,19 +287,19 @@ function FanMarketForm() {
           <label className="lbl" htmlFor="fm-n">
             Name
           </label>
-          <input className="field" id="fm-n" placeholder="Display name" value={f.name} onChange={set('name')} />
+          <input className="field" id="fm-n" placeholder="From X" value={f.name} onChange={set('name')} />
         </div>
         <div>
           <label className="lbl" htmlFor="fm-x">
             X user id
           </label>
-          <input className="field" id="fm-x" inputMode="numeric" placeholder="e.g. 1234567890" value={f.xId} onChange={set('xId')} />
+          <input className="field" id="fm-x" inputMode="numeric" placeholder="From X" value={f.xId} onChange={set('xId')} />
         </div>
         <div>
           <label className="lbl" htmlFor="fm-f">
             Followers
           </label>
-          <input className="field" id="fm-f" inputMode="numeric" placeholder="e.g. 1200000" value={f.followers} onChange={set('followers')} />
+          <input className="field" id="fm-f" inputMode="numeric" placeholder="From X" value={f.followers} onChange={set('followers')} />
         </div>
       </div>
       <label className="lbl" htmlFor="fm-c" style={{ marginTop: 12 }}>
@@ -321,9 +321,9 @@ function FanMarketForm() {
             () =>
               api().adminOpenFanMarket({
                 handle: f.handle.trim(),
-                name: f.name.trim(),
-                xId: f.xId.trim(),
-                followers: parseInt(f.followers.replace(/[^0-9]/g, '')) || 0,
+                name: f.name.trim() || undefined,
+                xId: f.xId.trim() || undefined,
+                followers: f.followers.trim() ? parseInt(f.followers.replace(/[^0-9]/g, '')) || 0 : undefined,
                 category: f.category,
               }),
             `Fan market for @${f.handle.trim().replace(/^@/, '')} opened`,

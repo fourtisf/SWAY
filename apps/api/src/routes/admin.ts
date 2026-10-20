@@ -26,6 +26,7 @@ import { badRequest, conflict, notFound, unavailable } from '../errors';
 import { userRef } from '../services/dto';
 import { ChainError } from '../services/chain';
 import { adminLog, requireAdmin } from '../services/social';
+import { xClient } from '../services/xauth';
 
 const MAX_UINT64 = (1n << 64n) - 1n;
 
@@ -305,12 +306,13 @@ export async function adminRoutes(app: FastifyInstance) {
        */
       const FanBody = z.object({
         handle: z.string().trim().min(1).max(30),
-        name: z.string().trim().min(1).max(80),
+        name: z.string().trim().min(1).max(80).optional(),
         xId: z
           .string()
           .trim()
-          .regex(/^\d{1,20}$/, 'must be a numeric X user id'),
-        followers: z.coerce.number().int().min(0).max(2_000_000_000),
+          .regex(/^\d{1,20}$/, 'must be a numeric X user id')
+          .optional(),
+        followers: z.coerce.number().int().min(0).max(2_000_000_000).optional(),
         category: z.enum(MARKET_CATEGORIES),
       });
 
@@ -322,31 +324,62 @@ export async function adminRoutes(app: FastifyInstance) {
           throw badRequest('invalid_handle', 'Handles use letters, digits and _');
         if (b.category === 'creators')
           throw badRequest('bad_category', 'Fan markets are crypto, football, stocks or rwa');
-        const xId = BigInt(b.xId);
+        // Whatever the admin left out comes from the account's public X profile.
+        let fx: { xId: string; name: string; followers: number; avatarUrl: string | null; verified: boolean; createdAt: Date | null } = {
+          xId: b.xId ?? '',
+          name: b.name ?? '',
+          followers: b.followers ?? 0,
+          avatarUrl: null,
+          verified: true,
+          createdAt: null,
+        };
+        if (!b.xId || b.name === undefined || b.followers === undefined) {
+          const token = app.deps.config.x.bearerToken;
+          if (!token)
+            throw badRequest('x_lookup_unavailable', 'Fill in the X user id, name and followers: this server has no X bearer token');
+          const u = await xClient(app.deps, token, 'app')
+            .getUserByUsername(handle)
+            .catch((e: unknown) => {
+              req.log.warn({ err: e, handle }, 'X lookup for a fan market failed');
+              throw badRequest('x_lookup_failed', 'X did not answer the lookup; fill in the X user id, name and followers');
+            });
+          if (!u) throw notFound(`@${handle} is not on X`, 'x_user_not_found');
+          fx = {
+            xId: b.xId ?? u.id,
+            name: b.name ?? u.name,
+            followers: b.followers ?? u.followers,
+            avatarUrl: u.profileImageUrl,
+            verified: u.verified,
+            createdAt: u.createdAt ? new Date(u.createdAt) : null,
+          };
+        }
+        const xId = BigInt(fx.xId);
         if (xId === 0n || xId > MAX_UINT64) throw badRequest('bad_xid', 'That is not an X user id');
 
-        const existing = await prisma.user.findUnique({ where: { xId: b.xId } });
+        const existing = await prisma.user.findUnique({ where: { xId: fx.xId } });
         if (existing?.joinedAt)
           throw conflict('member', `@${existing.handle} is already a member; members open their own market`);
         const clash = await prisma.user.findUnique({ where: { handle } });
-        if (clash && clash.xId !== b.xId)
+        if (clash && clash.xId !== fx.xId)
           throw conflict('handle_taken', `@${handle} belongs to another X account`);
-        const market0 = await prisma.keyMarket.findUnique({ where: { xId: b.xId } });
+        const market0 = await prisma.keyMarket.findUnique({ where: { xId: fx.xId } });
         if (market0?.opened) throw conflict('market_exists', `@${handle} already has a key market`);
 
-        const inputs = { followers: b.followers, er: 0, ppw: 0, age: 0, verified: true };
+        const age = fx.createdAt ? Math.max(0, (Date.now() - fx.createdAt.getTime()) / (365.25 * 86400e3)) : 0;
+        const inputs = { followers: fx.followers, er: 0, ppw: 0, age, verified: fx.verified };
         const r = score(inputs);
         const user =
           existing ??
           (await prisma.user.create({
             data: {
-              xId: b.xId,
+              xId: fx.xId,
               handle,
-              name: b.name,
+              name: fx.name,
               bio: FAN_BIO,
-              followers: b.followers,
-              verified: true,
-              avatarUrl: null,
+              followers: fx.followers,
+              verified: fx.verified,
+              avatarUrl: fx.avatarUrl,
+              xCreatedAt: fx.createdAt,
               score: r.score,
               reachValue: r.value,
               scoreInputs: inputs,
@@ -355,12 +388,12 @@ export async function adminRoutes(app: FastifyInstance) {
           }));
         const subject = fanSubject(xId).toLowerCase();
         const market = await prisma.keyMarket.upsert({
-          where: { xId: b.xId },
+          where: { xId: fx.xId },
           update: { category: b.category },
           create: {
             subject,
             userId: user.id,
-            xId: b.xId,
+            xId: fx.xId,
             fan: true,
             claimed: false,
             category: b.category,
@@ -378,7 +411,7 @@ export async function adminRoutes(app: FastifyInstance) {
           req.log.warn({ subject }, 'fan market opened in the DB only: SwayKeys/operator not configured');
         adminLog(req, v, 'open_fan_market', subject, {
           handle,
-          xId: b.xId,
+          xId: fx.xId,
           category: b.category,
           tx: result.txHash,
         });

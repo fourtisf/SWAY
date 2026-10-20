@@ -648,6 +648,56 @@ describe('admin', () => {
         await inject('POST', '/api/admin/fan-markets', boss.cookie, { ...body, handle: 'x', xId: c.user.xId })
       ).json().error,
     ).toBe('member');
+    expect(
+      (await inject('POST', '/api/admin/fan-markets', boss.cookie, { handle: 'lookmeup', category: 'crypto' })).json().error,
+    ).toBe('x_lookup_unavailable');
+  });
+
+  it('reads a fan market\'s X id, name, followers and avatar from X when only the handle is given', async () => {
+    const asked: string[] = [];
+    const xFetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(String(input));
+      asked.push(`${url.pathname} ${new Headers(init?.headers).get('authorization')}`);
+      const ok = (b: unknown) => new Response(JSON.stringify(b), { status: 200, headers: { 'content-type': 'application/json' } });
+      // X matches usernames case-insensitively; the API asks with the normalized (lower-case) handle.
+      if (url.pathname.toLowerCase() === '/2/users/by/username/coindesk')
+        return ok({
+          data: {
+            id: '1333467482',
+            username: 'CoinDesk',
+            name: 'CoinDesk',
+            profile_image_url: 'https://pbs.twimg.com/cd_normal.jpg',
+            created_at: '2013-04-15T00:00:00Z',
+            verified: true,
+            public_metrics: { followers_count: 3_400_000, following_count: 1, tweet_count: 1 },
+          },
+        });
+      return ok({ errors: [{ title: 'Not Found Error' }] });
+    }) as typeof fetch;
+    const x = await makeApp({ env: { ADMIN_HANDLES: 'boss', X_BEARER_TOKEN: 'app-bearer' }, xFetch });
+    try {
+      const boss = await login(x, 'boss');
+      const r = await x.app.inject({
+        method: 'POST',
+        url: '/api/admin/fan-markets',
+        headers: { cookie: boss.cookie },
+        payload: { handle: '@CoinDesk', category: 'crypto' },
+      });
+      expect(r.statusCode).toBe(200);
+      expect(asked).toEqual(['/2/users/by/username/coindesk Bearer app-bearer']);
+      const u = await prisma.user.findUniqueOrThrow({ where: { xId: '1333467482' } });
+      expect(u).toMatchObject({ handle: 'coindesk', name: 'CoinDesk', followers: 3_400_000, avatarUrl: 'https://pbs.twimg.com/cd_400x400.jpg', verified: true, joinedAt: null });
+      expect(u.score).toBeGreaterThan(0);
+      const miss = await x.app.inject({
+        method: 'POST',
+        url: '/api/admin/fan-markets',
+        headers: { cookie: boss.cookie },
+        payload: { handle: 'nobodyhere', category: 'crypto' },
+      });
+      expect(miss.json().error).toBe('x_user_not_found');
+    } finally {
+      await x.close();
+    }
   });
 });
 
