@@ -20,9 +20,15 @@ const shot = async (loc, name) => { await loc.screenshot({ path: `${out}/${name}
 await p.goto(base + '/', { waitUntil: 'networkidle' });
 await hideDemo();
 await p.locator('.sb').getByRole('button', { name: 'Connect X' }).click();
-await p.fill('#cx-h', 'yourhandle');
+// connect.png shows the production modal (X sign-in on, demo sign-in off): drop the demo-only fields.
+await p.evaluate(() => ['label[for=cx-h]', '#cx-h', 'label[for=cx-f]', '#cx-f'].forEach((q) => document.querySelector(q)?.remove()));
 await p.waitForTimeout(300);
 await shot(p.locator('.modal'), 'connect');
+await p.locator('.modal').evaluate(() => null);
+// The mock still signs in through the demo form: put it back for the next steps.
+await p.locator('.modal').getByRole('button', { name: 'Close' }).click();
+await p.locator('.sb').getByRole('button', { name: 'Connect X' }).click();
+await p.fill('#cx-h', 'yourhandle');
 await p.locator('.modal').getByRole('button', { name: 'Authorize and continue' }).click();
 for (let i = 0; i < 6; i++) { await p.waitForTimeout(i ? 330 : 120); await shot(p.locator('.modal'), `scoring${i}`); }
 await p.locator('.modal').getByRole('button', { name: 'Create a Sway wallet' }).click({ timeout: 20000 });
