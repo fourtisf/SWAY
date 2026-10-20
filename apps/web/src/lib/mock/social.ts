@@ -30,11 +30,11 @@ import {
   type UploadMime,
 } from '@sway/shared';
 import { ApiRequestError, notifyAuthRequired, type SwayApi } from '../api';
-import { ETH_USD, fakeAddress, fakeHash, mkFan, type SeedPost } from './seed';
+import { ETH_USD, OFFICIAL, fakeAddress, fakeHash, mkFan, type SeedPost } from './seed';
 import type { MockWorld } from './state';
 
 type SocialKeys =
-  | 'deletePost' | 'boostQuote' | 'boostPost' | 'report' | 'block' | 'upload' | 'uploadFileUrl' | 'priceHistory'
+  | 'deletePost' | 'boostQuote' | 'boostPost' | 'pinPost' | 'report' | 'block' | 'upload' | 'uploadFileUrl' | 'priceHistory'
   | 'card' | 'account' | 'exportData' | 'deleteAccount' | 'adminReports' | 'adminResolveReport' | 'adminHidePost'
   | 'adminClaims' | 'adminResolveClaim' | 'adminMembers' | 'adminBotFlag' | 'adminSetAdmin' | 'adminMarkets'
   | 'adminHaltMarket' | 'adminOpenFanMarket';
@@ -348,6 +348,20 @@ export function socialMockApi(w: MockWorld): Pick<SwayApi, SocialKeys> {
       console.info(`[mock admin] ${u.handle} ${action} report ${rid}`);
       return reportDTO(r);
     },
+    async pinPost(pid, { pinned }) {
+      const u = needUser(w);
+      const p = findPost(w, pid);
+      if (!p || p.deleted) throw err(404, 'post_not_found', 'That post no longer exists');
+      if (p.author !== OFFICIAL.handle || p.parentId) throw err(400, 'not_pinnable', `Only top-level posts by @${OFFICIAL.handle} can be pinned`);
+      if (!w.isMine(p.author) && !w.isAdmin() && !s().admins.has(u.handle)) throw err(403, 'not_yours', 'You can only pin your own posts');
+      if (pinned && p !== w.pinned) {
+        if (w.pinnedOn) w.posts.unshift(w.pinned);
+        w.posts = w.posts.filter((x) => x !== p);
+        w.pinned = p;
+      }
+      if (p === w.pinned) w.pinnedOn = pinned;
+      return { pinned };
+    },
     async adminHidePost(pid, { hidden }) {
       needAdmin(w);
       const p = findPost(w, pid);
@@ -460,8 +474,8 @@ export function installSocialMock(api: SwayApi, w: MockWorld): void {
     const replies = kids(p.id);
     const nested = replies.flatMap((r) => kids(r.id)).sort((a, b) => a.at - b.at);
     return {
-      post: w.post(p, p === w.pinned),
-      parents: parents.map((x) => w.post(x, x === w.pinned)),
+      post: w.post(p, p === w.pinned && w.pinnedOn),
+      parents: parents.map((x) => w.post(x, x === w.pinned && w.pinnedOn)),
       parentUnavailable,
       replies: replies.map((x) => w.post(x)),
       nested: nested.map((x) => w.post(x)),

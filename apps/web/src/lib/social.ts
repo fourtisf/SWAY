@@ -138,6 +138,16 @@ export function useSocialActions() {
       }
     },
 
+    async pin(p: Pick<PostDTO, 'id' | 'pinned'>) {
+      try {
+        const r = await api().pinPost(p.id, { pinned: !p.pinned });
+        toast(r.pinned ? 'Pinned to the top of Home' : 'Unpinned');
+        await refreshPosts(qc);
+      } catch (e) {
+        fail(e);
+      }
+    },
+
     async hide(p: Pick<PostDTO, 'id' | 'hidden'>) {
       try {
         const r = await api().adminHidePost(p.id, { hidden: !p.hidden });

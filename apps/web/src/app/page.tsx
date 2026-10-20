@@ -33,7 +33,7 @@ export default function HomePage() {
         <Loading />
       ) : d.posts.length ? (
         d.posts.map((p) => <PostItem key={p.id} p={p} />)
-      ) : (
+      ) : tab === 'following' ? (
         <Empty
           icon="users"
           title="Your Following tab is empty"
@@ -44,6 +44,24 @@ export default function HomePage() {
           }
         >
           Buy a key or follow a creator and their posts land here.
+        </Empty>
+      ) : tab === 'trending' ? (
+        <Empty icon="flame" title="Nothing trending yet">
+          The most liked and reposted posts of the last 24 hours show up here.
+        </Empty>
+      ) : (
+        <Empty
+          icon="feather"
+          title="No posts yet"
+          action={
+            me.data ? undefined : (
+              <button className="btn btn-white btn-sm" onClick={() => openModal({ type: 'connect' })}>
+                Connect X
+              </button>
+            )
+          }
+        >
+          {me.data ? 'Be the first: write something above and everyone on Sway sees it here.' : 'Connect X and write the first post on Sway.'}
         </Empty>
       )}
     </>

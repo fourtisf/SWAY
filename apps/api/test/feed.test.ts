@@ -314,6 +314,33 @@ describe('ranking and tabs', () => {
     expect((await feed('trending')).json<FeedResponse>().pinned).toBeNull();
   });
 
+  it('the official account pins one post at a time; others cannot pin', async () => {
+    const off = await login(ctx, 'swaydotfamily');
+    await prisma.user.update({ where: { id: off.user.id }, data: { official: true } });
+    const a = (await post(off.cookie, { text: 'welcome', visibility: 'public' })).json<PostDTO>();
+    const b = (await post(off.cookie, { text: 'roadmap', visibility: 'public' })).json<PostDTO>();
+    const pin = (cookie: string, id: string, pinned: boolean) =>
+      ctx.app.inject({ method: 'POST', url: `/api/posts/${id}/pin`, headers: { cookie }, payload: { pinned } });
+
+    expect((await pin(off.cookie, a.id, true)).json()).toEqual({ pinned: true });
+    expect((await feed('foryou')).json<FeedResponse>().pinned?.id).toBe(a.id);
+    await pin(off.cookie, b.id, true);
+    const fy = (await feed('latest')).json<FeedResponse>();
+    expect(fy.pinned?.id).toBe(b.id);
+    expect(fy.posts.find((p) => p.id === a.id)?.pinned).toBe(false);
+    await pin(off.cookie, b.id, false);
+    expect((await feed('latest')).json<FeedResponse>().pinned).toBeNull();
+
+    const other = await login(ctx, 'notofficial');
+    const mine = (await post(other.cookie, { text: 'mine', visibility: 'public' })).json<PostDTO>();
+    expect((await pin(other.cookie, mine.id, true)).json().error).toBe('not_pinnable');
+    expect((await pin(other.cookie, a.id, true)).json().error).toBe('not_yours');
+    await prisma.user.update({ where: { id: other.user.id }, data: { isAdmin: true } });
+    expect((await pin(other.cookie, a.id, true)).statusCode).toBe(200);
+    const reply = (await post(off.cookie, { text: 'thread', visibility: 'public', parentId: a.id })).json<PostDTO>();
+    expect((await pin(off.cookie, reply.id, true)).json().error).toBe('not_pinnable');
+  });
+
   it('Following shows followed authors, held markets and your own posts', async () => {
     const me = await member(ctx, 'follower');
     const followed = await login(ctx, 'followed');

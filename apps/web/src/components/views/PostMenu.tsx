@@ -1,9 +1,9 @@
 'use client';
 /**
  * [B] The "···" post menu. Own post: Delete, Boost, Copy link. Others: Copy link, Report post, Block @handle.
- * Admins also get Hide post (or Unhide).
+ * Admins also get Hide post (or Unhide). The official account (and admins) can pin its posts to the top of Home.
  */
-import type { PostDTO } from '@sway/shared';
+import { OFFICIAL_HANDLE, type PostDTO } from '@sway/shared';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useMe } from '@/lib/queries';
 import { useSocialActions } from '@/lib/social';
@@ -40,6 +40,7 @@ export function PostMenu({ p }: { p: PostDTO }) {
     fn();
   };
   const h = p.author.handle;
+  const canPin = !!p.author.official && h === OFFICIAL_HANDLE && !p.parentId && (p.mine || !!me?.isAdmin);
   return (
     <span className="pm-wrap" ref={box}>
       <button className="more" aria-label="More" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -73,6 +74,11 @@ export function PostMenu({ p }: { p: PostDTO }) {
                 </Item>
               )}
             </>
+          )}
+          {canPin && (
+            <Item icon="pin" onClick={run(() => s.pin(p))}>
+              {p.pinned ? 'Unpin from Home' : 'Pin to Home'}
+            </Item>
           )}
           {me?.isAdmin && (
             <Item icon={p.hidden ? 'eye' : 'eyeOff'} onClick={run(() => s.hide(p))}>

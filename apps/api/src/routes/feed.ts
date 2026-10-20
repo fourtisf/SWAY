@@ -4,6 +4,7 @@ import { usdToWei } from '@sway/curve';
 import { Prisma } from '@sway/db';
 import {
   BOOST_HOURS,
+  OFFICIAL_HANDLE,
   POST_MAX,
   POST_MAX_STAKED,
   POST_MEDIA_MAX,
@@ -227,6 +228,30 @@ export async function feedRoutes(app: FastifyInstance) {
     });
     if (!mine) adminLog(req, v, 'delete_post', id, { author: p.authorId });
     return { ok: true as const };
+  });
+
+  /**
+   * The official account pins one of its top-level posts above For You and Latest (one at a time); admins can
+   * do it for that account.
+   */
+  app.post('/posts/:id/pin', async (req) => {
+    const v = await requireViewer(req);
+    const { id } = params(IdParams, req);
+    const { pinned } = body(z.object({ pinned: z.boolean() }), req);
+    const p = await prisma.post.findUnique({ where: { id }, include: { author: { select: { handle: true, official: true } } } });
+    if (!p || p.deletedAt) throw notFound('That post no longer exists', 'post_not_found');
+    if (!p.author.official || p.author.handle !== OFFICIAL_HANDLE || p.parentId)
+      throw badRequest('not_pinnable', `Only top-level posts by @${OFFICIAL_HANDLE} can be pinned`);
+    const mine = p.authorId === v.user.id;
+    if (!mine && !v.user.isAdmin) throw forbidden('not_yours', 'You can only pin your own posts');
+    await prisma.$transaction([
+      ...(pinned
+        ? [prisma.post.updateMany({ where: { authorId: p.authorId, pinned: true, id: { not: id } }, data: { pinned: false } })]
+        : []),
+      prisma.post.update({ where: { id }, data: { pinned } }),
+    ]);
+    if (!mine) adminLog(req, v, pinned ? 'pin_post' : 'unpin_post', id, { author: p.authorId });
+    return { pinned };
   });
 
   /* ------------------------------------------------------------------ boosts */

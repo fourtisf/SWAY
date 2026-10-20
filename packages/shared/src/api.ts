@@ -1009,6 +1009,7 @@ export const SOCIAL_ROUTES = {
   deletePost: 'DELETE /api/posts/:id',
   boostQuote: 'GET /api/boost',
   boostPost: 'POST /api/posts/:id/boost',
+  pinPost: 'POST /api/posts/:id/pin',
   report: 'POST /api/reports',
   block: 'POST /api/users/:handle/block',
   upload: 'POST /api/uploads',
@@ -1038,6 +1039,9 @@ export const SOCIAL_ROUTES = {
  *   boostPost:          B { txHash }  (author only)                      R BoostResponse
  *                       400 tx_not_found / tx_reverted / wrong_recipient / underpaid, 403 tx_not_yours,
  *                       409 tx_used / tx_pending
+ *   pinPost:            B { pinned: boolean }  (the official account's top-level posts; by that account or an admin)
+ *                                                                        R { pinned: boolean }; pinning unpins its others
+ *                       400 not_pinnable, 403 not_yours
  *   report:             B ReportBody                                     R { ok: true }
  *   block:              (toggle)                                         R { blocked: boolean }
  *   upload:             multipart/form-data, 1–4 image files (jpeg/png/webp/gif by magic bytes, ≤ 5 MB each)

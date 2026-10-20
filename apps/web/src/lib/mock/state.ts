@@ -133,6 +133,8 @@ export class MockWorld {
   LBH: Record<string, LbRow>;
   posts: SeedPost[];
   pinned: SeedPost;
+  /** false once the official post is unpinned (it then shows in the feed like any post). */
+  pinnedOn = true;
   trades: SeedTrade[] = [];
   battles: SeedBattle[];
   myBattles: SeedBattle[] = [];
@@ -317,7 +319,7 @@ export class MockWorld {
 
   feed(tab: string): SeedPost[] {
     const mins = (p: SeedPost) => (Date.now() - p.at) / 60000;
-    let list = this.posts.filter((p) => !p.parentId && this.visible(p)); // [B]
+    let list = [...this.posts, ...(this.pinnedOn ? [] : [this.pinned])].filter((p) => !p.parentId && this.visible(p)); // [B]
     const boosted = (p: SeedPost) => p.boost || (p.boostedUntil ?? 0) > Date.now(); // [B]
     const sc = (p: SeedPost) => (p.likes + p.rp * 2 + p.rep * 3) / (1 + mins(p) / 120) + (boosted(p) ? 400 : 0) + (this.C[p.author]?.score || 60) * 3;
     if (tab === 'foryou') list.sort((a, b) => sc(b) - sc(a));

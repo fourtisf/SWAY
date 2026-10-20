@@ -192,6 +192,7 @@ export interface SwayApi {
   adminReports(q?: { status?: ReportStatus }): Promise<AdminReportDTO[]>;
   adminResolveReport(id: string, body: { action: AdminReportAction }): Promise<AdminReportDTO>;
   adminHidePost(id: string, body: { hidden: boolean }): Promise<{ hidden: boolean }>;
+  pinPost(id: string, body: { pinned: boolean }): Promise<{ pinned: boolean }>;
   adminClaims(q?: { status?: 'open' | 'resolved' }): Promise<AdminClaimDTO[]>;
   adminResolveClaim(id: string): Promise<AdminClaimDTO>;
   adminMembers(q?: { q?: string }): Promise<AdminMemberDTO[]>;
@@ -248,7 +249,7 @@ export const WALLET_ROUTE_METHODS: Record<WalletRouteKey, keyof SwayApi> = {
 
 /** [B] Same check for SOCIAL_ROUTES. */
 export const SOCIAL_ROUTE_METHODS: Record<SocialRouteKey, keyof SwayApi> = {
-  deletePost: 'deletePost', boostQuote: 'boostQuote', boostPost: 'boostPost', report: 'report', block: 'block',
+  deletePost: 'deletePost', boostQuote: 'boostQuote', boostPost: 'boostPost', pinPost: 'pinPost', report: 'report', block: 'block',
   upload: 'upload', uploadFile: 'uploadFileUrl', priceHistory: 'priceHistory', card: 'card', account: 'account',
   exportData: 'exportData', deleteAccount: 'deleteAccount', adminReports: 'adminReports',
   adminResolveReport: 'adminResolveReport', adminHidePost: 'adminHidePost', adminClaims: 'adminClaims',
@@ -442,6 +443,7 @@ export function createHttpApi(): SwayApi {
     deletePost: (id) => requestRoute(SOCIAL_ROUTES.deletePost, { params: { id } }),
     boostQuote: () => requestRoute(SOCIAL_ROUTES.boostQuote),
     boostPost: (id, body) => requestRoute(SOCIAL_ROUTES.boostPost, { params: { id }, body }),
+    pinPost: (id, body) => requestRoute(SOCIAL_ROUTES.pinPost, { params: { id }, body }),
     report: (body) => requestRoute(SOCIAL_ROUTES.report, { body }),
     block: (handle) => requestRoute(SOCIAL_ROUTES.block, { params: p(handle) }),
     upload: (files) => uploadFiles(files),

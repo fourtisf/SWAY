@@ -229,3 +229,18 @@ test('share card page, its OG image and the price chart', async ({ page }) => {
   await page.locator('.chart-card').getByRole('button', { name: '7D' }).click();
   await expect(page.locator('.chart-card')).toContainText('in 7D');
 });
+
+test('admins can unpin and re-pin the official post', async ({ page }) => {
+  await connect(page, 'adminpin');
+  const official = () => postBy(page, 'Shipped today on Sway');
+  await expect(official().locator('.pin')).toBeVisible();
+  let m = await menu(page, 'Shipped today on Sway');
+  await m.getByRole('menuitem', { name: 'Unpin from Home' }).click();
+  await expect(page.locator('.toasts')).toContainText('Unpinned');
+  await expect(official()).toBeVisible();
+  await expect(official().locator('.pin')).toHaveCount(0);
+  m = await menu(page, 'Shipped today on Sway');
+  await m.getByRole('menuitem', { name: 'Pin to Home' }).click();
+  await expect(page.locator('.toasts')).toContainText('Pinned to the top of Home');
+  await expect(official().locator('.pin')).toBeVisible();
+});

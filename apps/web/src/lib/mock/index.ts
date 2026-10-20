@@ -93,7 +93,8 @@ export function getMockApi(): SwayApi {
 
     async feed({ tab }) {
       await tick();
-      return { pinned: w.post(w.pinned, true), posts: w.feed(tab).map((p) => w.post(p)), nextCursor: null };
+      const pinned = w.pinnedOn && (tab === 'foryou' || tab === 'latest') ? w.post(w.pinned, true) : null;
+      return { pinned, posts: w.feed(tab).map((p) => w.post(p)), nextCursor: null };
     },
     async createPost({ text, visibility }) {
       needUser(w);
@@ -106,7 +107,7 @@ export function getMockApi(): SwayApi {
     async post(id) {
       const p = id === w.pinned.id ? w.pinned : w.posts.find((x) => x.id === id);
       if (!p) throw notFound('Post');
-      return { post: w.post(p, p === w.pinned), replies: [], parents: [], parentUnavailable: false, nested: [] }; // [B] threads: see ./social
+      return { post: w.post(p, p === w.pinned && w.pinnedOn), replies: [], parents: [], parentUnavailable: false, nested: [] }; // [B] threads: see ./social
     },
     async like(id) {
       needUser(w);
