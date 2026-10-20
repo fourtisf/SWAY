@@ -240,6 +240,15 @@ h1,h2,h3,h4{margin:0;letter-spacing:-.01em}
 .cd small{color:var(--tx2);font-size:11px}
 .rail-foot{color:var(--tx2);font-size:13px;display:flex;flex-wrap:wrap;gap:4px 12px;padding:0 16px}
 .rail-foot a:hover{text-decoration:underline}
+/* $SWAY CA + official X account (rail on desktop, drawer on mobile) */
+.comm .wd-h{margin-bottom:10px}
+.comm-ca{display:flex;align-items:center;gap:10px;min-height:42px;padding:0 4px 0 12px;border:1px dashed var(--line2);border-radius:12px;background:var(--bg2)}
+.comm-lbl{font-size:12px;font-weight:800;letter-spacing:.08em;color:var(--tx2)}
+.comm-soon{font-size:14.5px;font-weight:700;color:var(--tx)}
+.comm-addr{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.comm-note{font-size:12.5px;line-height:1.4;color:var(--tx2);margin:8px 2px 12px}
+.comm .btn svg{width:16px;height:16px}
+.dw-comm{margin-top:14px}
 
 /* ---------- creator card ---------- */
 .hc{position:relative;border-radius:16px;border:1px solid var(--line);background:#fff;cursor:pointer;overflow:hidden;transition:box-shadow .2s,border-color .2s}

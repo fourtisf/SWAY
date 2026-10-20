@@ -10,6 +10,7 @@ import { useBattles, useConfig, useMe, useSearch, useTrades } from '@/lib/querie
 import { openModal, useClock, useUI } from '@/lib/store';
 import { Icon } from '../icons';
 import { Avatar, Countdown, CountdownBoxes, VB, Voiceprint } from '../ui';
+import { CommunityCard, OFFICIAL_X_URL } from './Community';
 
 export function goTag(router: ReturnType<typeof useRouter>, tag: string) {
   useUI.setState({ exploreQ: '#' + tag, exploreTab: 'tags' });
@@ -270,6 +271,7 @@ export function Rail() {
           ))}
         </div>
       </div>
+      <CommunityCard />
       <LiveTrades />
       <LiveBattle />
       <nav className="rail-foot">
@@ -279,6 +281,9 @@ export function Rail() {
         <Link href="/leaderboard">Leaderboard</Link>
         <Link href="/terms">Terms</Link>
         <Link href="/privacy">Privacy</Link>
+        <a href={OFFICIAL_X_URL} target="_blank" rel="noopener noreferrer">
+          X
+        </a>
         <span>Robinhood Chain</span>
       </nav>
     </aside>

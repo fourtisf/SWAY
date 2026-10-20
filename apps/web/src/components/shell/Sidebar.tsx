@@ -5,6 +5,7 @@ import { openModal, useUI } from '@/lib/store';
 import { Icon } from '../icons';
 import { LogoLink, MeChip, NavItems } from './nav';
 import { ConnectWalletButton } from '../wallet/ConnectWalletButton'; // [A]
+import { CommunityCard } from './Community';
 
 export function compose(signedIn: boolean) {
   openModal(signedIn ? { type: 'compose' } : { type: 'connect' });
@@ -48,6 +49,9 @@ export function Drawer() {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <NavItems />
+        </div>
+        <div className="dw-comm">
+          <CommunityCard />
         </div>
         {/* [B] legal */}
         <div className="rail-foot dw-foot">

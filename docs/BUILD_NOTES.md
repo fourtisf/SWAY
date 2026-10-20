@@ -67,6 +67,7 @@ deviates from it, and what is still open. Keep this current.
 | Dark mode | Not in the prototype (Phase 4 settings). Light stays the default; Settings → Appearance offers Light / Dark / System. Implemented as `[data-theme="dark"]` overrides of the prototype's tokens plus the rules that hard-code white, set before first paint by an inline script. Canvas charts read the tokens and redraw on change. |
 | Post menu & pages | "···" menu: own post Delete / Boost / Copy link, others Copy link / Report / Block, admins also Hide. Post page `/post/:id` shows the chain above, the post, a reply composer and two levels of replies. `/settings`, `/admin`, `/terms` and `/privacy` (templates, marked for counsel review) are linked from the nav, the rail footer, the drawer and the Connect X modal. |
 | Share card | `/card/:handle` is public; its `opengraph-image` (next/og) draws the card, and the X intent carries the card URL so X unfurls it. Set `NEXT_PUBLIC_SITE_URL` (else `WEB_URL`) to the public origin for absolute OG URLs. Mock-mode admins: handles starting with "admin". |
+| $SWAY card | Not in the prototype. The rail (desktop) and the drawer (mobile) show the $SWAY contract address with a copy button and a "Follow @swaydotfamily" link (also in the rail footer). The address is `NEXT_PUBLIC_SWAY_CA`, baked in at build time; empty shows "CA: Coming soon". |
 
 ## Open items before mainnet
 
