@@ -1,0 +1,109 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+:root{--line:#EFF3F4;--line2:#CFD9DE;--tx:#0F1419;--tx2:#536471;--blue:#1D9BF0;--green:#00BA7C;--bg2:#F7F9F9}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1920px;height:1080px;overflow:hidden;background:#fff;-webkit-font-smoothing:antialiased}
+.s{position:relative;width:1920px;height:1080px;overflow:hidden;font-family:Inter,sans-serif;color:var(--tx);
+  background:radial-gradient(1100px 700px at -5% -10%,rgba(29,155,240,.12),transparent 70%),radial-gradient(1000px 800px at 105% 10%,rgba(249,24,128,.08),transparent 70%),radial-gradient(1300px 900px at 75% 120%,rgba(120,86,255,.11),transparent 70%),#fff}
+.logo{position:absolute;left:110px;top:64px;display:flex;align-items:center;gap:12px;font-weight:800;font-size:36px;letter-spacing:-.03em}
+.handle{position:absolute;right:110px;top:76px;font-size:22px;font-weight:600;color:var(--tx2)}
+.left{position:absolute;left:110px;top:220px;width:780px}
+.kick{display:inline-flex;align-items:center;gap:10px;height:42px;padding:0 18px;border-radius:999px;background:rgba(29,155,240,.1);color:#1A8CD8;font-size:19px;font-weight:700;letter-spacing:.02em}
+.ttl{display:flex;align-items:center;gap:26px;margin-top:34px}
+.num{width:92px;height:92px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;font-weight:800;font-size:46px;flex:none}
+h1{font-size:96px;font-weight:800;letter-spacing:-.045em;line-height:.98}
+.d{font-size:34px;line-height:1.38;color:var(--tx2);font-weight:500;margin-top:30px}
+.pts{margin-top:40px;display:flex;flex-direction:column;gap:20px}
+.pt{display:flex;gap:16px;align-items:flex-start;font-size:27px;line-height:1.35;font-weight:600}
+.pt svg{flex:none;margin-top:3px}
+.pt span{color:var(--tx2);font-weight:500}
+.pips{position:absolute;left:110px;bottom:70px;display:flex;gap:10px;align-items:center}
+.pips i{display:block;width:12px;height:8px;border-radius:8px;background:var(--line2)}
+.pips i.on{width:44px;background:var(--blue)}
+.pips b{margin-left:12px;font-size:20px;font-weight:700;color:var(--tx2)}
+.ui{position:absolute;border-radius:28px;overflow:hidden;background:#fff;box-shadow:0 40px 100px rgba(15,20,25,.16),0 0 0 1px var(--line)}
+.ui img{display:block;width:100%;height:auto}
+.fade::after{content:"";position:absolute;left:0;right:0;bottom:0;height:120px;background:linear-gradient(180deg,rgba(255,255,255,0),#fff)}
+.chip{position:absolute;display:flex;align-items:center;gap:10px;padding:14px 22px;border-radius:999px;background:#fff;box-shadow:0 14px 34px rgba(15,20,25,.14),0 0 0 1px var(--line);font-size:23px;font-weight:700;white-space:nowrap}
+.chip i{width:10px;height:10px;border-radius:50%}
+.b{display:none}
+</style></head><body><div class="s">
+<div class="logo"><svg width="42" height="42" viewBox="0 0 20 20"><g fill="#0F1419"><rect x="1" y="7" width="2.6" height="6" rx="1.3"/><rect x="5.2" y="3" width="2.6" height="14" rx="1.3"/><rect x="9.4" y="5.5" width="2.6" height="9" rx="1.3"/><rect x="13.6" y="1" width="2.6" height="18" rx="1.3"/><rect x="17" y="8" width="2.4" height="4" rx="1.2"/></g></svg>Sway</div>
+<div class="handle">@swaydotfamily</div>
+
+<!-- 1: Connect X -->
+<div class="b" id="b1">
+  <div class="left">
+    <span class="kick">HOW IT WORKS · STEP 1</span>
+    <div class="ttl"><span class="num">1</span><h1>Connect X</h1></div>
+    <div class="d">Sign in with your X account. Sway only reads your public numbers.</div>
+    <div class="pts">
+      <div class="pt">CHECK<div>Read-only <span>— followers, posts and engagement</span></div></div>
+      <div class="pt">CHECK<div>Can’t post for you <span>or see your password</span></div></div>
+      <div class="pt">CHECK<div>Your access token <span>isn’t stored</span></div></div>
+    </div>
+  </div>
+  <div class="ui fade" style="left:1080px;top:170px;width:700px;height:850px"><img src="assets/connect.png"></div>
+  <div class="chip" style="left:990px;top:116px"><i style="background:#0F1419"></i>Signs in on X’s own screen</div>
+</div>
+
+<!-- 2: score -->
+<div class="b" id="b2">
+  <div class="left">
+    <span class="kick">HOW IT WORKS · STEP 2</span>
+    <div class="ttl"><span class="num">2</span><h1>Get your<br>Sway score</h1></div>
+    <div class="d">One public formula scores every account. Nobody is weighted by hand.</div>
+    <div class="pts">
+      <div class="pt">CHECK<div>Reach 35% · Engagement 35% <span>· Consistency 10% · Authenticity 20%</span></div></div>
+      <div class="pt">CHECK<div>Your reach value <span>in dollars, from the same model</span></div></div>
+      <div class="pt">CHECK<div>Open source <span>— try the calculator yourself</span></div></div>
+    </div>
+  </div>
+  <div class="ui" style="left:1270px;top:200px;width:520px;transform:rotate(3deg)"><img src="assets/model-crop.png"></div>
+  <div class="ui" style="left:1000px;top:250px;width:640px"><img src="assets/cardlive.png"></div>
+  <div class="chip" style="left:1330px;top:150px"><i style="background:var(--blue)"></i>Open model</div>
+</div>
+
+<!-- 3: keys -->
+<div class="b" id="b3">
+  <div class="left">
+    <span class="kick">HOW IT WORKS · STEP 3</span>
+    <div class="ttl"><span class="num">3</span><h1>Your keys<br>go live</h1></div>
+    <div class="d">Your key market opens. Fans buy your keys to back you.</div>
+    <div class="pts">
+      <div class="pt">CHECK<div>Your first key is yours <span>and can never be sold</span></div></div>
+      <div class="pt">CHECK<div>Bonding curve pricing <span>— every buy moves the price up</span></div></div>
+      <div class="pt">CHECK<div>1 key opens your room <span>and holder-only posts</span></div></div>
+    </div>
+  </div>
+  <div class="ui fade" style="left:1080px;top:170px;width:700px;height:850px"><img src="assets/profile-top.png"></div>
+  <div class="chip" style="left:990px;top:116px"><i style="background:var(--green)"></i>Prices in dollars</div>
+</div>
+
+<!-- 4: earn -->
+<div class="b" id="b4">
+  <div class="left">
+    <span class="kick">HOW IT WORKS · EARN</span>
+    <div class="ttl"><h1>Everyone<br>shares the upside</h1></div>
+    <div class="d">Every key trade pays the people who make Sway work.</div>
+    <div class="pts">
+      <div class="pt">CHECK<div>Creators earn 6% <span>of every trade in their keys</span></div></div>
+      <div class="pt">CHECK<div>Holders earn 1% <span>— plus the 6% if a creator goes quiet</span></div></div>
+      <div class="pt">CHECK<div>Points for verified tasks <span>— the top 500 get a Genesis pass</span></div></div>
+    </div>
+  </div>
+  <div class="ui fade" style="left:1000px;top:190px;width:500px;height:830px"><img src="assets/tasks-crop.png"></div>
+  <div class="ui" style="left:1350px;top:330px;width:460px;transform:rotate(2.5deg)"><img src="assets/genesis-crop.png"></div>
+  <div class="chip" style="left:1390px;top:270px"><i style="background:#7856FF"></i>500 soulbound passes</div>
+</div>
+
+<div class="pips" id="pips"></div>
+</div>
+<script>
+const b = new URLSearchParams(location.search).get('b') || '1';
+document.getElementById('b' + b).style.display = 'block';
+const CHECK = '<svg width="34" height="34" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="rgba(0,186,124,.14)"/><path d="m7 12.5 3.2 3.2L17 9" fill="none" stroke="#00BA7C" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+document.querySelectorAll('.pt').forEach((p) => { p.innerHTML = p.innerHTML.replace('CHECK', CHECK); });
+const pips = document.getElementById('pips');
+pips.innerHTML = [1, 2, 3, 4].map((i) => `<i class="${String(i) === b ? 'on' : ''}"></i>`).join('') + `<b>${b} / 4</b>`;
+</script>
+</body></html>
