@@ -1,15 +1,25 @@
 #!/usr/bin/env bash
-# Builds and (re)starts Sway from the checked-out branch. Run as the app user after every change:
-#   sudo -iu sway bash /srv/sway/deploy/update.sh
+# Builds and (re)starts Sway from the checked-out branch. Run after every change, as root or as the app user:
+#   sway-update        (shortcut, installed the first time this runs as root)
+#   bash /srv/sway/deploy/update.sh
+# It never asks for keys: they stay in .env (deploy/set-x-keys.sh changes the X ones).
 # pull → install → migrate → build → PM2 reload (zero-downtime for the API cluster).
 # Everything runs inside main(): bash reads scripts as it goes, and `git pull` may rewrite this file.
 set -euo pipefail
 
 main() {
   local root
-  root="$(cd "$(dirname "$0")/.." && pwd)"
+  root="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
   cd "$root"
-  [ "$(id -u)" != 0 ] || { echo "run as the app user: sudo -iu sway bash $0" >&2; exit 1; }
+  if [ "$(id -u)" = 0 ]; then
+    # root: install the shortcut, then build as the app user that owns the checkout.
+    local self owner
+    self="$root/deploy/update.sh"
+    owner="$(stat -c %U "$root")"
+    [ "$owner" != root ] || { echo "$root is owned by root; expected the app user" >&2; exit 1; }
+    ln -sf "$self" /usr/local/bin/sway-update 2>/dev/null || true
+    exec sudo -iu "$owner" bash "$self" "$@"
+  fi
   [ -f .env ] || { echo "no .env: run deploy/install-server.sh first" >&2; exit 1; }
   if grep -n '=FILL_ME' .env; then echo "replace the FILL_ME values in .env first (or leave them empty)" >&2; exit 1; fi
   grep -q '^SWAY_KEYS_ADDRESS=0x' .env || echo "note: no contracts yet, so trading is off (deploy/DEPLOY.md step 4)"

@@ -60,11 +60,14 @@ sudo -iu sway bash -c 'cd /srv/sway/contracts && set -a && . ../.env && set +a &
 With no `SWAY_TOKEN` set, a test `$SWAY` token is deployed too. The addresses and the indexer start block are
 written into `.env`.
 
-## 5. Build and start (as sway; run again after every update)
+## 5. Build and start (run again after every update)
 
 ```bash
-sudo -iu sway bash /srv/sway/deploy/update.sh
+bash /srv/sway/deploy/update.sh      # as root; afterwards just: sway-update
 ```
+
+It never asks for keys (they stay in `.env`). Run as root it installs the `sway-update` shortcut and builds as
+the `sway` user.
 
 Pulls the branch, installs, migrates the database, builds and (re)starts `sway-api`, `sway-workers` and
 `sway-web` under PM2. It refuses to run while `.env` still has `FILL_ME` values.
@@ -82,7 +85,7 @@ Then open https://swayfamily.com, sign in with X, create the Sway wallet and buy
 
 ## Later
 
-- **Updates:** push to the branch, then `sudo -iu sway bash /srv/sway/deploy/update.sh`.
+- **Updates:** push to the branch, then `sway-update` (as root).
 - **Backups:** `/var/backups/sway` (nightly, 14 days). Copy them off the machine.
 - **Certificates:** renewed by certbot's timer; nginx reloads after each renewal.
 - **Mainnet:** only after an audit; see the open items in `docs/BUILD_NOTES.md`.
