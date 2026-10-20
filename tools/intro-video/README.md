@@ -17,3 +17,6 @@ node render.mjs "$PWD/intro.html" music.wav sway-intro.mp4 30 30   # ~5 min
 
 Needs ffmpeg, ImageMagick, numpy and the web app's dependencies. Instrument Serif (dark cut) is under the SIL Open
 Font License; Inter comes from the system.
+
+`how-it-works.html` is the 16:9 "How Sway works" banner (same assets): screenshot it at 1920×1080 with
+deviceScaleFactor 1.25 for the 2400×1350 PNG in `apps/web/public/brand/sway-how-it-works.png`.

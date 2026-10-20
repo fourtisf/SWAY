@@ -1,0 +1,48 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+:root{--line:#EFF3F4;--line2:#CFD9DE;--tx:#0F1419;--tx2:#536471;--blue:#1D9BF0;--bg2:#F7F9F9}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1920px;height:1080px;overflow:hidden;background:#fff;-webkit-font-smoothing:antialiased}
+.s{position:relative;width:1920px;height:1080px;overflow:hidden;font-family:Inter,sans-serif;color:var(--tx);
+  background:radial-gradient(1100px 700px at -5% -10%,rgba(29,155,240,.13),transparent 70%),radial-gradient(1000px 700px at 105% 0%,rgba(249,24,128,.08),transparent 70%),radial-gradient(1200px 800px at 60% 120%,rgba(120,86,255,.10),transparent 70%),#fff}
+.logo{position:absolute;left:110px;top:64px;display:flex;align-items:center;gap:12px;font-weight:800;font-size:36px;letter-spacing:-.03em}
+.handle{position:absolute;right:110px;top:76px;font-size:22px;font-weight:600;color:var(--tx2)}
+h1{position:absolute;left:0;right:0;top:150px;text-align:center;font-size:96px;font-weight:800;letter-spacing:-.04em;line-height:1}
+.sub{position:absolute;left:0;right:0;top:262px;text-align:center;font-size:32px;font-weight:500;color:var(--tx2)}
+.sub b{color:var(--blue);font-weight:700}
+.steps{position:absolute;left:110px;right:110px;top:350px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:80px}
+.st-h{display:flex;align-items:center;gap:18px}
+.num{width:58px;height:58px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;font-weight:800;font-size:27px;flex:none}
+.st-t{font-size:44px;font-weight:800;letter-spacing:-.035em;line-height:1.05}
+.st-d{font-size:23px;line-height:1.4;color:var(--tx2);margin:16px 0 26px;font-weight:500;min-height:64px}
+.ui{height:410px;border-radius:24px;overflow:hidden;background:#fff;box-shadow:0 30px 70px rgba(15,20,25,.12),0 0 0 1px var(--line);position:relative}
+.ui img{display:block;width:100%;height:auto}
+.ui::after{content:"";position:absolute;left:0;right:0;bottom:0;height:90px;background:linear-gradient(180deg,rgba(255,255,255,0),#fff)}
+.arrow{position:absolute;top:688px;width:56px;height:56px;border-radius:50%;background:#fff;box-shadow:0 10px 30px rgba(15,20,25,.12),0 0 0 1px var(--line);display:grid;place-items:center;z-index:2}
+.foot{position:absolute;left:0;right:0;bottom:48px;display:flex;justify-content:center;gap:14px}
+.chip{display:flex;align-items:center;gap:10px;height:48px;padding:0 22px;border-radius:999px;background:#fff;box-shadow:0 0 0 1px var(--line2);font-size:21px;font-weight:600;color:var(--tx)}
+.chip i{width:9px;height:9px;border-radius:50%;background:var(--blue)}
+</style></head><body><div class="s">
+<div class="logo"><svg width="42" height="42" viewBox="0 0 20 20"><g fill="#0F1419"><rect x="1" y="7" width="2.6" height="6" rx="1.3"/><rect x="5.2" y="3" width="2.6" height="14" rx="1.3"/><rect x="9.4" y="5.5" width="2.6" height="9" rx="1.3"/><rect x="13.6" y="1" width="2.6" height="18" rx="1.3"/><rect x="17" y="8" width="2.4" height="4" rx="1.2"/></g></svg>Sway</div>
+<div class="handle">@swaydotfamily</div>
+<h1>How Sway works</h1>
+<div class="sub">Three steps from your X account to <b>your own key market.</b></div>
+<div class="steps">
+  <div><div class="st-h"><span class="num">1</span><span class="st-t">Connect X</span></div>
+    <div class="st-d">Read-only sign-in. Sway never posts for you or sees your password.</div>
+    <div class="ui"><img src="assets/connect.png"></div></div>
+  <div><div class="st-h"><span class="num">2</span><span class="st-t">Get your Sway score</span></div>
+    <div class="st-d">An open, public model scores your reach, engagement and account history.</div>
+    <div class="ui"><img src="assets/cardlive.png" style="margin-top:-6px"></div></div>
+  <div><div class="st-h"><span class="num">3</span><span class="st-t">Your keys go live</span></div>
+    <div class="st-d">Your key market opens. Fans buy keys to back you and get your holders-only room.</div>
+    <div class="ui"><img src="assets/profile-top.png" style="margin-top:-40px"></div></div>
+</div>
+<div class="arrow" style="left:666px"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0F1419" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+<div class="arrow" style="left:1198px"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0F1419" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+<div class="foot">
+  <span class="chip"><i></i>Creators earn 6% of every trade</span>
+  <span class="chip"><i></i>Holders earn 1%</span>
+  <span class="chip"><i></i>Open-source scoring</span>
+  <span class="chip"><i></i>Robinhood Chain</span>
+</div>
+</div></body></html>
