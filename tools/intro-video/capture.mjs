@@ -24,7 +24,6 @@ await p.locator('.sb').getByRole('button', { name: 'Connect X' }).click();
 await p.evaluate(() => ['label[for=cx-h]', '#cx-h', 'label[for=cx-f]', '#cx-f'].forEach((q) => document.querySelector(q)?.remove()));
 await p.waitForTimeout(300);
 await shot(p.locator('.modal'), 'connect');
-await p.locator('.modal').evaluate(() => null);
 // The mock still signs in through the demo form: put it back for the next steps.
 await p.locator('.modal').getByRole('button', { name: 'Close' }).click();
 await p.locator('.sb').getByRole('button', { name: 'Connect X' }).click();
