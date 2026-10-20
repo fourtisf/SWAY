@@ -21,3 +21,5 @@ Font License; Inter comes from the system.
 `how-it-works.html` is the 16:9 "How Sway works" banner (same assets): screenshot it at 1920×1080 with
 deviceScaleFactor 1.25 for the 2400×1350 PNG in `apps/web/public/brand/sway-how-it-works.png`.
 `how-it-works-series.html?b=1..4` renders the four step banners (`sway-hiw-2…5-*.png`) the same way.
+`x-header.html` is the 1500×500 X profile header (`sway-x-header.png`, rendered at deviceScaleFactor 2). It uses
+`assets/card.png` (cardlive.png cropped 784x506+48+132) and `assets/launchcard.png`.

@@ -1,0 +1,38 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+:root{--line:#EFF3F4;--line2:#CFD9DE;--tx:#0F1419;--tx2:#536471;--blue:#1D9BF0}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1500px;height:500px;overflow:hidden;background:#fff;-webkit-font-smoothing:antialiased}
+.s{position:relative;width:1500px;height:500px;overflow:hidden;font-family:Inter,sans-serif;color:var(--tx);
+  background:radial-gradient(800px 520px at 0% 0%,rgba(29,155,240,.14),transparent 70%),radial-gradient(760px 520px at 100% 0%,rgba(249,24,128,.10),transparent 70%),radial-gradient(900px 520px at 70% 115%,rgba(120,86,255,.13),transparent 70%),#fff}
+.dots{position:absolute;inset:0;background-image:radial-gradient(rgba(15,20,25,.07) 1px,transparent 1.2px);background-size:22px 22px;-webkit-mask-image:radial-gradient(620px 300px at 78% 45%,#000,transparent 75%)}
+.vp{position:absolute;left:0;top:388px;width:1500px;height:96px;opacity:.16}
+.txt{position:absolute;left:440px;top:104px}
+.logo{display:flex;align-items:center;gap:14px;font-weight:800;font-size:104px;letter-spacing:-.045em;line-height:1}
+.tag{margin-top:26px;font-size:36px;font-weight:600;letter-spacing:-.02em;color:var(--tx2)}
+.tag b{color:var(--blue);font-weight:700}
+.chips{display:flex;gap:10px;margin-top:24px}
+.chip{display:flex;align-items:center;gap:8px;height:38px;padding:0 16px;border-radius:999px;background:rgba(255,255,255,.85);box-shadow:0 0 0 1px var(--line2);font-size:17px;font-weight:600}
+.chip i{width:8px;height:8px;border-radius:50%;background:var(--blue)}
+.ui{position:absolute;border-radius:20px;overflow:hidden;background:#fff;box-shadow:0 26px 60px rgba(15,20,25,.16),0 0 0 1px var(--line)}
+.ui img{display:block;width:100%;height:auto}
+</style></head><body><div class="s">
+<div class="dots"></div>
+<svg class="vp" id="vp" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+<div class="ui" style="left:1150px;top:56px;width:310px;transform:rotate(5deg)"><img src="assets/launchcard.png"></div>
+<div class="ui" style="left:960px;top:118px;width:420px;transform:rotate(-3deg);padding:14px 10px 6px"><img src="assets/card.png"></div>
+<div class="txt">
+  <div class="logo"><svg width="88" height="88" viewBox="0 0 20 20"><g fill="#0F1419"><rect x="1" y="7" width="2.6" height="6" rx="1.3"/><rect x="5.2" y="3" width="2.6" height="14" rx="1.3"/><rect x="9.4" y="5.5" width="2.6" height="9" rx="1.3"/><rect x="13.6" y="1" width="2.6" height="18" rx="1.3"/><rect x="17" y="8" width="2.4" height="4" rx="1.2"/></g></svg>Sway</div>
+  <div class="tag">Your reach, <b>as a market.</b></div>
+  <div class="chips"><span class="chip"><i></i>Creator keys</span><span class="chip"><i></i>Sway score</span><span class="chip"><i></i>Genesis pass</span></div>
+</div>
+</div>
+<script>
+// The website's voiceprint (components/ui.tsx), one long band.
+const svg = document.getElementById('vp'); let s = 29; const r = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+const bars = 150, w = 100 / bars;
+let h = '<defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#1D9BF0"/><stop offset=".5" stop-color="#7856FF"/><stop offset="1" stop-color="#1D9BF0"/></linearGradient></defs><g fill="url(#g)">';
+for (let i = 0; i < bars; i++) { const x = i / (bars - 1); const env = Math.pow(Math.sin(Math.PI * x), .8) * .78 + .22; const hh = Math.max(7, env * (.35 + r() * .65) * 80);
+  h += `<rect x="${(i * w + w * .22).toFixed(2)}" y="${(50 - hh / 2).toFixed(2)}" width="${(w * .56).toFixed(2)}" height="${hh.toFixed(2)}" rx="${(w * .28).toFixed(2)}"/>`; }
+svg.innerHTML = h + '</g>';
+</script>
+</body></html>
