@@ -11,6 +11,7 @@ import { BlockedNote, ChartCard, ProfileMenu } from '@/components/views/ProfileE
 import { CreatorDrops } from '@/components/engage/Drops'; // [D]
 import { WatchButton } from '@/components/engage/Engage'; // [D]
 import { PostItem } from '@/components/views/Post';
+import { useLaunchKey } from '@/components/wallet/LaunchKeyCard';
 import { useActions } from '@/lib/actions';
 import { useFormat } from '@/lib/format';
 import { useHolders, useMe, useProfile, useProfilePosts, useProfileTrades, useWallet } from '@/lib/queries';
@@ -104,6 +105,7 @@ function Profile({ handle }: { handle: string }) {
   const a = useActions();
   const [tab, setTab] = useState<ProfileTab>('posts');
   const [launching, setLaunching] = useState(false);
+  const launchKey = useLaunchKey();
   if (isPending) return <Loading />;
   if (error || !c)
     return (
@@ -119,7 +121,7 @@ function Profile({ handle }: { handle: string }) {
   const frame = isMe && me ? tierOf(me.points.total).frame : frameOfScore(c.score);
   const claimable = wallet ? weiToEth(wallet.earnings.totalWei) : 0;
   // A member's market goes onchain with its first buy; until then they can launch it themselves.
-  const unlaunched = isMe && !!me?.market && !me.market.opened;
+  const unlaunched = isMe && launchKey.show;
   return (
     <>
       <div className="p-banner" style={{ '--hue': hue } as CSSProperties}>
@@ -222,11 +224,11 @@ function Profile({ handle }: { handle: string }) {
                   disabled={launching}
                   onClick={async () => {
                     setLaunching(true);
-                    await a.launchKey();
+                    await a.launchKey(launchKey.via);
                     setLaunching(false);
                   }}
                 >
-                  {launching ? <Spinner /> : 'Launch my key'}
+                  {launching ? <Spinner /> : launchKey.via ? `Launch with ${launchKey.via.name}` : 'Launch my key'}
                 </button>
               )}
             </>

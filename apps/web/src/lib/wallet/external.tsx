@@ -8,10 +8,10 @@
  */
 import { swayKeysAbi } from '@sway/shared/abi';
 import { permitArgs, swayChain, type ConfigDTO } from '@sway/shared';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { Address } from 'viem';
 import { WagmiProvider, createConfig, http, useAccount, useConnections, useConnectors, type Config, type Connector } from 'wagmi';
-import { connect, getConnections, sendTransaction, signMessage, switchChain, waitForTransactionReceipt, writeContract } from 'wagmi/actions';
+import { connect, getConnections, reconnect, sendTransaction, signMessage, switchChain, waitForTransactionReceipt, writeContract } from 'wagmi/actions';
 import { coinbaseWallet, injected, walletConnect } from 'wagmi/connectors';
 import { useExternalWallet, type ConnectAction, type ExternalApi } from './index';
 import type { SwayWallet } from './types';
@@ -117,10 +117,14 @@ function makeApi(cfg: Config, config: ConfigDTO): ExternalApi {
 
 function Bridge({ cfg, config }: { cfg: Config; config: ConfigDTO }) {
   const connections = useConnections();
-  const connectors = useConnectors();
   const { status } = useAccount();
+  const connectors = useConnectors();
   useEffect(() => {
-    const wallets = connections.flatMap((c) => c.accounts.map((a) => walletFor(cfg, a, c.connector, config)));
+    // Connections restored from storage carry a placeholder connector (no methods) until reconnect replaces them:
+    // a wallet built on one fails its first write ("connector.getAccounts is not a function").
+    const wallets = connections
+      .filter((c) => typeof c.connector.getProvider === 'function')
+      .flatMap((c) => c.accounts.map((a) => walletFor(cfg, a, c.connector, config)));
     useExternalWallet.setState({ wallets, wallet: wallets[0] ?? null });
   }, [cfg, config, connections]);
   useEffect(() => {
@@ -131,6 +135,16 @@ function Bridge({ cfg, config }: { cfg: Config; config: ConfigDTO }) {
       api: makeApi(cfg, config),
     });
   }, [cfg, config, connectors]);
+  const retried = useRef(0);
+  useEffect(() => {
+    // Storage can restore last session's connections after reconnect has already run, leaving placeholders that
+    // never go live: reconnect again so the wallet app is usable without asking the member to connect it again.
+    const stale = connections.some((c) => typeof c.connector.getProvider !== 'function');
+    if (stale && status !== 'reconnecting' && status !== 'connecting' && retried.current < 3) {
+      retried.current++;
+      void reconnect(cfg);
+    }
+  }, [cfg, connections, status]);
   useEffect(() => {
     // Until wagmi has restored last session's connections, "not connected" isn't known yet.
     if (status !== 'reconnecting' && status !== 'connecting') useExternalWallet.setState({ ready: true });
@@ -139,9 +153,13 @@ function Bridge({ cfg, config }: { cfg: Config; config: ConfigDTO }) {
 }
 
 export default function ExternalWalletRoot({ config }: { config: ConfigDTO }) {
+  const { chainId, rpcUrl, explorerUrl, chainName } = config;
+  const projectId = config.wallets.walletConnectProjectId;
+  // Keyed on the chain alone: a new wagmi config drops the live connections, and its reconnect is a no-op while
+  // the previous one is still running (wagmi keeps one module-wide flag), so wallet apps would read as not
+  // connected after any ConfigDTO refetch (ethUsd changes with the price).
   const cfg = useMemo(() => {
-    const chain = swayChain({ chainId: config.chainId, rpcUrl: config.rpcUrl, explorerUrl: config.explorerUrl, name: config.chainName });
-    const projectId = config.wallets.walletConnectProjectId;
+    const chain = swayChain({ chainId, rpcUrl, explorerUrl, name: chainName });
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://swayfamily.com';
     return createConfig({
       chains: [chain],
@@ -158,7 +176,7 @@ export default function ExternalWalletRoot({ config }: { config: ConfigDTO }) {
       ssr: false,
       pollingInterval: 1000,
     });
-  }, [config]);
+  }, [chainId, rpcUrl, explorerUrl, chainName, projectId]);
   return (
     <WagmiProvider config={cfg}>
       <Bridge cfg={cfg} config={config} />

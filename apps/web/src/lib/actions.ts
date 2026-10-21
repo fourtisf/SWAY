@@ -25,7 +25,8 @@ import { useEthUsd, useFormat } from './format';
 import { invalidateMoney, qk, useMe } from './queries';
 import { closeModal, openModal, toast, useUI } from './store';
 import { shareCardUrl } from './util';
-import { SWAY_WALLET_OFF, useMemberWallets, useSwayWallet, type SwayWallet } from './wallet';
+import { SWAY_WALLET_OFF, useMemberWallets, useSwayWallet, type MemberWallet, type SwayWallet } from './wallet';
+import { setActiveChoice } from './wallet/active';
 import { openConnectWallet } from './wallet-actions';
 import { weiToEth } from '@sway/curve';
 
@@ -428,19 +429,35 @@ export function useActions() {
 
     /**
      * Puts the member's own key market onchain now instead of at its first buy: SwayKeys.register with the
-     * operator's permit, sent and paid by the active wallet. The market belongs to the account wallet either way.
+     * operator's permit, sent and paid by the active wallet. The market belongs to the account wallet either way,
+     * so when that one can't sign here (a browser-made Sway wallet on mainnet), `via` (a connected wallet app)
+     * becomes the account wallet first and pays.
      */
-    async launchKey(): Promise<boolean> {
+    async launchKey(via?: MemberWallet | null): Promise<boolean> {
       if (!needUser() || !me?.market) return false;
-      // Onchain the market is bound to the account wallet for good; one that can't sign here would strand its fees.
-      if (memberWallets.find((x) => x.account)?.status === 'unsupported') {
+      let subject = me.market.subject;
+      let w: SwayWallet | null;
+      if (via) {
+        if (!via.wallet) {
+          openConnectWallet(via.address);
+          return false;
+        }
+        w = via.wallet;
+      } else if (memberWallets.find((x) => x.account)?.status === 'unsupported') {
+        // Onchain the market is bound to the account wallet for good; one that can't sign would strand its fees.
         toast(SWAY_WALLET_OFF);
         return false;
-      }
-      const w = needWallet();
+      } else w = needWallet();
       if (!w) return false;
       try {
-        const { permits } = await api().tradePermits({ subject: me.market.subject, trader: w.address });
+        if (via && !via.account) {
+          const next = await api().walletsMakeAccount(via.address);
+          setActiveChoice(next.user.id, via.address);
+          qc.setQueryData(qk.me, next);
+          void invalidateMoney(qc);
+          subject = next.market?.subject ?? subject;
+        }
+        const { permits } = await api().tradePermits({ subject, trader: w.address });
         const open = permits.find((p) => p.kind === 'open');
         if (open) await w.waitForReceipt(await w.register(open));
         qc.setQueryData<MeDTO>(qk.me, (o) => (o?.market ? { ...o, market: { ...o.market, opened: true } } : o));
