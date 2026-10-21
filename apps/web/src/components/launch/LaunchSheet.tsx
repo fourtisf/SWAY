@@ -2,9 +2,10 @@
 /** [C] The "Launch $SYM?" confirm sheet: the terms the operator will sign, then attest → launch → wait. */
 import { weiToEth } from '@sway/curve';
 import { useState } from 'react';
+import { MOCK } from '@/lib/env';
 import { useFormat } from '@/lib/format';
 import { fmtTokens, useLaunchActions } from '@/lib/launch-actions';
-import { useLaunchpad } from '@/lib/queries';
+import { useConfig, useLaunchpad } from '@/lib/queries';
 import { closeModal } from '@/lib/store';
 import { Icon } from '../icons';
 import { Avatar, Loading, Spinner } from '../ui';
@@ -13,6 +14,7 @@ const STEP = { attest: 'Signing the launch terms…', sign: 'Confirm in your wal
 
 export function LaunchSheet() {
   const lp = useLaunchpad().data;
+  const cfg = useConfig().data;
   const F = useFormat();
   const act = useLaunchActions();
   const [step, setStep] = useState<keyof typeof STEP | null>(null);
@@ -24,7 +26,22 @@ export function LaunchSheet() {
       </button>
     </div>
   );
-  if (!lp) return <Loading />;
+  if (!lp || (!MOCK && !cfg)) return <Loading />;
+  // Mainnet deploys without the launchpad until its migration is fixed and audited (docs/SECURITY_REVIEW.md, L-1).
+  if (!MOCK && !cfg?.contracts.launchpad)
+    return (
+      <>
+        {head}
+        <div className="m-b">
+          <p className="t2" style={{ margin: '0 0 16px' }}>
+            Token launches aren’t open on this network yet. They open once the launchpad contract has been audited.
+          </p>
+          <button className="btn btn-white btn-lg btn-block" onClick={closeModal}>
+            Got it
+          </button>
+        </div>
+      </>
+    );
   const t = lp.terms;
   if (!t)
     return (
