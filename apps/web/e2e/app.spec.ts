@@ -170,6 +170,8 @@ test('direct messages and notifications', async ({ page }) => {
 
 test('a new member launches their own key from their profile', async ({ page }) => {
   await connect(page, 'keylauncher');
+  await nav(page, 'Wallet');
+  await expect(page.locator('#launchKeyCard')).toContainText('Your key isn’t onchain yet');
   await nav(page, 'Profile');
   const bar = page.locator('.price-bar');
   await expect(page.locator('#launchKeyNote')).toContainText('Your key isn’t onchain yet');
@@ -177,6 +179,9 @@ test('a new member launches their own key from their profile', async ({ page }) 
   await expect(page.locator('.toasts')).toContainText('Your key is live');
   await expect(bar.getByRole('button', { name: 'Launch my key' })).toHaveCount(0);
   await expect(page.locator('#launchKeyNote')).toHaveCount(0);
+  await nav(page, 'Wallet');
+  await expect(page.locator('.wl-list .tr.wl')).toHaveCount(1);
+  await expect(page.locator('#launchKeyCard')).toHaveCount(0);
 });
 
 test('log out from the account menu', async ({ page }) => {

@@ -8,6 +8,7 @@ import { Icon } from '@/components/icons';
 import { AirdropsCard, StakeCard } from '@/components/launch/Cards'; // [C]
 import { DropsCard } from '@/components/engage/Drops'; // [D]
 import { Avatar, Empty, Loading, NeedUser, Spinner, VB } from '@/components/ui';
+import { LaunchKeyCard } from '@/components/wallet/LaunchKeyCard';
 import { WalletLogo } from '@/components/wallet/WalletLogo';
 import { useActions } from '@/lib/actions';
 import { MOCK } from '@/lib/env';
@@ -194,6 +195,8 @@ export default function WalletPage() {
           </div>
         </div>
       </div>
+
+      <LaunchKeyCard />
 
       {/* [A] every wallet of the member */}
       <div className="sec-h">
