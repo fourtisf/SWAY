@@ -38,6 +38,8 @@ import { conflict, unavailable } from '../errors';
 import { withRedisLock } from './chain';
 import { membersByAddress, userRef } from './dto';
 import { ViemLaunchChain, type LaunchChain, type LaunchMessage } from './launch-chain';
+import { permitsEnabled } from './onboarding';
+import { marketPermit } from './permits';
 import { getEthUsd } from './price';
 
 /** The LaunchChain for this app: the injected one (tests) or a viem client built once from config. */
@@ -105,10 +107,13 @@ export async function launchCaps(deps: AppDeps, score: number): Promise<LaunchCa
   };
 }
 
-/** The viewer's own, opened, non-fan market whose subject is their account wallet: the only kind that can launch. */
-export function launchableMarket(v: Viewer): KeyMarket | null {
+/**
+ * The viewer's own non-fan market whose subject is their account wallet: the only kind that can launch. It must be
+ * open onchain, unless permits are on (`lazy`): then the launch opens it first with the creator's permit.
+ */
+export function launchableMarket(v: Viewer, lazy: boolean): KeyMarket | null {
   const m = v.market;
-  if (!v.wallet || !m || !m.opened || !m.claimed || m.fan) return null;
+  if (!v.wallet || !m || !(m.opened || lazy) || !m.claimed || m.fan) return null;
   return m.subject.toLowerCase() === v.wallet.address.toLowerCase() ? m : null;
 }
 
@@ -171,7 +176,7 @@ export async function tokenAddressOf(
 export async function attest(deps: AppDeps, lc: LaunchChain, v: Viewer): Promise<LaunchAttestation> {
   const { prisma, config, redis } = deps;
   if (!v.wallet) throw conflict('no_wallet', 'Link a wallet before launching');
-  const market = launchableMarket(v);
+  const market = launchableMarket(v, permitsEnabled(deps));
   if (!market) throw conflict('no_market', 'Open your key market before launching a token');
   if (!lc.launchEnabled || !lc.launchpad)
     throw unavailable('launch_unavailable', 'The launchpad isn’t deployed on this chain');
@@ -246,6 +251,7 @@ export async function attest(deps: AppDeps, lc: LaunchChain, v: Viewer): Promise
       deadline: Number(deadline),
       signature,
       holders: plan.creatorOnly ? 0 : plan.entries.length,
+      permit: await marketPermit(deps, { ...market, user: { wallet: v.wallet } }),
     };
   });
 }

@@ -116,19 +116,20 @@ echo "4/5 Contracts"
 if blank SWAY_KEYS_ADDRESS; then
   BAL="$(CAST balance "$ADDR" --rpc-url "$RPC")"
   GP="$(CAST gas-price --rpc-url "$RPC")"
-  # The deploy is ~8.6M gas and each member's market ~0.15M: ask for the deploy plus ~40 markets with headroom
-  # (a deploy that runs dry halfway wastes what it spent), and never less than the floor.
+  # The deploy is ~9.6M gas. New members cost the operator nothing (it signs permits; the first buy opens a
+  # market), so the rest is headroom (a deploy that runs dry halfway wastes what it spent) and a small reserve for
+  # what it still sends: activity-bond flags on markets with holders, fan markets you open, the Genesis mint.
   if [ "$MAINNET" = 1 ]; then FLOOR=2000000000000000; else FLOOR=10000000000000000; fi
-  read -r MIN NEED_ETH DEPLOY_ETH MARKET_ETH GWEI < <(node -e '
+  read -r MIN NEED_ETH DEPLOY_ETH GWEI < <(node -e '
     const gp = BigInt(process.argv[1]), floor = BigInt(process.argv[2]);
     const need = gp * 15_000_000n > floor ? gp * 15_000_000n : floor;
     const eth = (w) => (Number(w) / 1e18).toFixed(6);
-    console.log(need.toString(), eth(need), eth(gp * 8_600_000n), eth(gp * 150_000n), (Number(gp) / 1e9).toFixed(3));' "$GP" "$FLOOR")
-  echo "    gas price now $GWEI gwei: deploy ~$DEPLOY_ETH ETH, each new member's market ~$MARKET_ETH ETH"
+    console.log(need.toString(), eth(need), eth(gp * 9_600_000n), (Number(gp) / 1e9).toFixed(3));' "$GP" "$FLOOR")
+  echo "    gas price now $GWEI gwei: deploy ~$DEPLOY_ETH ETH; new members cost the operator nothing"
   if [ "$(node -e 'console.log(BigInt(process.argv[1]) >= BigInt(process.argv[2]) ? 1 : 0)' "$BAL" "$MIN")" != 1 ]; then
     echo
     if [ "$MAINNET" = 1 ]; then
-      echo "    The operator wallet pays gas for the deploy and for opening markets."
+      echo "    The operator wallet pays gas for the deploy (members' markets open with their first buy, paid by the buyer)."
       echo "    Send it at least $NEED_ETH ETH on Robinhood Chain: $ADDR"
       echo "    then run again:  bash $ROOT/deploy/setup-chain.sh --mainnet"
     else
@@ -165,7 +166,7 @@ if [ "$MAINNET" = 1 ]; then
   echo "  1. Accept ownership with your owner wallet ($(get ADMIN_ADDRESS)): on $(get EXPLORER_URL), open each"
   echo "     contract below → Contract → Write → connect that wallet → acceptOwnership."
   grep -E '^(SWAY_KEYS|FAN_ESCROW|GENESIS_PASS|SWAY_STAKING|LAUNCHPAD)_ADDRESS=0x' "$ENV" | sed 's/^/       /'
-  echo "  2. Back up $ENV somewhere safe: it holds the operator key that pays gas for new markets."
+  echo "  2. Back up $ENV somewhere safe: it holds the operator key that signs members' permits."
   echo "People buy and sell with wallet apps (MetaMask, Coinbase Wallet, Rabby...) holding ETH on Robinhood Chain."
   exit 0
 fi

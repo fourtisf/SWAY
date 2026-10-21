@@ -12,6 +12,7 @@ import {
 } from '@sway/shared';
 import { query } from './_util';
 import { marketDTOs, marketDtosForUsers, marketStats, marketDTO } from '../services/markets';
+import { permitsEnabled } from '../services/onboarding';
 
 const DISPLAY_TAG = new Map(TAGS.map((t) => [t.toLowerCase(), t]));
 const cleanQ = (q?: string) => (q ?? '').trim().toLowerCase().replace(/^[@#]/, '').slice(0, 40);
@@ -38,9 +39,14 @@ const nameFilter = (q: string): Prisma.UserWhereInput =>
 
 export async function marketRoutes(app: FastifyInstance) {
   const { prisma } = app.deps;
-  // With contracts configured, list only markets the indexer has seen open onchain (a pending open or a
-  // pre-created fan-market row would otherwise offer a Buy that reverts).
-  const live: Prisma.KeyMarketWhereInput = app.deps.chain.keysEnabled ? { opened: true } : {};
+  // With contracts configured, list only markets that can be bought: open onchain (the indexer has seen it) or a
+  // member's market whose first buy opens it with a permit. A pending sponsored open or a pre-created fan-market
+  // row would otherwise offer a Buy that reverts.
+  const live: Prisma.KeyMarketWhereInput = !app.deps.chain.keysEnabled
+    ? {}
+    : permitsEnabled(app.deps)
+      ? { OR: [{ opened: true }, { fan: false, claimed: true }] }
+      : { opened: true };
 
   app.get('/search', async (req): Promise<SearchResponse> => {
     const raw = query(z.object({ q: z.string().max(60).default('') }), req).q.trim();

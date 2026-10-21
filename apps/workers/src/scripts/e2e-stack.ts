@@ -1,8 +1,9 @@
 /**
  * End-to-end check of the Phase 1 definition of done against a running local stack
  * (anvil + api + workers, DEV_AUTH=1):
- *   new member connects (dev X sign-in) → wallet linked by signature → key market opened onchain →
- *   another member buys a key (amounts from packages/curve) → indexer mirrors it → room and holder-only
+ *   new member connects (dev X sign-in) → wallet linked by signature → key market ready (no operator
+ *   transaction) → another member buys a key, the buy carrying the operator's permit that opens the market
+ *   onchain (amounts from packages/curve) → indexer mirrors it → room and holder-only
  *   posts unlock → creator sees the trade notification and a claimable fee equal to the quote →
  *   selling the last key re-locks the room → the creator claims earnings onchain.
  *
@@ -11,7 +12,7 @@
 import { createPublicClient, createWalletClient, http, type Address, type Hex } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { inAntiDumpWindow, quoteWei } from '@sway/curve';
-import { swayChain, type MeDTO, type ProfileDTO, type RoomResponse, type WalletDTO, type FeedResponse, type NotificationDTO } from '@sway/shared';
+import { permitArgs, swayChain, type MeDTO, type ProfileDTO, type RoomResponse, type WalletDTO, type FeedResponse, type NotificationDTO, type TradePermitsResponse } from '@sway/shared';
 import { swayKeysAbi } from '@sway/shared/abi';
 
 const API = (process.env.API_URL || 'http://localhost:4000') + '/api';
@@ -68,11 +69,12 @@ async function main() {
 
   const creator = await member(`e2ecreator${tag}`);
   step(`@${creator.handle} signed in (score ${creator.me.user.score}) and linked ${creator.address}`);
-  await creator.s.call('POST', '/onboarding/market');
-  await until('market open', async () => (await creator.s.call<{ market: boolean }>('GET', '/onboarding')).market);
-  const supply0 = ((await pub.readContract({ address: keys, abi: swayKeysAbi, functionName: 'markets', args: [creator.address] })) as readonly unknown[])[6] as bigint;
-  if (supply0 !== 100n) fail(`expected supply 100 after open, got ${supply0}`);
-  step('key market open onchain; first key locked to the creator');
+  const supplyOf = async (subject: Address) =>
+    ((await pub.readContract({ address: keys, abi: swayKeysAbi, functionName: 'markets', args: [subject] })) as readonly unknown[])[6] as bigint;
+  const st = await creator.s.call<{ market: boolean; marketTx: string | null }>('POST', '/onboarding/market');
+  if (!st.market || st.marketTx) fail(`joining should be ready at once with no transaction, got ${JSON.stringify(st)}`);
+  if ((await supplyOf(creator.address)) !== 0n) fail('the market should not be open onchain before its first buy');
+  step('key market ready with no operator transaction (opens onchain with its first buy)');
 
   const fan = await member(`e2efan${tag}`);
   const bal = await until('welcome funds', async () => {
@@ -88,10 +90,13 @@ async function main() {
 
   const q = quoteWei(100n, 'buy', 100n);
   if (BigInt(locked.oneKeyTotalWei) !== q.total) fail(`API quote ${locked.oneKeyTotalWei} != curve ${q.total}`);
-  const buyHash = await fan.wallet.writeContract({ address: keys, abi: swayKeysAbi, functionName: 'buy', args: [creator.address, 100n], value: q.total, chain, account: fan.wallet.account! });
+  const { permits } = await fan.s.call<TradePermitsResponse>('POST', '/trade/permits', { subject: creator.address, trader: fan.address });
+  if (permits.length !== 1 || permits[0]!.kind !== 'open') fail(`expected one open permit, got ${JSON.stringify(permits)}`);
+  const buyHash = await fan.wallet.writeContract({ address: keys, abi: swayKeysAbi, functionName: 'registerAndBuy', args: [...permitArgs(permits), creator.address, 100n], value: q.total, chain, account: fan.wallet.account! });
   const rcpt = await pub.waitForTransactionReceipt({ hash: buyHash });
   if (rcpt.status !== 'success') fail('buy reverted');
-  step(`bought 1 key for ${Number(q.total) / 1e18} ETH (curve ${Number(q.base) / 1e18} + 10% fees)`);
+  if ((await supplyOf(creator.address)) !== 200n) fail('the first buy should have opened the market and bought 1 key');
+  step(`first buy opened the market and bought 1 key for ${Number(q.total) / 1e18} ETH (curve ${Number(q.base) / 1e18} + 10% fees)`);
 
   const prof = await until('indexer mirror', async () => {
     const p = await fan.s.call<ProfileDTO>('GET', `/users/${creator.handle}`);

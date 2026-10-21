@@ -5,7 +5,7 @@
  * testnets only.
  */
 import { swayKeysAbi } from '@sway/shared/abi';
-import { swayChain, type ConfigDTO } from '@sway/shared';
+import { permitArgs, swayChain, type ConfigDTO } from '@sway/shared';
 import { createPublicClient, createWalletClient, http, type Address, type Hex } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import type { SwayWallet } from './types';
@@ -113,7 +113,13 @@ export function burnerWallet(pk: Hex, config: ConfigDTO): SwayWallet {
     address: account.address,
     kind: 'embedded',
     signMessage: (message) => wallet.signMessage({ message }),
-    buy: (subject, units, value) => write({ address: keys(), abi: swayKeysAbi, functionName: 'buy', args: [subject, units], value }),
+    buy: (subject, units, value, permits) =>
+      write(
+        permits?.length
+          ? { address: keys(), abi: swayKeysAbi, functionName: 'registerAndBuy', args: [...permitArgs(permits), subject, units], value }
+          : { address: keys(), abi: swayKeysAbi, functionName: 'buy', args: [subject, units], value },
+      ),
+    register: (p) => write({ address: keys(), abi: swayKeysAbi, functionName: 'register', args: [permitArgs([p])[0][0], p.signature] }),
     sell: (subject, units, minProceeds) => write({ address: keys(), abi: swayKeysAbi, functionName: 'sell', args: [subject, units, minProceeds] }),
     claim: (subjects) => write({ address: keys(), abi: swayKeysAbi, functionName: 'claim', args: [subjects] }),
     sendEth: (to, value) => wallet.sendTransaction({ to, value }),

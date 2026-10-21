@@ -466,6 +466,34 @@ export interface OnboardingStatus {
   marketTx: string | null;
 }
 
+/**
+ * Operator-signed SwayKeys.Member permit (EIP-712, domain "SwayKeys" v1). Joining sends no transaction: the
+ * first buy that needs a member's market, fan-market claim or referrer onchain carries the permit.
+ */
+export interface MemberPermit {
+  /** open: the member's own market; claim: their X account's fan market; referrer: only who invited them. */
+  kind: 'open' | 'claim' | 'referrer';
+  wallet: Address;
+  /** uint64 X user id as a decimal string; "0" = referrer only. */
+  xId: string;
+  /** Zero address = none. */
+  referrer: Address;
+  /** Unix seconds. */
+  deadline: number;
+  signature: `0x${string}`;
+}
+
+export interface TradePermitsBody {
+  /** Market about to be bought. */
+  subject: Address;
+  /** Wallet that will send the buy. */
+  trader: Address;
+}
+
+export interface TradePermitsResponse {
+  permits: MemberPermit[];
+}
+
 /* ---------------------------------------------------------------- websocket */
 
 export type WsClientMessage =
@@ -520,6 +548,7 @@ export const ROUTES = {
   walletNonce: 'POST /api/wallet/nonce',
   walletLink: 'POST /api/wallet/link',
   openMarket: 'POST /api/onboarding/market',
+  tradePermits: 'POST /api/trade/permits',
   feed: 'GET /api/feed',
   createPost: 'POST /api/posts',
   post: 'GET /api/posts/:id',
@@ -611,6 +640,9 @@ export const ROUTES = {
  *                  409 wallet_exists (member already has another wallet) / wallet_taken (address belongs to
  *                  another member); 400 bad_signature / nonce_expired.
  *   openMarket:                                                          R OnboardingStatus
+ *   tradePermits:  B TradePermitsBody                                    R TradePermitsResponse
+ *                  Permits the buy must carry (SwayKeys.registerAndBuy); empty when buy() is enough.
+ *                  403 not_your_wallet when `trader` isn't one of the viewer's wallets.
  *   onboarding:                                                          R OnboardingStatus
  */
 export type RouteKey = keyof typeof ROUTES;
@@ -1159,6 +1191,8 @@ export interface LaunchAttestation {
   deadline: number;
   signature: `0x${string}`;
   holders: number;
+  /** Nobody has bought the creator's keys yet: send SwayKeys.register(permit) first to open the market onchain. */
+  permit: MemberPermit | null;
 }
 
 export interface AirdropAllocationDTO {

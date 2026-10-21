@@ -1,6 +1,8 @@
 /**
- * Onboarding after X sign-in: wallet, then the member's key market. If the member's X id already backs an
- * unclaimed fan market, the operator calls claimFanMarket(subject, wallet); otherwise openMarket(wallet, xId).
+ * Onboarding after X sign-in: wallet, then the member's key market. The market is a DB row at once; onchain it
+ * opens with the first buy, which carries an operator-signed permit (services/permits.ts), so joining costs Sway
+ * no gas. With SPONSOR_ONBOARDING=1 the operator sends it instead: claimFanMarket(subject, wallet) if the
+ * member's X id already backs an unclaimed fan market, otherwise openMarket(wallet, xId).
  * The KeyMarket row is written the same way the indexer writes it on MarketOpened (subject lowercase,
  * opened=false until the receipt, then opened/openTx/openedAt), so both paths are idempotent.
  */
@@ -13,6 +15,14 @@ import { conflict } from '../errors';
 import { ChainError, withRedisLock } from './chain';
 import { ZERO_ADDRESS } from './dto';
 
+/** The operator pays for members' markets, fan claims and referrers at sign-up (SPONSOR_ONBOARDING=1). */
+export const sponsored = (deps: Pick<AppDeps, 'chain' | 'config'>): boolean =>
+  deps.chain.operatorEnabled && deps.config.sponsorOnboarding;
+
+/** The default: the operator signs permits instead, and members' markets open with their first buy. */
+export const permitsEnabled = (deps: Pick<AppDeps, 'chain' | 'config'>): boolean =>
+  deps.chain.operatorEnabled && !deps.config.sponsorOnboarding;
+
 export function onboardingStatus(deps: AppDeps, v: Viewer): OnboardingStatus {
   const m = v.market;
   return {
@@ -20,8 +30,8 @@ export function onboardingStatus(deps: AppDeps, v: Viewer): OnboardingStatus {
     engagement: v.user.scoreInputs !== null,
     scored: v.user.scoredAt !== null,
     wallet: !!v.wallet,
-    // Without deployed contracts (local dev) the DB row is the market.
-    market: !!m && m.claimed && (m.opened || !deps.chain.keysEnabled),
+    // Unless the operator sponsors it, the DB row is the market until its first buy opens it onchain.
+    market: !!m && m.claimed && (m.opened || !sponsored(deps)),
     marketTx: m?.openTx ?? null,
   };
 }
@@ -49,11 +59,9 @@ export async function openOrClaimMarket(
     /* ---------------- fan market waiting for this account: claim it */
     if (existing && existing.fan && !existing.claimed) {
       const subject = existing.subject as Address;
-      if (!chain.operatorEnabled) {
-        log.warn(
-          { subject },
-          'fan market claim skipped onchain: SwayKeys/operator not configured; marking claimed in the DB only',
-        );
+      if (!sponsored(deps)) {
+        if (!chain.operatorEnabled)
+          log.warn({ subject }, 'fan market claimed in the DB only: SwayKeys/operator not configured');
         const market = await prisma.keyMarket.update({
           where: { id: existing.id },
           data: { claimed: true, userId: user.id },
@@ -105,8 +113,9 @@ export async function openOrClaimMarket(
       skipDuplicates: true,
     });
 
-    if (!chain.operatorEnabled) {
-      log.warn({ subject: market.subject }, 'market open skipped onchain: SwayKeys/operator not configured');
+    if (!sponsored(deps)) {
+      if (!chain.operatorEnabled)
+        log.warn({ subject: market.subject }, 'market open skipped onchain: SwayKeys/operator not configured');
       return { market, tx: null };
     }
     const onchain = await chain.market(market.subject as Address);

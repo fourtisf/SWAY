@@ -33,6 +33,8 @@ import {
   type NotificationDTO,
   type NotificationTab,
   type OnboardingStatus,
+  type TradePermitsBody,
+  type TradePermitsResponse,
   type PriceResponse,
   type PostDTO,
   type PostDetailResponse,
@@ -121,6 +123,7 @@ export interface SwayApi {
   walletNonce(body?: WalletNonceBody): Promise<WalletNonceResponse>;
   walletLink(body: WalletLinkBody): Promise<MeDTO>;
   openMarket(): Promise<OnboardingStatus>;
+  tradePermits(body: TradePermitsBody): Promise<TradePermitsResponse>;
 
   feed(q: { tab: FeedTab; cursor?: string }): Promise<FeedResponse>;
   createPost(body: CreatePostBody): Promise<PostDTO>;
@@ -232,6 +235,7 @@ export interface SwayApi {
 export const ROUTE_METHODS: Record<RouteKey, keyof SwayApi> = {
   config: 'config', price: 'price', me: 'me', xStart: 'xStartUrl', xCallback: 'xCallbackUrl', devLogin: 'devLogin',
   logout: 'logout', onboarding: 'onboarding', walletNonce: 'walletNonce', walletLink: 'walletLink', openMarket: 'openMarket',
+  tradePermits: 'tradePermits',
   feed: 'feed', createPost: 'createPost', post: 'post', like: 'like', repost: 'repost', liveTrades: 'liveTrades',
   search: 'search', explore: 'explore', markets: 'markets', profile: 'profile', profilePosts: 'profilePosts',
   holders: 'holders', profileTrades: 'profileTrades', room: 'room', roomPost: 'roomPost', follow: 'follow',
@@ -392,6 +396,7 @@ export function createHttpApi(): SwayApi {
     walletNonce: (body) => request('walletNonce', body ? { body } : {}),
     walletLink: (body) => request('walletLink', { body }),
     openMarket: () => request('openMarket'),
+    tradePermits: (body) => request('tradePermits', { body }),
     feed: (query) => request('feed', { query }),
     createPost: (body) => request('createPost', { body }),
     post: (id) => request('post', { params: { id } }),

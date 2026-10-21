@@ -2,10 +2,17 @@ import { Redis } from 'ioredis';
 import { verifyMessage, type Hash } from 'viem';
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
 import { prisma, type KeyMarket, type User } from '@sway/db';
-import { fanSubject, type Address } from '@sway/shared';
+import { MEMBER_PERMIT_TYPES, fanSubject, memberPermitDomain, type Address } from '@sway/shared';
 import { buildApp, type BuiltApp } from '../src/app';
 import { loadConfig, type Config } from '../src/config';
-import type { ChainClient, Claimable, OnchainMarket, OperatorTxResult, TxInfo } from '../src/services/chain';
+import {
+  type ChainClient,
+  type Claimable,
+  type MemberFields,
+  type OnchainMarket,
+  type OperatorTxResult,
+  type TxInfo,
+} from '../src/services/chain';
 import { MemoryJobQueue } from '../src/services/jobs';
 import { resetOfficialCache } from '../src/services/notify';
 import { resetPriceMemo } from '../src/services/price';
@@ -35,6 +42,9 @@ export const TEST_ENV: Record<string, string> = {
 let txSeq = 1;
 export const fakeHash = (): Hash => `0x${(txSeq++).toString(16).padStart(64, '0')}` as Hash;
 
+/** The EIP-712 domain FakeChain signs member permits for (TEST_ENV's chain and SwayKeys). */
+export const PERMIT_DOMAIN = memberPermitDomain(31337, '0x5FbDB2315678afecb367f032d93F642f64180aa3');
+
 /** In-memory ChainClient. Signatures are verified for real (viem), everything else is a map. */
 export class FakeChain implements ChainClient {
   rpcEnabled = true;
@@ -47,6 +57,8 @@ export class FakeChain implements ChainClient {
   readonly calls: Array<{ fn: string; args: unknown[] }> = [];
   claim: Claimable = { creator: 0n, holder: 0n, referral: 0n, protocol: 0n };
   balanceReads = 0;
+  readonly referrers = new Map<string, Address>();
+  readonly operator = privateKeyToAccount(generatePrivateKey());
 
   setKeys(subject: string, holder: string, units: bigint) {
     this.keys.set(`${subject.toLowerCase()}:${holder.toLowerCase()}`, units);
@@ -102,6 +114,13 @@ export class FakeChain implements ChainClient {
     const m = this.markets.get(subject.toLowerCase());
     if (m) m.owner = newOwner.toLowerCase() as Address;
     return { hash: fakeHash(), status: 'success' };
+  }
+  async referrerOf(user: Address) {
+    return this.referrers.get(user.toLowerCase()) ?? null;
+  }
+  async signMember(m: MemberFields) {
+    this.calls.push({ fn: 'signMember', args: [m] });
+    return this.operator.signTypedData({ domain: PERMIT_DOMAIN, types: MEMBER_PERMIT_TYPES, primaryType: 'Member', message: m });
   }
   async sendEth(to: Address, value: bigint): Promise<OperatorTxResult> {
     this.calls.push({ fn: 'sendEth', args: [to, value] });

@@ -104,9 +104,11 @@ export function useActions() {
       const w = needWallet();
       if (!w) return false;
       try {
+        // A market nobody has bought yet opens onchain with this buy (operator-signed permit, paid by the buyer).
+        const permits = side === 'buy' ? (await api().tradePermits({ subject: p.subject, trader: w.address })).permits : [];
         const hash =
           side === 'buy'
-            ? await w.buy(p.subject, q.units, q.total + q.total / 100n) // +1% buffer, the contract refunds change
+            ? await w.buy(p.subject, q.units, q.total + q.total / 100n, permits) // +1% buffer, the contract refunds change
             : await w.sell(p.subject, q.units, (q.total * 99n) / 100n);
         await w.waitForReceipt(hash);
         const k = unitsToKeys(q.units);
@@ -244,6 +246,12 @@ export function useActions() {
           continue;
         }
         try {
+          // A fan market claimed at sign-up hands over its escrowed fees onchain first, unless a buy already did.
+          if (me?.market && x.address.toLowerCase() === me.wallet?.address.toLowerCase()) {
+            const { permits } = await api().tradePermits({ subject: me.market.subject, trader: mw.wallet.address });
+            const take = permits.find((p) => p.kind === 'claim');
+            if (take) await mw.wallet.waitForReceipt(await mw.wallet.register(take));
+          }
           const hash = await mw.wallet.claim(x.earnings.claimSubjects as Address[]);
           await mw.wallet.waitForReceipt(hash);
           total += BigInt(x.earnings.totalWei);

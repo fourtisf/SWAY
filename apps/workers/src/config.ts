@@ -30,6 +30,8 @@ export interface WorkerConfig {
   };
   operatorKey: Hex | null;
   issuerKey: Hex | null;
+  /** SPONSOR_ONBOARDING=1: the operator sends members' referrers (otherwise their first buy carries a permit). */
+  sponsorOnboarding: boolean;
   indexer: { startBlock: bigint; confirmations: number; pollMs: number; batchBlocks: number };
   ethUsdFeedUrl: string;
   ethUsdFallback: number;
@@ -68,6 +70,7 @@ export function loadConfig(): WorkerConfig {
     },
     operatorKey: keyOrNull('OPERATOR_PRIVATE_KEY'),
     issuerKey: keyOrNull('ISSUER_PRIVATE_KEY'),
+    sponsorOnboarding: ['1', 'true'].includes(str('SPONSOR_ONBOARDING')),
     indexer: {
       startBlock: BigInt(num('INDEXER_START_BLOCK', 0)),
       confirmations: num('INDEXER_CONFIRMATIONS', chainId === 31337 ? 0 : 2),

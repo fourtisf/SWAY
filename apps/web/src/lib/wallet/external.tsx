@@ -7,7 +7,7 @@
  * useExternalWallet as a SwayWallet bound to its connector, so the UI never touches wagmi directly.
  */
 import { swayKeysAbi } from '@sway/shared/abi';
-import { swayChain, type ConfigDTO } from '@sway/shared';
+import { permitArgs, swayChain, type ConfigDTO } from '@sway/shared';
 import { useEffect, useMemo } from 'react';
 import type { Address } from 'viem';
 import { WagmiProvider, createConfig, http, useAccount, useConnections, useConnectors, type Config, type Connector } from 'wagmi';
@@ -31,9 +31,15 @@ function wagmiWallet(cfg: Config, address: Address, connector: Connector, swayKe
     address,
     kind: 'external',
     signMessage: (message) => signMessage(cfg, { message, account: address, connector }),
-    buy: async (subject, units, value) => {
+    buy: async (subject, units, value, permits) => {
       await onChain();
+      if (permits?.length)
+        return writeContract(cfg, { ...base, address: keys(), abi: swayKeysAbi, functionName: 'registerAndBuy', args: [...permitArgs(permits), subject, units], value });
       return writeContract(cfg, { ...base, address: keys(), abi: swayKeysAbi, functionName: 'buy', args: [subject, units], value });
+    },
+    register: async (p) => {
+      await onChain();
+      return writeContract(cfg, { ...base, address: keys(), abi: swayKeysAbi, functionName: 'register', args: [permitArgs([p])[0][0], p.signature] });
     },
     sell: async (subject, units, minProceeds) => {
       await onChain();

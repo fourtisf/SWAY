@@ -150,7 +150,8 @@ export async function onTrade(c: ApplyContext, m: LogMeta, a: TradeArgs): Promis
     create: { marketId: market.id, address: trader, units, costBasisWei: dec(newBasis), realizedPnlWei: dec(realized) },
   });
 
-  const unclaimedFan = market.fan && !market.claimed;
+  // Fees go to FanEscrow until the claim is onchain (claimBlock), even after the app has marked it claimed.
+  const escrowed = market.fan && market.claimBlock === null;
   const holders = await tx.holding.count({ where: { marketId: market.id, units: { gt: 0n } } });
   await tx.keyMarket.update({
     where: { id: market.id },
@@ -158,8 +159,8 @@ export async function onTrade(c: ApplyContext, m: LogMeta, a: TradeArgs): Promis
       supplyUnits: a.supplyAfter,
       priceWei: dec(priceWei(a.supplyAfter)),
       volumeWei: dec(decToBig(market.volumeWei) + a.ethBase),
-      escrowWei: unclaimedFan ? dec(decToBig(market.escrowWei) + a.creatorFee) : market.escrowWei,
-      creatorFeesWei: unclaimedFan ? market.creatorFeesWei : dec(decToBig(market.creatorFeesWei) + a.creatorFee),
+      escrowWei: escrowed ? dec(decToBig(market.escrowWei) + a.creatorFee) : market.escrowWei,
+      creatorFeesWei: escrowed ? market.creatorFeesWei : dec(decToBig(market.creatorFeesWei) + a.creatorFee),
       holders,
       lastTradeAt: m.ts,
       change: await recentChange(tx, market.id, a.supplyAfter),
@@ -193,7 +194,7 @@ export async function onTrade(c: ApplyContext, m: LogMeta, a: TradeArgs): Promis
   }
 
   // Tell the market owner (a member, not trading their own keys).
-  if (!unclaimedFan && market.user.joinedAt && member?.id !== market.userId) {
+  if (market.claimed && market.user.joinedAt && member?.id !== market.userId) {
     const who = member?.name ?? `${trader.slice(0, 6)}…${trader.slice(-4)}`;
     const body: RichText = [
       { t: who, b: true },
@@ -213,7 +214,8 @@ export async function onTrade(c: ApplyContext, m: LogMeta, a: TradeArgs): Promis
 export async function onFanMarketClaimed(c: ApplyContext, m: LogMeta, a: { subject: string; owner: string; escrowReleased: bigint }) {
   const { tx } = c;
   const market = await tx.keyMarket.findUnique({ where: { subject: addr(a.subject) } });
-  if (!market || market.claimed) return;
+  // The app marks a fan market claimed at sign-up, before (or without) this event: claimBlock is the indexer's.
+  if (!market || market.claimBlock !== null) return;
   await tx.keyMarket.update({
     where: { id: market.id },
     data: { claimed: true, claimBlock: m.blockNumber, escrowWei: dec(0), creatorFeesWei: dec(decToBig(market.creatorFeesWei) + a.escrowReleased) },

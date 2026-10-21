@@ -18,6 +18,7 @@ import {
 import { HandleParams, params, userByHandle } from './_util';
 import { getViewer, requireViewer } from '../plugins/auth';
 import { userRef } from '../services/dto';
+import { permitsEnabled } from '../services/onboarding';
 import {
   attest,
   launchChainOf,
@@ -57,7 +58,7 @@ export async function launchRoutes(app: FastifyInstance) {
       );
       return base;
     }
-    const market = launchableMarket(v);
+    const market = launchableMarket(v, permitsEnabled(app.deps));
     if (market) base.terms = await termsDTO(app.deps, v, market);
     return base;
   });

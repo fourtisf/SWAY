@@ -1,4 +1,5 @@
 import type { Abi, Address, Hex } from 'viem';
+import type { MemberPermit } from '@sway/shared';
 
 /** Any other contract call (launchpad, staking, ERC-20 approve…). */
 export interface ContractCall {
@@ -14,8 +15,13 @@ export interface SwayWallet {
   address: Address;
   kind: 'embedded' | 'external';
   signMessage(msg: string): Promise<Hex>;
-  /** SwayKeys.buy(subject, units) payable; the contract refunds any change. */
-  buy(subject: Address, units: bigint, valueWei: bigint): Promise<Hex>;
+  /**
+   * SwayKeys.buy(subject, units) payable; the contract refunds any change. With permits (POST /api/trade/permits)
+   * it sends registerAndBuy, which first opens the market, claims it or records a referrer.
+   */
+  buy(subject: Address, units: bigint, valueWei: bigint, permits?: MemberPermit[]): Promise<Hex>;
+  /** SwayKeys.register(permit) on its own, e.g. a creator taking their fan market before claiming. */
+  register(permit: MemberPermit): Promise<Hex>;
   /** SwayKeys.sell(subject, units, minProceeds). */
   sell(subject: Address, units: bigint, minProceedsWei: bigint): Promise<Hex>;
   /** SwayKeys.claim(subjects): creator, holder and referral earnings in one transaction. */

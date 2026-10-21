@@ -90,6 +90,10 @@ export function getMockApi(): SwayApi {
       needUser(w);
       return api.onboarding();
     },
+    async tradePermits() {
+      needUser(w);
+      return { permits: [] }; // mock markets are always open
+    },
 
     async feed({ tab }) {
       await tick();

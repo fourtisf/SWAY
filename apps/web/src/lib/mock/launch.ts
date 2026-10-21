@@ -446,6 +446,7 @@ export function launchMockApi(w: MockWorld): Pick<SwayApi, 'launchAttest' | 'lau
         deadline: now(st()) + 30 * 60,
         signature: fakeHash('attest:' + p.root),
         holders: p.creatorOnly ? 0 : p.entries.length,
+        permit: null,
       };
     },
     async launchToken(handle): Promise<LaunchTokenResponse> {

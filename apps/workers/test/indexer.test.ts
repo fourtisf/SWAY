@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Redis } from 'ioredis';
 import type { Address } from 'viem';
 import { priceWei, quoteWei } from '@sway/curve';
-import { buildAirdrop, fanSubject } from '@sway/shared';
+import { MEMBER_PERMIT_TYPES, buildAirdrop, fanSubject, memberPermitDomain } from '@sway/shared';
 import { swayDropsAbi, swayKeysAbi, swayLaunchpadAbi } from '@sway/shared/abi';
 import { privateKeyToAccount } from 'viem/accounts';
 import { erc20Abi } from 'viem';
@@ -160,18 +160,47 @@ describe('indexer', () => {
     expect(await prisma.pointsLedger.count({ where: { userId: bobUser.id, kind: 'reorg_correction' } })).toBe(1);
   });
 
+  it('opens a member market with its first buy, carried by an operator permit', async () => {
+    const erin = chain.wallet(5);
+    const bob = chain.wallet(2);
+    const user = await prisma.user.create({
+      data: { xId: '6006', handle: 'erin', name: 'Erin', joinedAt: new Date(), memberNo: 6006, wallet: { create: { address: erin.address.toLowerCase(), kind: 'external' } } },
+    });
+    // What the API writes at sign-up: a row, no transaction.
+    const row = await prisma.keyMarket.create({ data: { subject: erin.address.toLowerCase(), userId: user.id, xId: '6006', claimed: true, opened: false, supplyUnits: 100n, holders: 1 } });
+    await prisma.holding.create({ data: { marketId: row.id, address: erin.address.toLowerCase(), units: 100n } });
+    const opNonce = await chain.pub.getTransactionCount({ address: chain.wallet(0).account!.address });
+
+    const member = { wallet: erin.address, xId: 6006n, referrer: '0x0000000000000000000000000000000000000000' as Address, deadline: BigInt(Math.floor(Date.now() / 1000) + 1800) };
+    const signature = await privateKeyToAccount(KEYS[0]!).signTypedData({ domain: memberPermitDomain(chain.chainId, keys), types: MEMBER_PERMIT_TYPES, primaryType: 'Member', message: member });
+    const q = quoteWei(100n, 'buy', 100n);
+    const hash = await bob.writeContract({ address: keys, abi: swayKeysAbi, functionName: 'registerAndBuy', args: [[member], [signature], erin.address, 100n], value: q.total, chain: bob.chain, account: bob.account! });
+    expect((await chain.pub.waitForTransactionReceipt({ hash })).status).toBe('success');
+    await catchUp();
+
+    expect(await chain.pub.getTransactionCount({ address: chain.wallet(0).account!.address })).toBe(opNonce);
+    const m = await prisma.keyMarket.findUniqueOrThrow({ where: { id: row.id } });
+    expect(m).toMatchObject({ opened: true, openTx: hash, supplyUnits: 200n, holders: 2 });
+    expect(decToBig(m.creatorFeesWei)).toBe(q.creatorFee);
+    const h = await prisma.holding.findUniqueOrThrow({ where: { marketId_address: { marketId: row.id, address: bob.address.toLowerCase() } } });
+    expect(h.units).toBe(100n);
+  });
+
   it('hands a fan market to its owner on claim', async () => {
     const fan = fanSubject(xFan);
-    const dave = chain.wallet(4).address;
-    const op = chain.wallet(0);
-    const hash = await op.writeContract({ address: keys, abi: swayKeysAbi, functionName: 'claimFanMarket', args: [fan, dave], chain: op.chain, account: op.account! });
+    const dave = chain.wallet(4);
+    // The app marks the claim at sign-up; the onchain claim arrives later in a permit anyone can send.
+    await prisma.keyMarket.update({ where: { subject: fan.toLowerCase() }, data: { claimed: true } });
+    const member = { wallet: dave.address, xId: xFan, referrer: '0x0000000000000000000000000000000000000000' as Address, deadline: BigInt(Math.floor(Date.now() / 1000) + 1800) };
+    const signature = await privateKeyToAccount(KEYS[0]!).signTypedData({ domain: memberPermitDomain(chain.chainId, keys), types: MEMBER_PERMIT_TYPES, primaryType: 'Member', message: member });
+    const hash = await dave.writeContract({ address: keys, abi: swayKeysAbi, functionName: 'register', args: [member, signature], chain: dave.chain, account: dave.account! });
     await chain.pub.waitForTransactionReceipt({ hash });
     await catchUp();
     const fm = await prisma.keyMarket.findUniqueOrThrow({ where: { subject: fan.toLowerCase() } });
     expect(fm.claimed).toBe(true);
     expect(decToBig(fm.escrowWei)).toBe(0n);
     expect(decToBig(fm.creatorFeesWei)).toBeGreaterThan(0n);
-    const h = await prisma.holding.findUniqueOrThrow({ where: { marketId_address: { marketId: fm.id, address: dave.toLowerCase() } } });
+    const h = await prisma.holding.findUniqueOrThrow({ where: { marketId_address: { marketId: fm.id, address: dave.address.toLowerCase() } } });
     expect(h.units).toBe(100n);
   });
 
@@ -285,11 +314,15 @@ describe('indexer', () => {
     await prisma.linkedWallet.create({ data: { userId: bob.id, address: linked, kind: 'external' } });
     await prisma.referral.create({ data: { inviterId: dave.id, inviteeId: bob.id, status: 'credited', creditedAt: new Date() } });
     await c.redis.del('referrer:set');
+    // By default the invitee's first buy carries the referrer as a permit: the operator sends nothing.
+    expect(await syncReferrers(c)).toBe(0);
+    c.cfg.sponsorOnboarding = true;
     expect(await syncReferrers(c)).toBe(2);
     for (const a of [bob.wallet!.address, linked]) {
       expect(String(await chain.pub.readContract({ address: keys, abi: swayKeysAbi, functionName: 'referrerOf', args: [a as Address] })).toLowerCase()).toBe(dave.wallet!.address);
     }
     expect((await prisma.referral.findUniqueOrThrow({ where: { inviteeId: bob.id } })).onchainTx).toMatch(/^0x/);
     expect(await syncReferrers(c)).toBe(0);
+    c.cfg.sponsorOnboarding = false;
   });
 });

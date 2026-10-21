@@ -33,12 +33,13 @@ sudo -iu sway nano /srv/sway/.env
 | Key | Value |
 |---|---|
 | `CHAIN_ID`, `CHAIN_NAME`, `RPC_URL`, `EXPLORER_URL` | The Robinhood Chain **testnet** values from its official docs. |
-| `OPERATOR_PRIVATE_KEY` | A new key used only for Sway, funded with testnet ETH (opens markets, sets referrers). Also used to deploy below. |
+| `OPERATOR_PRIVATE_KEY` | A new key used only for Sway, funded with testnet ETH. It deploys the contracts below and signs members' permits (free); new members cost it no gas, because each member's market opens with its first buy, paid by the buyer. |
 | `ISSUER_PRIVATE_KEY` | Genesis pass minter (can be the same key on testnet). |
 | `X_CLIENT_ID`, `X_CLIENT_SECRET`, `X_BEARER_TOKEN` | Your X developer app. Its callback URL must be `https://swayfamily.com/api/auth/x/callback`. Without them nobody can sign in: dev sign-in is off in production. |
 | `ADMIN_HANDLES` | Your X handle (comma-separated list) for `/admin`. |
 | `WALLETCONNECT_PROJECT_ID` | Optional, from cloud.reown.com: enables WalletConnect in the wallet picker. |
-| `X_LAUNCH_POST_ID`, `FAUCET_URL`, `GAS_DRIP_WEI` | Optional. |
+| `X_LAUNCH_POST_ID`, `FAUCET_URL`, `GAS_DRIP_WEI` | Optional. Keep `GAS_DRIP_WEI=0` unless you want to pay new members' gas. |
+| `SPONSOR_ONBOARDING` | Optional, default 0. 1 = the operator pays to open every member's market at sign-up (the old flow). |
 
 Never paste these keys into chats or commit them; `.env` is git-ignored and readable by `sway` only.
 

@@ -2,7 +2,8 @@
  * Verified invites (brief §6): the invitee is ≥30 days old on X, has ≥50 followers, an X checkmark and
  * no bot flag. Inviter +500, invitee +100, at most 25 credited per inviter per UTC day. A credited invite
  * also sets the onchain referrer on each of the invitee's wallets so the inviter earns half of the 1% referral
- * fee on their trades.
+ * fee on their trades: by default the invitee's next buy carries it as a signed permit (apps/api permits), and
+ * with SPONSOR_ONBOARDING=1 the operator sends it here.
  */
 import { INVITE_POINTS, INVITEE_POINTS, INVITES_CREDITED_PER_DAY, inviteQualifies } from '@sway/scoring';
 import { swayKeysAbi } from '@sway/shared/abi';
@@ -69,7 +70,7 @@ const KNOWN = 'referrer:set';
 export async function syncReferrers(c: Clients, limit = 50): Promise<number> {
   const keys = c.cfg.contracts.swayKeys;
   const op = c.operator;
-  if (!keys || !op) return 0;
+  if (!keys || !op || !c.cfg.sponsorOnboarding) return 0;
   const refs = await c.prisma.referral.findMany({
     where: { status: 'credited', inviter: { wallet: { isNot: null } } },
     include: { inviter: { include: { wallet: true } }, invitee: { include: { wallet: true, linkedWallets: true } } },

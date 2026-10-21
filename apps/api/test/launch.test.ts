@@ -238,6 +238,15 @@ describe('POST /api/launchpad/attest', () => {
     expect(again.body.error).toBe('already_launched');
   });
 
+  it('a market nobody has bought yet comes with the creator’s open permit', async () => {
+    const c = await member(ctx, 'lazylauncher', 41000);
+    await prisma.keyMarket.create({ data: { subject: c.address, userId: c.user.id, xId: c.user.xId, claimed: true, opened: false, supplyUnits: 100n, holders: 1 } });
+    const a = (await post<LaunchAttestation>('/api/launchpad/attest', c.cookie)).body;
+    expect(a.permit).toMatchObject({ kind: 'open', wallet: c.address, xId: c.user.xId });
+    const { c: opened } = await creatorWithHolders([]);
+    expect((await post<LaunchAttestation>('/api/launchpad/attest', opened.cookie)).body.permit).toBeNull();
+  });
+
   it('creator only: the whole 10% goes to the account wallet', async () => {
     const { c } = await creatorWithHolders([]);
     const a = (await post<LaunchAttestation>('/api/launchpad/attest', c.cookie)).body;

@@ -58,7 +58,8 @@ export async function engageRoutes(app: FastifyInstance) {
     const { alertPct } = body(WatchBody, req);
     const subject = await userByHandle(req, handle, { market: true });
     if (subject.id === v.user.id) throw badRequest('self', 'You can’t watch your own key.');
-    if (!subject.market?.opened) throw conflict('no_market', `@${handle} has no key market yet.`);
+    if (!subject.market || !(subject.market.opened || subject.market.claimed))
+      throw conflict('no_market', `@${handle} has no key market yet.`);
     const key = { userId_subjectId: { userId: v.user.id, subjectId: subject.id } };
     if (!(await prisma.watch.findUnique({ where: key })) && (await prisma.watch.count({ where: { userId: v.user.id } })) >= MAX_WATCHES) {
       throw conflict('watchlist_full', `Your watchlist holds ${MAX_WATCHES} keys. Remove one first.`);

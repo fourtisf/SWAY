@@ -8,7 +8,7 @@ contracts hold significant value.
 
 | Contract | Lines | Holds |
 |---|---|---|
-| `SwayKeys.sol` | 523 | Key markets, every trade's ETH, all earnings until claimed |
+| `SwayKeys.sol` | 614 | Key markets, every trade's ETH, all earnings until claimed |
 | `FanEscrow.sol` | 58 | Creator fees of unclaimed fan markets |
 | `SwayStaking.sol` | 177 | Staked $SWAY, stakers' ETH rewards |
 | `SwayLaunchpad.sol` | 276 | Creator tokens' bonding curves (ETH + tokens) |
@@ -40,7 +40,8 @@ Solidity 0.8.24, OpenZeppelin 5.4. Also reviewed: the server's wallet handling t
 | D-1 | High (ops) | Deploy | Every contract's owner defaulted to the deployer, which is the server's hot operator key. | **Fixed**: mainnet refuses to deploy unless `ADMIN` is a different wallet (two-step transfer), or the owner opts into one key with `ALLOW_SINGLE_KEY=1` (`setup-chain.sh --mainnet`, answer SAME). One key is the owner's choice: a server break-in then controls settings and future fees, though not users' balances or sells. |
 | D-2 | Medium (ops) | Deploy | On mainnet without $SWAY, staking would have been wired to a freshly minted test token. | **Fixed**: no staking (and never DevSway) on mainnet until `SWAY_TOKEN` is set; the stakers' half of the protocol fee goes to the treasury. |
 | W-1 | High (ops) | Web wallet | The "Create a Sway wallet" option keeps the private key in the browser's storage: clearing the browser loses the funds, and any script injection could read it. | **Mitigated**: off on mainnet (API reports `embedded: 'off'`, the UI and the link routes refuse it). People use wallet apps there. A custodial-grade embedded wallet (Privy/CDP) can bring it back. |
-| K-1 | Info (trust) | SwayKeys | The operator key can hand an unclaimed fan market and its escrow to any address, set referrers once per user, flag a creator inactive (their 6% then goes to holders) and open markets. | **Accepted**, by design (the server acts on X sign-ins). See operations below. |
+| K-1 | Info (trust) | SwayKeys | The operator key can hand an unclaimed fan market and its escrow to any address, set referrers once per user, flag a creator inactive (their 6% then goes to holders) and open markets, directly or through signed Member permits that anyone can submit. | **Accepted**, by design (the server acts on X sign-ins). See operations below. |
+| K-3 | Review (new code) | SwayKeys | Member permits (`register`, `registerAndBuy`), added so joining costs the operator no gas: the first buy carries the operator's signed permit and pays to open the market. | **Checked**: EIP-712 domain bound to the chain and contract; the signer is checked against `isOperator` when submitted, so revoking the operator voids its unused permits; deadline enforced; OZ `ECDSA.recover` (low-s, no malleability); each part is skipped once done, so replays and racing buyers have no extra effect; opening stays pause-gated; both entry points are `nonReentrant` and the only external call is the trusted FanEscrow. A permit can only do what it says, so front-running one just pays the sender's gas for the member. Tests `MemberPermits.t.sol` (15) and the anvil integration test. |
 | K-2 | Medium (trust) | SwayKeys | A compromised owner could point `staking` at a contract whose `levelOf` burns gas, reverts or returns a huge payload; `levelOf` runs on sells too, so holders could be stopped from selling. | **Fixed**: the staking read gets 50k gas, reads 32 bytes and treats anything odd as level 0. Tests in `HostileStaking.t.sol` (gas burner, return bomb, revert, out-of-range level). |
 | G-1 | Low | GenesisPass | `_safeMint` calls the receiver; one contract that rejects it makes the whole `mintBatch` revert. | **Accepted**: the issuer retries without that address. |
 
@@ -74,8 +75,9 @@ Solidity 0.8.24, OpenZeppelin 5.4. Also reviewed: the server's wallet handling t
    keeps one key for owner and operator on the server (no acceptOwnership step); move ownership to a separate
    wallet later with `transferOwnership` + `acceptOwnership` when you can.
 2. **Operator key = hot, minimal.** It lives only in `/srv/sway/.env` (mode 600) and needs only gas money. If the
-   server is ever compromised: from the owner wallet, `pause()` SwayKeys, `setOperator(old, false)` and
-   `setFanAdmin(old, false)`, then set a new key.
+   server is ever compromised: from the owner wallet, `pause()` SwayKeys, `setOperator(old, false)` (which also voids
+   every permit it signed) and `setFanAdmin(old, false)`, then set a new key. New members cost it no gas: it signs
+   permits and the first buy of each market pays to open it.
 3. **Emergency stop**: owner → `SwayKeys.pause()`. Buys stop; holders can still sell and claim.
 4. **Treasury** defaults to the owner wallet.
 5. **Watch** `FanMarketClaimed`, `ReferrerSet` and `CreatorInactiveSet` for anything the app didn't do.

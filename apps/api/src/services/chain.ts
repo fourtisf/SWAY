@@ -3,7 +3,8 @@
  * API degrades gracefully without deployed contracts:
  * - rpcEnabled false: balances read as 0, transactions cannot be verified.
  * - keysEnabled false (SWAY_KEYS_ADDRESS empty): no holder room access, zero earnings, market open is a no-op.
- * - operatorEnabled false (no OPERATOR_PRIVATE_KEY): markets cannot be opened or claimed onchain.
+ * - operatorEnabled false (no OPERATOR_PRIVATE_KEY): markets cannot be opened or claimed onchain, and no member
+ *   permits can be signed.
  *
  * Operator transactions are serialized across every API (and worker) process with the Redis lock
  * OPERATOR_LOCK_KEY, held from simulation until the receipt, so nonces never collide.
@@ -23,7 +24,7 @@ import {
   type WalletClient,
 } from 'viem';
 import { privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
-import { swayChain, type Address } from '@sway/shared';
+import { MEMBER_PERMIT_TYPES, memberPermitDomain, swayChain, type Address } from '@sway/shared';
 import { swayKeysAbi } from '@sway/shared/abi';
 import type { Config } from '../config';
 
@@ -52,6 +53,14 @@ export interface TxInfo {
   value: bigint;
   status: 'pending' | 'success' | 'reverted';
   blockNumber: bigint | null;
+}
+
+/** SwayKeys.Member, the struct an operator signs so someone else can submit it. */
+export interface MemberFields {
+  wallet: Address;
+  xId: bigint;
+  referrer: Address;
+  deadline: bigint;
 }
 
 export interface OperatorTxResult {
@@ -86,6 +95,10 @@ export interface ChainClient {
   market(subject: Address): Promise<OnchainMarket | null>;
   openMarket(owner: Address, xId: bigint): Promise<OperatorTxResult>;
   claimFanMarket(subject: Address, newOwner: Address): Promise<OperatorTxResult>;
+  /** SwayKeys.referrerOf; null when unset. */
+  referrerOf(user: Address): Promise<Address | null>;
+  /** EIP-712 signature of a Member permit by the operator key (offchain, no gas). */
+  signMember(m: MemberFields): Promise<`0x${string}`>;
   /** Dev faucet: operator sends ETH. */
   sendEth(to: Address, value: bigint): Promise<OperatorTxResult>;
   /* [B] */
@@ -310,6 +323,27 @@ export class ViemChainClient implements ChainClient {
 
   claimFanMarket(subject: Address, newOwner: Address): Promise<OperatorTxResult> {
     return this.operatorWrite('claimFanMarket', [subject, newOwner] as const);
+  }
+
+  async referrerOf(user: Address): Promise<Address | null> {
+    if (!this.keysEnabled) return null;
+    const r = (await this.pub.readContract({
+      address: this.keys!,
+      abi: swayKeysAbi,
+      functionName: 'referrerOf',
+      args: [user],
+    })) as Address;
+    return /^0x0{40}$/i.test(r) ? null : (r.toLowerCase() as Address);
+  }
+
+  async signMember(m: MemberFields): Promise<`0x${string}`> {
+    if (!this.operatorEnabled || !this.account) throw new ChainUnavailable('Operator');
+    return this.account.signTypedData({
+      domain: memberPermitDomain(this.chain.id, this.keys!),
+      types: MEMBER_PERMIT_TYPES,
+      primaryType: 'Member',
+      message: m,
+    });
   }
 
   /* [B] */

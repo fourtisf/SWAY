@@ -1,5 +1,6 @@
 /**
- * Account-wallet link (signature), onboarding (market open/claim), wallet page, activity log and the dev faucet.
+ * Account-wallet link (signature), onboarding (market open/claim), trade permits, wallet page, activity log and
+ * the dev faucet.
  * More wallets are added through routes/wallets.ts; the wallet page sums every wallet of the member.
  */
 import { randomBytes } from 'node:crypto';
@@ -14,6 +15,7 @@ import {
   type Address as Addr,
   type MeDTO,
   type OnboardingStatus,
+  type TradePermitsResponse,
   type WalletDTO,
   type WalletNonceResponse,
 } from '@sway/shared';
@@ -26,6 +28,7 @@ import { getEthUsd } from '../services/price';
 import { memberAddresses } from '../services/access';
 import { createAccountWallet, maybeGasDrip, verifyLinkSignature, walletOverview } from '../services/wallets';
 import { fundDevSway } from '../services/launch';
+import { tradePermits } from '../services/permits';
 
 const NONCE_TTL_S = 600;
 const nonceKey = (userId: string) => `wnonce:${userId}`;
@@ -123,6 +126,12 @@ export async function walletRoutes(app: FastifyInstance) {
     resetViewer(req);
     const status = onboardingStatus(app.deps, await requireViewer(req));
     return { ...status, marketTx: r.tx ?? status.marketTx };
+  });
+
+  app.post('/trade/permits', async (req): Promise<TradePermitsResponse> => {
+    const v = await requireViewer(req);
+    const b = body(z.object({ subject: Address, trader: Address }), req);
+    return { permits: await tradePermits(app.deps, v, b.subject as Addr, b.trader as Addr) };
   });
 
   app.get('/wallet', async (req): Promise<WalletDTO> => {

@@ -12,7 +12,9 @@ export async function rebuildMarket(tx: Tx, marketId: string, fanEscrow: string 
   const market = await tx.keyMarket.findUniqueOrThrow({ where: { id: marketId }, include: { user: { include: { wallet: true } } } });
   const trades = await tx.trade.findMany({ where: { marketId }, orderBy: [{ blockNumber: 'asc' }, { logIndex: 'asc' }] });
 
-  const lockHolder = market.fan && !market.claimed ? fanEscrow : market.fan ? market.user.wallet?.address ?? null : market.subject;
+  // A fan market's first key and fees sit in FanEscrow until its claim is onchain (claimBlock).
+  const escrowed = market.fan && market.claimBlock === null;
+  const lockHolder = escrowed ? fanEscrow : market.fan ? market.user.wallet?.address ?? null : market.subject;
   const book = new Map<string, { units: bigint; basis: bigint; realized: bigint }>();
   const get = (a: string) => book.get(a) ?? { units: 0n, basis: 0n, realized: 0n };
   if (market.opened && lockHolder) book.set(addr(lockHolder), { units: LOCKED_UNITS, basis: 0n, realized: 0n });
@@ -31,7 +33,6 @@ export async function rebuildMarket(tx: Tx, marketId: string, fanEscrow: string 
     }
   }
   const supply = trades.length ? trades[trades.length - 1]!.supplyAfter : LOCKED_UNITS;
-  const unclaimedFan = market.fan && !market.claimed;
 
   await tx.holding.deleteMany({ where: { marketId } });
   const rows = [...book.entries()].map(([address, h]) => ({
@@ -44,8 +45,8 @@ export async function rebuildMarket(tx: Tx, marketId: string, fanEscrow: string 
       supplyUnits: supply,
       priceWei: dec(priceWei(supply)),
       volumeWei: dec(volume),
-      escrowWei: dec(unclaimedFan ? creatorFees : 0n),
-      creatorFeesWei: dec(unclaimedFan ? 0n : creatorFees),
+      escrowWei: dec(escrowed ? creatorFees : 0n),
+      creatorFeesWei: dec(escrowed ? 0n : creatorFees),
       holders: rows.filter((r) => r.units > 0n).length,
       lastTradeAt: trades.length ? trades[trades.length - 1]!.ts : null,
       change: await recentChange(tx, marketId, supply),

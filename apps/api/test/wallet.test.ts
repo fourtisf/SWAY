@@ -1,8 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { quoteWei, ethToWei } from '@sway/curve';
-import type { MeDTO, OnboardingStatus, WalletDTO } from '@sway/shared';
+import { recoverTypedDataAddress } from 'viem';
+import { MEMBER_PERMIT_TYPES, type MeDTO, type MemberPermit, type OnboardingStatus, type TradePermitsResponse, type WalletDTO } from '@sway/shared';
 import {
+  PERMIT_DOMAIN,
   fanMarket,
   FakeChain,
   login,
@@ -127,7 +129,16 @@ describe('wallet link', () => {
   });
 });
 
-describe('onboarding', () => {
+describe('onboarding (SPONSOR_ONBOARDING=1: the operator pays)', () => {
+  let ctx: TestCtx;
+  beforeAll(async () => {
+    ctx = await makeApp({ env: { SPONSOR_ONBOARDING: '1' } });
+  });
+  beforeEach(() => {
+    ctx.chain.calls.length = 0;
+  });
+  afterAll(() => ctx.close());
+
   it('opens the member market through the operator and is idempotent', async () => {
     const m = await member(ctx, 'opener');
     const before = await ctx.app.inject({ url: '/api/onboarding', headers: { cookie: m.cookie } });
@@ -200,6 +211,28 @@ describe('onboarding', () => {
     expect(row.subject).toBe(market.subject);
     expect(res.json<OnboardingStatus>().market).toBe(true);
   });
+});
+
+describe('onboarding (default: signed permits, no operator transaction)', () => {
+  it('makes the market a DB row and sends nothing', async () => {
+    const m = await member(ctx, 'freejoin');
+    const res = await ctx.app.inject({ method: 'POST', url: '/api/onboarding/market', headers: { cookie: m.cookie } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json<OnboardingStatus>()).toMatchObject({ market: true, marketTx: null });
+    expect(ctx.chain.calls).toEqual([]);
+    const row = await prisma.keyMarket.findUniqueOrThrow({ where: { userId: m.user.id } });
+    expect(row).toMatchObject({ subject: m.address, opened: false, claimed: true, fan: false });
+    expect(await prisma.holding.findFirst({ where: { marketId: row.id } })).toMatchObject({ address: m.address, units: 100n });
+  });
+
+  it('claims a fan market in the DB only; the claim goes onchain with a permit', async () => {
+    const { market } = await fanMarket('fanjoin', '515151');
+    const m = await member(ctx, 'fanjoin');
+    const res = await ctx.app.inject({ method: 'POST', url: '/api/onboarding/market', headers: { cookie: m.cookie } });
+    expect(res.json<OnboardingStatus>().market).toBe(true);
+    expect(ctx.chain.calls).toEqual([]);
+    expect(await prisma.keyMarket.findUniqueOrThrow({ where: { id: market.id } })).toMatchObject({ claimed: true, userId: m.user.id });
+  });
 
   it('requires a wallet', async () => {
     const { cookie } = await login(ctx, 'nowallet');
@@ -227,6 +260,112 @@ describe('onboarding', () => {
     } finally {
       await off.close();
     }
+  });
+});
+
+describe('trade permits', () => {
+  const ZERO = '0x0000000000000000000000000000000000000000';
+  const permits = async (m: { cookie: string }, subject: string, trader: string) => {
+    const res = await ctx.app.inject({ method: 'POST', url: '/api/trade/permits', headers: { cookie: m.cookie }, payload: { subject, trader } });
+    return { res, permits: res.statusCode === 200 ? res.json<TradePermitsResponse>().permits : [] };
+  };
+  const signer = (p: MemberPermit) =>
+    recoverTypedDataAddress({
+      domain: PERMIT_DOMAIN,
+      types: MEMBER_PERMIT_TYPES,
+      primaryType: 'Member',
+      message: { wallet: p.wallet, xId: BigInt(p.xId), referrer: p.referrer, deadline: BigInt(p.deadline) },
+      signature: p.signature,
+    });
+  const unopened = (m: { address: string; user: { id: string; xId: string } }) =>
+    prisma.keyMarket.create({ data: { subject: m.address, userId: m.user.id, xId: m.user.xId, claimed: true, opened: false, supplyUnits: 100n, holders: 1 } });
+  const credit = (inviter: { user: { id: string } }, invitee: { user: { id: string } }) =>
+    prisma.referral.create({ data: { inviterId: inviter.user.id, inviteeId: invitee.user.id, status: 'credited', creditedAt: new Date() } });
+
+  it('signs the creator’s open for the first buyer, then nothing once it is open', async () => {
+    const creator = await member(ctx, 'unopened');
+    const buyer = await member(ctx, 'firstbuyer');
+    await unopened(creator);
+    const { res, permits: ps } = await permits(buyer, creator.address, buyer.address);
+    expect(res.statusCode).toBe(200);
+    expect(ps).toHaveLength(1);
+    expect(ps[0]).toMatchObject({ kind: 'open', wallet: creator.address, xId: creator.user.xId, referrer: ZERO });
+    expect(ps[0]!.deadline).toBeGreaterThan(Date.now() / 1000 + 60);
+    expect(await signer(ps[0]!)).toBe(ctx.chain.operator.address);
+    expect(ctx.chain.calls.filter((c) => c.fn !== 'signMember')).toEqual([]);
+
+    ctx.chain.markets.set(creator.address, { owner: creator.address, xId: BigInt(creator.user.xId), fan: false, halted: false, supply: 100n });
+    expect((await permits(buyer, creator.address, buyer.address)).permits).toEqual([]);
+  });
+
+  it('carries the creator’s credited referrer, and the buyer’s own', async () => {
+    const inviter = await member(ctx, 'inviter');
+    const creator = await member(ctx, 'invitedcreator');
+    const buyer = await member(ctx, 'invitedbuyer');
+    await unopened(creator);
+    await credit(inviter, creator);
+    await credit(inviter, buyer);
+    const { permits: ps } = await permits(buyer, creator.address, buyer.address);
+    expect(ps.map((p) => [p.kind, p.wallet, p.xId, p.referrer])).toEqual([
+      ['open', creator.address, creator.user.xId, inviter.address],
+      ['referrer', buyer.address, '0', inviter.address],
+    ]);
+    // Set onchain: no permit, and remembered without another read.
+    ctx.chain.referrers.set(buyer.address, inviter.address);
+    ctx.chain.markets.set(creator.address, { owner: creator.address, xId: BigInt(creator.user.xId), fan: false, halted: false, supply: 100n });
+    expect((await permits(buyer, creator.address, buyer.address)).permits).toEqual([]);
+    expect(await ctx.redis.sismember('referrer:set', buyer.address)).toBe(1);
+  });
+
+  it('a pending referral signs nothing', async () => {
+    const inviter = await member(ctx, 'inviter2');
+    const buyer = await member(ctx, 'pendingbuyer');
+    const creator = await member(ctx, 'opencreator');
+    await openMarketRow(creator);
+    ctx.chain.markets.set(creator.address, { owner: creator.address, xId: BigInt(creator.user.xId), fan: false, halted: false, supply: 100n });
+    await prisma.referral.create({ data: { inviterId: inviter.user.id, inviteeId: buyer.user.id } });
+    expect((await permits(buyer, creator.address, buyer.address)).permits).toEqual([]);
+  });
+
+  it('signs the claim of a fan market its X account claimed in the app', async () => {
+    const { market } = await fanMarket('fanclaimer', '626262');
+    ctx.chain.markets.set(market.subject, { owner: ZERO, xId: 626262n, fan: true, halted: false, supply: 300n });
+    const owner = await member(ctx, 'fanclaimer');
+    await ctx.app.inject({ method: 'POST', url: '/api/onboarding/market', headers: { cookie: owner.cookie } });
+    const buyer = await member(ctx, 'fanbuyer');
+    const { permits: ps } = await permits(buyer, market.subject, buyer.address);
+    expect(ps).toHaveLength(1);
+    expect(ps[0]).toMatchObject({ kind: 'claim', wallet: owner.address, xId: '626262', referrer: ZERO });
+    expect(await signer(ps[0]!)).toBe(ctx.chain.operator.address);
+  });
+
+  it('only for the viewer’s own wallets', async () => {
+    const creator = await member(ctx, 'someone');
+    const buyer = await member(ctx, 'impostor');
+    await unopened(creator);
+    const { res } = await permits(buyer, creator.address, creator.address);
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toBe('not_your_wallet');
+  });
+
+  it('signs nothing when the operator sponsors onboarding', async () => {
+    const sp = await makeApp({ env: { SPONSOR_ONBOARDING: '1' } });
+    try {
+      const creator = await member(sp, 'sponsoredc');
+      const buyer = await member(sp, 'sponsoredb');
+      await unopened(creator);
+      const res = await sp.app.inject({ method: 'POST', url: '/api/trade/permits', headers: { cookie: buyer.cookie }, payload: { subject: creator.address, trader: buyer.address } });
+      expect(res.json<TradePermitsResponse>().permits).toEqual([]);
+    } finally {
+      await sp.close();
+    }
+  });
+
+  it('lists an unopened member market as buyable', async () => {
+    const creator = await member(ctx, 'listedlazy');
+    await unopened(creator);
+    const res = await ctx.app.inject({ url: '/api/markets?tab=creators' });
+    expect(JSON.stringify(res.json())).toContain(creator.address);
   });
 });
 

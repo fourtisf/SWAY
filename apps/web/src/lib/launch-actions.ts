@@ -126,6 +126,8 @@ export function useLaunchActions() {
           return false;
         }
         onStep?.('sign');
+        // Nobody has bought the creator's keys yet: open the market onchain first (the launchpad checks it).
+        if (a.permit) await w.waitForReceipt(await w.register(a.permit));
         const hash = await w.writeContract({
           address: a.launchpad,
           abi: swayLaunchpadAbi,

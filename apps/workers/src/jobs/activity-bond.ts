@@ -2,7 +2,9 @@
  * Creator activity bond (brief §11, Phase 4): a creator who posts nothing in their room for 7 days has
  * their 6% creator fee redirected to holders (SwayKeys.creatorInactive) until they post again. Runs every
  * few minutes: flags quiet creators and clears the flag once they've posted. The indexer mirrors the
- * CreatorInactiveSet events into KeyMarket.creatorInactive.
+ * CreatorInactiveSet events into KeyMarket.creatorInactive. A market isn't flagged until someone besides the
+ * creator holds it: before that the redirected fee would reach the creator, the only holder, anyway, so the
+ * transaction would buy nothing (and every quiet new member would cost the operator gas).
  */
 import { swayKeysAbi } from '@sway/shared/abi';
 import type { Clients } from '../clients';
@@ -19,14 +21,14 @@ export async function enforceActivityBond(c: Clients, now = new Date()): Promise
   if (!keys || !op) return out;
   const markets = await c.prisma.keyMarket.findMany({
     where: { opened: true, claimed: true, user: { joinedAt: { not: null }, deletedAt: null } },
-    select: { id: true, subject: true, userId: true, openedAt: true, creatorInactive: true, user: { select: { handle: true } } },
+    select: { id: true, subject: true, userId: true, openedAt: true, creatorInactive: true, holders: true, user: { select: { handle: true } } },
   });
   const cutoff = now.getTime() - QUIET_DAYS * DAY_MS;
   for (const m of markets) {
     const last = await c.prisma.roomMessage.findFirst({ where: { marketId: m.id, authorId: m.userId }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } });
     const lastActive = Math.max(last?.createdAt.getTime() ?? 0, m.openedAt?.getTime() ?? 0);
     const quiet = lastActive < cutoff;
-    if (quiet === m.creatorInactive) continue;
+    if (quiet === m.creatorInactive || (quiet && m.holders <= 1)) continue;
     try {
       await withSenderLock(c, op, async () => {
         const hash = await op.writeContract({ address: keys, abi: swayKeysAbi, functionName: 'setCreatorInactive', args: [m.subject as `0x${string}`, quiet] });

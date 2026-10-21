@@ -19,6 +19,7 @@ import type { AppDeps, SessionData, Viewer } from '../deps';
 import type { Config } from '../config';
 import { conflict } from '../errors';
 import type { ChainClient, Claimable } from './chain';
+import { ZERO_ADDRESS } from './dto';
 import { marketDTO, marketStats } from './markets';
 
 export const ADDRESS_PLACEHOLDER = '{address}';
@@ -203,7 +204,10 @@ export async function walletOverview(deps: Pick<AppDeps, 'prisma' | 'chain'>, v:
       ]),
     ] as Address[];
 
-  const [stats, cash, earned, claimed] = await Promise.all([
+  // A fan market claimed at sign-up keeps its escrow onchain until the claim goes through (carried by the next
+  // buy, or sent by the creator right before claiming): it's already the creator's to claim.
+  const fan = v.market?.fan && v.market.claimed && decToBig(v.market.escrowWei) > 0n ? v.market : null;
+  const [stats, cash, earned, claimed, fanOnchain] = await Promise.all([
     marketStats(prisma, [...new Map(held.map((h) => [h.market.id, h.market])).values()]),
     Promise.all(infos.map((w) => chain.getBalance(w.address).catch(() => 0n))),
     Promise.all(infos.map((w) => chain.claimable(w.address, subjectsOf(w)).catch(() => ZERO_CLAIM))),
@@ -214,7 +218,9 @@ export async function walletOverview(deps: Pick<AppDeps, 'prisma' | 'chain'>, v:
           _sum: { creatorWei: true, holderWei: true, referralWei: true },
         })
       : [],
+    fan ? chain.market(fan.subject as Address).catch(() => null) : null,
   ]);
+  const escrowDue = fan && fanOnchain?.owner === ZERO_ADDRESS ? decToBig(fan.escrowWei) : 0n;
   const claimedBy = new Map(
     claimed.map((c) => [c.address, decToBig(c._sum.creatorWei) + decToBig(c._sum.holderWei) + decToBig(c._sum.referralWei)]),
   );
@@ -224,7 +230,7 @@ export async function walletOverview(deps: Pick<AppDeps, 'prisma' | 'chain'>, v:
   let claimedTotal = 0n;
   const wallets: WalletBalanceDTO[] = infos.map((w, i) => {
     const mine = holdings.filter((h) => h.address === w.address);
-    const c = earned[i]!;
+    const c = w.account && escrowDue ? { ...earned[i]!, creator: earned[i]!.creator + escrowDue } : earned[i]!;
     sum.creator += c.creator;
     sum.holder += c.holder;
     sum.referral += c.referral;

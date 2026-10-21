@@ -5,6 +5,8 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {ISwayStaking} from "./interfaces/ISwayStaking.sol";
 import {IFanEscrow} from "./interfaces/IFanEscrow.sol";
 
@@ -21,8 +23,10 @@ import {IFanEscrow} from "./interfaces/IFanEscrow.sol";
 ///      Fees on the curve price: creator 6%, protocol 2% (cut by staking level), holders 1%, referral 1%.
 ///      Every earning is credited here and pulled with claim(); nothing is pushed except trade proceeds,
 ///      buy change, and fan-market creator fees (to the trusted FanEscrow).
+///      Joining costs Sway nothing onchain: the operator signs a Member permit offchain and whoever first needs
+///      it onchain (usually the first buyer, via registerAndBuy) submits it and pays its gas.
 ///      UNAUDITED. Keep mainnet behind a flag until an audit report is published.
-contract SwayKeys is Ownable2Step, ReentrancyGuard, Pausable {
+contract SwayKeys is Ownable2Step, ReentrancyGuard, Pausable, EIP712 {
     /* ------------------------------------------------------------------ constants */
 
     uint256 public constant K = 17_500_000_000_000; // 0.0000175 ETH
@@ -48,6 +52,9 @@ contract SwayKeys is Ownable2Step, ReentrancyGuard, Pausable {
     uint256 internal constant ACC_PRECISION = 1e18;
     /// @dev Gas for reading a staking level: SwayStaking needs ~15k. Caps what a bad staking contract can burn.
     uint256 internal constant LEVEL_GAS = 50_000;
+
+    bytes32 public constant MEMBER_TYPEHASH =
+        keccak256("Member(address wallet,uint64 xId,address referrer,uint256 deadline)");
 
     /* ------------------------------------------------------------------ storage */
 
@@ -78,6 +85,15 @@ contract SwayKeys is Ownable2Step, ReentrancyGuard, Pausable {
         uint256 protocol;
         uint256 holder;
         uint256 referral;
+    }
+
+    /// @notice Operator-signed: `wallet` belongs to the X account `xId` (0 = no market part) and was invited by
+    ///         `referrer` (0 = none).
+    struct Member {
+        address wallet;
+        uint64 xId;
+        address referrer;
+        uint256 deadline;
     }
 
     mapping(address subject => Market) public markets;
@@ -147,6 +163,9 @@ contract SwayKeys is Ownable2Step, ReentrancyGuard, Pausable {
     error TransferFailed();
     error UnexpectedEth();
     error FanEscrowAlreadySet();
+    error Expired();
+    error BadSignature();
+    error LengthMismatch();
 
     modifier onlyOperator() {
         if (!isOperator[msg.sender]) revert NotOperator();
@@ -158,7 +177,7 @@ contract SwayKeys is Ownable2Step, ReentrancyGuard, Pausable {
         _;
     }
 
-    constructor(address initialOwner, address treasury_) Ownable(initialOwner) {
+    constructor(address initialOwner, address treasury_) Ownable(initialOwner) EIP712("SwayKeys", "1") {
         if (treasury_ == address(0)) revert ZeroAddress();
         treasury = treasury_;
         emit TreasurySet(treasury_);
@@ -257,7 +276,12 @@ contract SwayKeys is Ownable2Step, ReentrancyGuard, Pausable {
 
     /// @notice Opens the key market of a member who signed in with X. The first key is minted to them
     ///         for free and can never be sold, so the room always has an owner.
-    function openMarket(address owner_, uint64 xId) external onlyOperator whenNotPaused {
+    function openMarket(address owner_, uint64 xId) external onlyOperator {
+        _openMarket(owner_, xId);
+    }
+
+    function _openMarket(address owner_, uint64 xId) internal {
+        _requireNotPaused();
         if (owner_ == address(0)) revert ZeroAddress();
         if (xId == 0) revert InvalidXId();
         if (markets[owner_].supply != 0) revert MarketExists();
@@ -307,6 +331,11 @@ contract SwayKeys is Ownable2Step, ReentrancyGuard, Pausable {
         Market storage m = markets[subject];
         if (!m.fan) revert NotFanMarket();
         if (m.owner != address(0)) revert AlreadyClaimed();
+        _claimFanMarket(subject, newOwner);
+    }
+
+    function _claimFanMarket(address subject, address newOwner) internal {
+        Market storage m = markets[subject];
         address escrow = address(fanEscrow);
         if (newOwner == address(0) || newOwner == escrow) revert ZeroAddress();
 
@@ -342,10 +371,58 @@ contract SwayKeys is Ownable2Step, ReentrancyGuard, Pausable {
         emit MarketHalted(subject, halted);
     }
 
+    /* ------------------------------------------------------------------ member permits */
+
+    function memberDigest(Member calldata m) public view returns (bytes32) {
+        return _hashTypedDataV4(keccak256(abi.encode(MEMBER_TYPEHASH, m.wallet, m.xId, m.referrer, m.deadline)));
+    }
+
+    /// @notice Applies an operator-signed Member permit: opens the member's market (or hands them the unclaimed
+    ///         fan market of their X account) and records their referrer. Anyone can submit it. Parts already
+    ///         done are skipped, so a permit with nothing left to do is a no-op, even after its deadline.
+    function register(Member calldata m, bytes calldata signature) external nonReentrant {
+        _register(m, signature);
+    }
+
+    /// @notice register() for each permit, then buy(): the first buyer of a member's keys opens their market.
+    function registerAndBuy(Member[] calldata members, bytes[] calldata signatures, address subject, uint256 units)
+        external
+        payable
+        nonReentrant
+        whenNotPaused
+    {
+        if (members.length != signatures.length) revert LengthMismatch();
+        for (uint256 i; i < members.length; ++i) {
+            _register(members[i], signatures[i]);
+        }
+        _buy(subject, units);
+    }
+
+    function _register(Member calldata m, bytes calldata signature) internal {
+        address bound = m.xId == 0 ? address(0) : subjectOfXId[m.xId];
+        bool open = m.xId != 0 && bound == address(0);
+        bool claimFan = bound != address(0) && markets[bound].fan && markets[bound].owner == address(0);
+        bool refer = m.referrer != address(0) && referrerOf[m.wallet] == address(0);
+        // Checked state first: a racing buyer may have applied this permit already.
+        if (!open && !claimFan && !refer) return;
+        if (block.timestamp > m.deadline) revert Expired();
+        if (!isOperator[ECDSA.recover(memberDigest(m), signature)]) revert BadSignature();
+        if (open) {
+            _openMarket(m.wallet, m.xId);
+        } else if (claimFan) {
+            _claimFanMarket(bound, m.wallet);
+        }
+        if (refer) _setReferrer(m.wallet, m.referrer);
+    }
+
     /* ------------------------------------------------------------------ trading */
 
     /// @notice Buys `units` of `subject`'s keys. Send at least the quoted total; change is refunded.
     function buy(address subject, uint256 units) external payable nonReentrant whenNotPaused {
+        _buy(subject, units);
+    }
+
+    function _buy(address subject, uint256 units) internal {
         if (units == 0) revert ZeroUnits();
         Market storage m = markets[subject];
         uint256 supplyBefore = m.supply;
@@ -486,6 +563,11 @@ contract SwayKeys is Ownable2Step, ReentrancyGuard, Pausable {
 
     /// @notice Records who invited `user`. Set once by the operator after the invite is verified.
     function setReferrer(address user, address referrer) external onlyOperator {
+        _setReferrer(user, referrer);
+    }
+
+    function _setReferrer(address user, address referrer) internal {
+        if (user == address(0)) revert ZeroAddress();
         if (referrerOf[user] != address(0)) revert ReferrerAlreadySet();
         if (referrer == address(0) || referrer == user) revert InvalidReferrer();
         referrerOf[user] = referrer;

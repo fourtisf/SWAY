@@ -97,7 +97,9 @@ export async function planDrop(deps: Pick<AppDeps, 'prisma' | 'config'>, v: View
   const { prisma, config } = deps;
   const contract = config.contracts.drops;
   if (!contract) throw unavailable('drops_unavailable', 'Creator drops are not deployed on this chain yet.');
-  if (!v.market?.opened || v.market.fan) throw conflict('no_market', 'Open your key market before dropping to holders.');
+  if (!v.market || v.market.fan) throw conflict('no_market', 'Open your key market before dropping to holders.');
+  // Unopened onchain: nobody has bought it yet.
+  if (!v.market.opened) throw conflict('no_holders', 'Nobody else holds your key yet.');
   if (amount < MIN_DROP_WEI || amount > MAX_DROP_WEI) throw badRequest('bad_amount', 'Drop between 0.000001 and 1,000 ETH.');
   const own = new Set(await memberAddresses(prisma, v.user.id));
   const escrow = config.contracts.fanEscrow?.toLowerCase();

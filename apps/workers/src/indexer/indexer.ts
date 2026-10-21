@@ -243,7 +243,8 @@ export class Indexer {
         await tx.earningsClaim.deleteMany({ where: { blockNumber: { gt: to } } });
         const reclaimed = await tx.keyMarket.findMany({ where: { claimBlock: { gt: to } } });
         for (const mk of reclaimed) {
-          await tx.keyMarket.update({ where: { id: mk.id }, data: { claimed: false, claimBlock: null } });
+          // Without sponsoring, the app's claim stands; the next buy's permit sends it again.
+          await tx.keyMarket.update({ where: { id: mk.id }, data: { claimBlock: null, ...(this.c.cfg.sponsorOnboarding ? { claimed: false } : {}) } });
           affected.add(mk.id);
         }
         const reopened = await tx.keyMarket.findMany({ where: { openBlock: { gt: to } } });

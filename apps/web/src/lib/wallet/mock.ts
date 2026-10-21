@@ -35,6 +35,9 @@ export function mockWallet(address: Address, kind: 'embedded' | 'external' = 'em
       w.execTrade(c.handle, 'sell', units, address);
       return txHash('sell');
     },
+    async register() {
+      return txHash('register');
+    },
     async claim() {
       const l = linked();
       const v = l ? l.earnedHolder : w.earned.creator + w.earned.holder + w.earned.ref;

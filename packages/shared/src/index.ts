@@ -5,3 +5,4 @@ export * from './launch';
 export * from './merkle';
 export * from './push';
 export * from './tasks';
+export * from './permits';
