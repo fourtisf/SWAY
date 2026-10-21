@@ -23,7 +23,7 @@ import { swayLaunchpadAbi, swayStakingAbi } from '@sway/shared/abi';
 import { errorMessage, getApi, isAuthRequired } from './api';
 import { qk, qkLaunch, useConfig, useMe } from './queries';
 import { closeModal, openModal, toast } from './store';
-import { useMemberWallets, useSwayWallet, type SwayWallet } from './wallet';
+import { SWAY_WALLET_OFF, useMemberWallets, useSwayWallet, type SwayWallet } from './wallet';
 import { openConnectWallet } from './wallet-actions';
 
 const api = () => getApi();
@@ -79,11 +79,15 @@ export function useLaunchActions() {
       openConnectWallet(owner.address);
       return null;
     }
+    if (owner?.status === 'unsupported') {
+      toast(SWAY_WALLET_OFF);
+      return null;
+    }
     if (!wallet) {
       if (status === 'none') openModal({ type: 'onboard' });
       else if (status === 'needs-external') openConnectWallet();
       else if (status === 'missing-key') toast('Your Sway wallet key isn’t on this device');
-      else toast('Embedded wallets aren’t available yet. Use your own wallet.');
+      else toast(SWAY_WALLET_OFF);
       return null;
     }
     if (address && !same(wallet.address, address)) {

@@ -177,6 +177,7 @@ export interface SwayApi {
   walletsLink(body: LinkWalletBody): Promise<MeDTO>;
   walletsLabel(address: string, body: WalletLabelBody): Promise<WalletInfoDTO>;
   walletsRemove(address: string): Promise<MeDTO>;
+  walletsMakeAccount(address: string): Promise<MeDTO>;
 
   /* [B] social, moderation, account & admin (SOCIAL_ROUTES) */
   deletePost(id: string): Promise<Ok>;
@@ -250,6 +251,7 @@ export const ROUTE_METHODS: Record<RouteKey, keyof SwayApi> = {
 /** [A] Same check for WALLET_ROUTES. */
 export const WALLET_ROUTE_METHODS: Record<WalletRouteKey, keyof SwayApi> = {
   wallets: 'wallets', walletsNonce: 'walletsNonce', walletsLink: 'walletsLink', walletsLabel: 'walletsLabel', walletsRemove: 'walletsRemove',
+  walletsMakeAccount: 'walletsMakeAccount',
 };
 
 /** [B] Same check for SOCIAL_ROUTES. */
@@ -444,6 +446,7 @@ export function createHttpApi(): SwayApi {
     walletsLink: (body) => requestRoute(WALLET_ROUTES.walletsLink, { body }),
     walletsLabel: (address, body) => requestRoute(WALLET_ROUTES.walletsLabel, { params: { address }, body }),
     walletsRemove: (address) => requestRoute(WALLET_ROUTES.walletsRemove, { params: { address } }),
+    walletsMakeAccount: (address) => requestRoute(WALLET_ROUTES.walletsMakeAccount, { params: { address } }),
 
     /* [B] social, moderation, account & admin */
     deletePost: (id) => requestRoute(SOCIAL_ROUTES.deletePost, { params: { id } }),

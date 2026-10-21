@@ -214,6 +214,35 @@ describe('linked wallets', () => {
     expect(bad.statusCode).toBe(400);
   });
 
+  it('makes a linked wallet the account wallet while the key market isn’t onchain', async () => {
+    const m = await member(ctx, 'switcher');
+    await prisma.wallet.update({ where: { address: m.address }, data: { kind: 'embedded', connector: 'sway' } });
+    const market = await prisma.keyMarket.create({
+      data: { subject: m.address, userId: m.user.id, xId: m.user.xId, claimed: true, opened: false, supplyUnits: 100n, holders: 1 },
+    });
+    await prisma.holding.create({ data: { marketId: market.id, address: m.address, units: 100n } });
+    const added = await addWallet(ctx, m.cookie);
+    expect(added.res.statusCode).toBe(200);
+    const next = added.address;
+
+    const self = await ctx.app.inject({ method: 'POST', url: `/api/wallets/${m.address}/account`, headers: { cookie: m.cookie } });
+    expect(self.json().error).toBe('account_wallet');
+
+    const res = await ctx.app.inject({ method: 'POST', url: `/api/wallets/${next}/account`, headers: { cookie: m.cookie } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json<MeDTO>().wallet).toEqual({ address: next, kind: 'external' });
+    expect(await prisma.keyMarket.findUniqueOrThrow({ where: { id: market.id } })).toMatchObject({ subject: next });
+    expect(await prisma.holding.findMany({ where: { marketId: market.id } })).toMatchObject([{ address: next, units: 100n }]);
+    // The old account wallet stays linked, so nothing it holds stops counting.
+    expect(await prisma.linkedWallet.findUnique({ where: { address: m.address } })).toMatchObject({ userId: m.user.id, kind: 'embedded' });
+
+    // Back again, then onchain: the market is bound to its wallet.
+    ctx.chain.markets.set(next, { owner: next, xId: BigInt(m.user.xId), fan: false, halted: false, supply: 100n });
+    const bound = await ctx.app.inject({ method: 'POST', url: `/api/wallets/${m.address}/account`, headers: { cookie: m.cookie } });
+    expect(bound.statusCode).toBe(409);
+    expect(bound.json().error).toBe('market_onchain');
+  });
+
   it('serves every WALLET_ROUTES route', () => {
     const missing = Object.values(WALLET_ROUTES).filter((r) => {
       const [method, url] = r.split(' ') as ['GET' | 'POST' | 'PATCH' | 'DELETE', string];

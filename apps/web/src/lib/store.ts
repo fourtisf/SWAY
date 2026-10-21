@@ -14,12 +14,13 @@ export type Modal =
   | { type: 'challenge'; handle?: string }
   | { type: 'claim'; handle: string }
   | { type: 'launch' }
-  /* [A] wallets: connect/add a wallet; Sway wallet backup and import; rename and remove a linked wallet. */
+  /* [A] wallets: connect/add a wallet; Sway wallet backup and import; rename, remove or promote a linked wallet. */
   | { type: 'wallets'; purpose: 'add' | 'reconnect'; address?: string }
   | { type: 'walletBackup'; address: string }
   | { type: 'walletImport' }
   | { type: 'walletRename'; address: string }
   | { type: 'walletRemove'; address: string }
+  | { type: 'walletAccount'; address: string }
   /* [B] post menu: boost confirm sheet, report a post or an account, delete confirm. */
   | { type: 'boost'; postId: string }
   | { type: 'report'; postId?: string; handle: string }

@@ -770,6 +770,7 @@ export const WALLET_ROUTES = {
   walletsLink: 'POST /api/wallets/link',
   walletsLabel: 'PATCH /api/wallets/:address',
   walletsRemove: 'DELETE /api/wallets/:address',
+  walletsMakeAccount: 'POST /api/wallets/:address/account',
 } as const;
 
 /**
@@ -786,6 +787,10 @@ export const WALLET_ROUTES = {
  *                  404 wallet_not_found (the account wallet can be renamed too)
  *   walletsRemove:                                                      R MeDTO
  *                  404 wallet_not_found; 409 account_wallet (the account wallet can't be removed)
+ *   walletsMakeAccount:                                                 R MeDTO
+ *                  The linked wallet becomes the account wallet (it then owns the key market) and the old
+ *                  account wallet stays linked. Only while the key market isn't onchain yet (onchain it's
+ *                  bound to its wallet). 404 wallet_not_found; 409 account_wallet / market_onchain / launched
  * Also: walletLink (account wallet) takes WalletLinkBody.connector; faucet takes FaucetBody (optional);
  * the wallet route answers WalletDTO summed across every wallet, with `wallets` per wallet.
  */

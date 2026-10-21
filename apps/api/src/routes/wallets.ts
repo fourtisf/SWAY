@@ -1,6 +1,6 @@
 /**
- * [A] Extra wallets (WALLET_ROUTES): list with balances, add by signature, rename, remove. The account wallet
- * is linked through POST /api/wallet/link and can't be renamed or removed here.
+ * [A] Extra wallets (WALLET_ROUTES): list with balances, add by signature, rename, remove, make the account wallet.
+ * The account wallet is linked through POST /api/wallet/link and can't be removed here.
  */
 import { randomBytes } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -24,6 +24,7 @@ import {
   addWalletMessage,
   accountInfo,
   linkedInfo,
+  makeAccountWallet,
   verifyLinkSignature,
   walletOverview,
 } from '../services/wallets';
@@ -117,6 +118,13 @@ export async function walletsRoutes(app: FastifyInstance) {
     const { row } = await linkedOf(req);
     const updated = await prisma.linkedWallet.update({ where: { id: row.id }, data: { label: b.label || null } });
     return linkedInfo(updated);
+  });
+
+  app.post('/wallets/:address/account', async (req): Promise<MeDTO> => {
+    const { v, row } = await linkedOf(req);
+    await makeAccountWallet(app.deps, v, row);
+    resetViewer(req);
+    return buildMe(prisma, await requireViewer(req));
   });
 
   app.delete('/wallets/:address', async (req): Promise<MeDTO> => {

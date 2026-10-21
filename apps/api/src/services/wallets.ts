@@ -257,6 +257,50 @@ export async function walletOverview(deps: Pick<AppDeps, 'prisma' | 'chain'>, v:
   };
 }
 
+/**
+ * Makes a linked wallet the member's account wallet; the old one stays linked. The account wallet owns the key
+ * market, so this works only while the market isn't onchain yet (members' markets open with their first buy):
+ * the market row and its locked first key move to the new wallet. Lets someone whose account wallet can't sign
+ * here (a browser-made Sway wallet on mainnet) carry on with a wallet app.
+ */
+export async function makeAccountWallet(
+  deps: Pick<AppDeps, 'prisma' | 'chain'>,
+  v: Viewer,
+  linked: LinkedWallet,
+): Promise<void> {
+  const { prisma, chain } = deps;
+  const old = v.wallet;
+  if (!old) throw conflict('no_wallet', 'Link an account wallet first');
+  const m = v.market;
+  if (m) {
+    // Onchain a member's market is bound to its wallet, and a fan market to the wallet that claimed it.
+    const onchain = await chain.market(m.subject as Address);
+    const bound = m.fan ? m.claimBlock !== null || (!!onchain && onchain.owner !== ZERO_ADDRESS) : m.opened || !!onchain;
+    if (bound)
+      throw conflict('market_onchain', 'Your key market is onchain at your account wallet, so that wallet stays your account wallet');
+  }
+  const lt = await prisma.launchToken.findUnique({ where: { userId: v.user.id } });
+  if (lt?.tokenAddress || lt?.launchedAt)
+    throw conflict('launched', 'Your token was launched from your account wallet, so that wallet stays your account wallet');
+
+  await prisma.$transaction(async (tx) => {
+    await tx.linkedWallet.delete({ where: { id: linked.id } });
+    await tx.wallet.update({
+      where: { id: old.id },
+      data: { address: linked.address, kind: linked.kind, connector: linked.connector, label: linked.label },
+    });
+    await tx.linkedWallet.create({
+      data: { userId: v.user.id, address: old.address, kind: old.kind, connector: old.connector, label: old.label, createdAt: old.createdAt },
+    });
+    if (m && !m.fan) {
+      await tx.keyMarket.update({ where: { id: m.id }, data: { subject: linked.address } });
+      await tx.holding.updateMany({ where: { marketId: m.id, address: old.address }, data: { address: linked.address } });
+    }
+    // An attestation not launched yet named the old wallet: the next one names the new wallet.
+    if (lt) await tx.launchAirdrop.deleteMany({ where: { launchTokenId: lt.id } });
+  });
+}
+
 /* ------------------------------------------------------------------ gas drip */
 
 export const GAS_DRIP_LABEL = 'Gas for your first trades';

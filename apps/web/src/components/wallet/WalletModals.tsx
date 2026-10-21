@@ -437,3 +437,42 @@ export function RemoveModal({ address }: { address: string }) {
   );
 }
 
+export function AccountWalletModal({ address }: { address: string }) {
+  const { wallets } = useMemberWallets();
+  const actions = useWalletActions();
+  const w = wallets.find((x) => same(x.address, address));
+  const current = wallets.find((x) => x.account);
+  const [busy, setBusy] = useState(false);
+  const name = (x: MemberWallet | undefined, a: string) => (x ? `${x.name} ${shortAddress(a)}` : shortAddress(a));
+  return (
+    <>
+      <Head title="Make it your account wallet?" />
+      <div className="m-b">
+        <p className="t2" style={{ margin: '0 0 12px' }}>
+          Your key market, token launch and creator earnings use your account wallet. {name(w, address)} takes that role
+          {current ? `; ${name(current, current.address)} stays added, with its money and keys` : ''}.
+        </p>
+        <p className="t3" style={{ fontSize: 12.5, margin: '0 0 16px' }}>
+          You can switch until your key market is onchain (its first buy or your launch). After that it stays with the
+          wallet it opened at.
+        </p>
+        <div className="row">
+          <button className="btn btn-glass btn-block" onClick={closeModal}>
+            Cancel
+          </button>
+          <button
+            className="btn btn-white btn-block"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              await actions.makeAccount(address);
+              setBusy(false);
+            }}
+          >
+            Make account wallet
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}

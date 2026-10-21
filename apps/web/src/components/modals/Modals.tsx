@@ -15,7 +15,7 @@ import { TradeSheet } from './TradeSheet';
 import { LaunchSheet } from '../launch/LaunchSheet'; // [C]
 import { BoostSheet, DeletePostModal, ReportModal } from './Social'; // [B]
 // [A] wallets & funding
-import { BackupModal, ConnectWalletModal, DepositModal, ImportModal, RemoveModal, RenameModal, WithdrawModal } from '../wallet/WalletModals';
+import { AccountWalletModal, BackupModal, ConnectWalletModal, DepositModal, ImportModal, RemoveModal, RenameModal, WithdrawModal } from '../wallet/WalletModals';
 import { DropModal } from '../engage/Drops'; // [D]
 
 function Head({ title }: { title: string }) {
@@ -189,6 +189,8 @@ function Body({ m }: { m: Modal }) {
       return <RenameModal address={m.address} />;
     case 'walletRemove':
       return <RemoveModal address={m.address} />;
+    case 'walletAccount':
+      return <AccountWalletModal address={m.address} />;
     // [D]
     case 'drop':
       return <DropModal />;

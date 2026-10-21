@@ -10,7 +10,7 @@ import { swayDropsAbi } from '@sway/shared/abi';
 import { errorMessage, getApi, isAuthRequired } from './api';
 import { qk, useConfig, useMe } from './queries';
 import { openModal, toast } from './store';
-import { useExternalWallet, useSwayWallet, type SwayWallet } from './wallet';
+import { SWAY_WALLET_OFF, useExternalWallet, useSwayWallet, type SwayWallet } from './wallet';
 import { currentPushSubscription, disablePush, enablePush, pushSupported } from './push';
 
 const api = () => getApi();
@@ -61,7 +61,7 @@ export function useEngageActions() {
         if (oc) oc();
         else toast('Connect your wallet to continue');
       } else if (status === 'missing-key') toast('Your Sway wallet key isn’t on this device');
-      else toast('Embedded wallets aren’t available yet. Use your own wallet.');
+      else toast(SWAY_WALLET_OFF);
       return null;
     }
     if (address && !same(wallet.address, address)) {

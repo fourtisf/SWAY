@@ -7,7 +7,7 @@ import { ApiRequestError, notifyAuthRequired, type SwayApi } from '../api';
 import { ETH_USD } from './seed';
 import { MockWorld } from './state';
 
-type SwayApiWallets = Pick<SwayApi, 'wallets' | 'walletsNonce' | 'walletsLink' | 'walletsLabel' | 'walletsRemove'>;
+type SwayApiWallets = Pick<SwayApi, 'wallets' | 'walletsNonce' | 'walletsLink' | 'walletsLabel' | 'walletsRemove' | 'walletsMakeAccount'>;
 
 const err = (status: number, code: string, message: string) => new ApiRequestError(status, code, message);
 
@@ -78,6 +78,22 @@ export function walletsMockApi(w: MockWorld): SwayApiWallets {
       const l = w.linked[i]!;
       for (const [h, k] of Object.entries(l.holdings)) w.holdings[h] = Math.max(0, +((w.holdings[h] || 0) - k).toFixed(2));
       w.linked.splice(i, 1);
+      return w.me()!;
+    },
+    async walletsMakeAccount(address) {
+      const u = needUser(w);
+      if (same(address, u.wallet)) throw err(409, 'account_wallet', 'This is already your account wallet');
+      const l = w.linkedOf(address);
+      if (!l) throw err(404, 'wallet_not_found', 'That wallet is not one of yours');
+      // Here a member's market goes onchain with its first buy (beyond the creator's own key).
+      if ((w.C[u.handle]?.supply ?? 0) > 1)
+        throw err(409, 'market_onchain', 'Your key market is onchain at your account wallet, so that wallet stays your account wallet');
+      const own = Object.fromEntries(Object.keys(w.holdings).map((h) => [h, w.accountUnits(h)]).filter(([, n]) => n));
+      const old = { address: u.wallet, ...w.account };
+      u.wallet = l.address;
+      w.account = { connector: l.connector, kind: l.kind, createdAt: l.createdAt, label: l.label };
+      [w.eth, l.eth] = [l.eth, w.eth];
+      Object.assign(l, { address: old.address, kind: old.kind, connector: old.connector, label: old.label ?? null, createdAt: old.createdAt, holdings: own });
       return w.me()!;
     },
   };

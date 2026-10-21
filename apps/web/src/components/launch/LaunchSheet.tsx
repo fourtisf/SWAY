@@ -5,12 +5,14 @@
  */
 import { weiToEth } from '@sway/curve';
 import { LAUNCH_NAME_MAX, symbolProblem, tokenNameProblem } from '@sway/shared';
+import Link from 'next/link';
 import { useState } from 'react';
 import { MOCK } from '@/lib/env';
 import { useFormat } from '@/lib/format';
 import { fmtTokens, useLaunchActions } from '@/lib/launch-actions';
 import { useConfig, useLaunchpad, useMe } from '@/lib/queries';
 import { closeModal } from '@/lib/store';
+import { useMemberWallets } from '@/lib/wallet';
 import { Icon } from '../icons';
 import { Avatar, Loading, Spinner } from '../ui';
 
@@ -22,6 +24,7 @@ export function LaunchSheet() {
   const official = !!useMe().data?.user.official;
   const F = useFormat();
   const act = useLaunchActions();
+  const account = useMemberWallets().wallets.find((w) => w.account);
   const [step, setStep] = useState<keyof typeof STEP | null>(null);
   // null until edited: the suggested name and ticker from the terms.
   const [picked, setPicked] = useState<{ name: string; symbol: string } | null>(null);
@@ -47,6 +50,25 @@ export function LaunchSheet() {
           <button className="btn btn-white btn-lg btn-block" onClick={closeModal}>
             Got it
           </button>
+        </div>
+      </>
+    );
+  // The token is launched from the account wallet; a browser-made Sway wallet can't sign on mainnet.
+  if (account?.status === 'unsupported' && !lp.launched)
+    return (
+      <>
+        {head}
+        <div className="m-b">
+          <p className="t2" style={{ margin: '0 0 12px' }}>
+            Your account wallet is a Sway wallet made in the browser, and those don’t work on this network yet.
+          </p>
+          <p className="t3" style={{ fontSize: 12.5, margin: '0 0 16px' }}>
+            On the Wallet page, add your wallet app (MetaMask, Rabby, Coinbase…), then pick ⋯ → Make account wallet.
+            Keep a little ETH in it for gas, then launch from there.
+          </p>
+          <Link href="/wallet" className="btn btn-white btn-lg btn-block" onClick={closeModal}>
+            Open Wallet
+          </Link>
         </div>
       </>
     );

@@ -65,6 +65,10 @@ export interface MemberWallet extends WalletInfoDTO {
   name: string;
 }
 
+/** A browser-made Sway wallet has to sign on a network where they're off (mainnet). */
+export const SWAY_WALLET_OFF =
+  'Sway wallets made in the browser don’t work on this network. Add your wallet app on the Wallet page, then ⋯ → Make account wallet.';
+
 /** The member's wallets (account first) with what this browser can do with each. */
 export function memberWalletsOf(
   me: MeDTO,

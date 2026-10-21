@@ -164,6 +164,23 @@ test('deposit QR per wallet, Sway wallet backup and import, rename and remove', 
   await expect(page.locator('.wl-list .tr.wl')).toHaveCount(2);
 });
 
+test('a linked wallet app becomes the account wallet; the Sway wallet stays added', async ({ page }) => {
+  await signIn(page, 'switchfan');
+  await enter(page, 'switchfan');
+  await nav(page, 'Wallet');
+  await addWallet(page, 'rabby', 'Rabby');
+  await expect(row(page, 'sway')).toContainText('Account');
+  await row(page, 'rabby').getByRole('button', { name: /Wallet menu/ }).click();
+  await page.getByRole('menuitem', { name: 'Make account wallet' }).click();
+  const modal = page.locator('.modal');
+  await expect(modal).toContainText('stays added, with its money and keys');
+  await modal.getByRole('button', { name: 'Make account wallet' }).click();
+  await expect(page.locator('.toasts')).toContainText('That’s your account wallet now');
+  await expect(row(page, 'rabby')).toContainText('Account');
+  await expect(row(page, 'sway')).not.toContainText('Account');
+  await expect(page.locator('.wl-list .tr.wl')).toHaveCount(2);
+});
+
 test('onboarding can connect a wallet app as the account wallet', async ({ page }) => {
   await signIn(page, 'wcfan', 'connect');
   const modal = page.locator('.modal');

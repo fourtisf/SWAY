@@ -1,5 +1,5 @@
 'use client';
-/** [A] Wallet actions: switch, copy, rename, remove, claim per wallet, test funds, import a Sway wallet key. */
+/** [A] Wallet actions: switch, copy, rename, remove, make the account wallet, claim per wallet, test funds, import a Sway wallet key. */
 import { weiToEth } from '@sway/curve';
 import { shortAddress, type Address, type EarningsDTO, type MeDTO } from '@sway/shared';
 import { useQueryClient } from '@tanstack/react-query';
@@ -72,6 +72,18 @@ export function useWalletActions() {
         await applied(next);
         closeModal();
         toast('Wallet removed');
+      } catch (e) {
+        fail(e);
+      }
+    },
+
+    async makeAccount(address: string) {
+      try {
+        const next = await getApi().walletsMakeAccount(address);
+        if (me) setActiveChoice(me.user.id, address);
+        await applied(next);
+        closeModal();
+        toast('That’s your account wallet now');
       } catch (e) {
         fail(e);
       }

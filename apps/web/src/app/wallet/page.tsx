@@ -79,6 +79,7 @@ function WalletMenu({ mw, active }: { mw: MemberWallet; active: boolean }) {
           {item('Copy address', () => copyAddress(mw.address))}
           {mw.kind === 'embedded' && mw.usable && item('Back up Sway wallet', () => openModal({ type: 'walletBackup', address: mw.address }))}
           {item('Rename', () => openModal({ type: 'walletRename', address: mw.address }))}
+          {!mw.account && item('Make account wallet', () => openModal({ type: 'walletAccount', address: mw.address }))}
           {!mw.account && item('Remove', () => openModal({ type: 'walletRemove', address: mw.address }), true)}
         </span>
       )}
