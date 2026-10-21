@@ -4,6 +4,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useActions } from '@/lib/actions';
 import { useFormat } from '@/lib/format';
+import { MOCK } from '@/lib/env';
 import { useConfig, useMe, useProfile, useWallets } from '@/lib/queries';
 import { useMemberWallets } from '@/lib/wallet';
 import { openConnectWallet } from '@/lib/wallet-actions';
@@ -29,7 +30,10 @@ export function TradeSheet({ handle, side: side0 }: { handle: string; side: 'buy
   const [amt, setAmt] = useState<number | null>(null);
   const [text, setText] = useState<string | null>(null);
   const [showFees, setShowFees] = useState(false);
-  const mainnet = !!useConfig().data?.mainnet;
+  const cfg = useConfig().data;
+  const mainnet = !!cfg?.mainnet;
+  // Until SwayKeys is deployed the markets exist only in the database: say so instead of failing at the wallet.
+  const live = MOCK || !cfg || !!cfg.contracts.swayKeys;
   const [busy, setBusy] = useState(false);
   // Selling: start from a wallet that actually holds this market's keys (once, when the sheet opens).
   const picked = useRef(false);
@@ -100,10 +104,12 @@ export function TradeSheet({ handle, side: side0 }: { handle: string; side: 'buy
   const cash = cashRow ? BigInt(cashRow.cashWei) : 0n;
   const needConnect = !!me && !!me.wallet && ready && !!active && !active.usable;
   const tooMuch = buy && !!q && q.total > cash;
-  const bad = a < CURVE.MIN || (buy ? tooMuch : a > maxSell);
+  const bad = !live || a < CURVE.MIN || (buy ? tooMuch : a > maxSell);
   const label = !me
     ? 'Connect X to trade'
-    : bad
+    : !live
+      ? 'Trading opens soon'
+      : bad
       ? buy
         ? tooMuch
           ? 'Not enough balance'
@@ -218,6 +224,13 @@ export function TradeSheet({ handle, side: side0 }: { handle: string; side: 'buy
               {dump && sum(`Early-sell fee ${dumpPct}% (to holders)`, q ? weiToEth(q.antiDumpFee) : 0)}
               {sum('Referral 1%', q ? weiToEth(q.referralFee) : 0)}
             </div>
+            {!live && (
+              <div className="fee-note" id="liveNote">
+                <p>
+                  <b>Trading opens soon.</b> Key markets go onchain when Sway’s contracts launch; follow @swaydotfamily for the date.
+                </p>
+              </div>
+            )}
             {mainnet && (
               <div className="fee-note risk-note" id="riskNote">
                 <p>
