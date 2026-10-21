@@ -46,6 +46,8 @@ contract SwayKeys is Ownable2Step, ReentrancyGuard, Pausable {
     uint256 public constant ANTI_DUMP_WINDOW = 24 hours;
 
     uint256 internal constant ACC_PRECISION = 1e18;
+    /// @dev Gas for reading a staking level: SwayStaking needs ~15k. Caps what a bad staking contract can burn.
+    uint256 internal constant LEVEL_GAS = 50_000;
 
     /* ------------------------------------------------------------------ storage */
 
@@ -192,15 +194,22 @@ contract SwayKeys is Ownable2Step, ReentrancyGuard, Pausable {
         return 7_500;
     }
 
-    /// @dev A failing staking contract must never block trading, so errors read as level 0.
+    /// @dev A failing or hostile staking contract must never block trading (sells included): the call gets
+    ///      LEVEL_GAS, only 32 bytes of its answer are read, and anything odd reads as level 0.
     function levelOf(address trader) public view returns (uint8) {
-        ISwayStaking s = staking;
-        if (address(s) == address(0)) return 0;
-        try s.levelOf(trader) returns (uint8 level) {
-            return level;
-        } catch {
-            return 0;
+        address s = address(staking);
+        if (s == address(0)) return 0;
+        bytes memory data = abi.encodeCall(ISwayStaking.levelOf, (trader));
+        bool ok;
+        uint256 size;
+        uint256 word;
+        assembly ("memory-safe") {
+            ok := staticcall(LEVEL_GAS, s, add(data, 0x20), mload(data), 0x00, 0x20)
+            size := returndatasize()
+            word := mload(0x00)
         }
+        if (!ok || size < 32 || word > 4) return 0;
+        return uint8(word);
     }
 
     /// @dev The Trade event reports fees where they actually go: a redirected creator fee and the anti-dump

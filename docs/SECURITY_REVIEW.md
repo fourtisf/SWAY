@@ -37,11 +37,11 @@ Solidity 0.8.24, OpenZeppelin 5.4. Also reviewed: the server's wallet handling t
 | S-2 | Medium | SwayStaking | Requesting an unstake dropped the fees earned while staked but not yet harvested. | **Fixed** by the same change. Test `test_unstakeKeepsFeesEarnedWhileStaked`. |
 | L-1 | High (trust) | SwayLaunchpad | `migrate()` sends a graduated curve's ETH and tokens to any address the owner names; nothing onchain ties it to a pool. | **Mitigated**: the launchpad is not deployed on mainnet unless `DEPLOY_LAUNCHPAD=1`. Fix before enabling: migrate into a fixed DEX router/pool in the same call. |
 | L-2 | Low | SwayLaunchpad | Airdrop claims weren't capped at the 10% allocation, so a wrong root could pay out tokens that belong to the curve. | **Fixed**: `airdropped[token]` capped at `HOLDER_ALLOCATION`. Test `test_airdropCappedAtHolderAllocation`. |
-| D-1 | High (ops) | Deploy | Every contract's owner defaulted to the deployer, which is the server's hot operator key. | **Fixed**: mainnet refuses to deploy unless `ADMIN` is a different wallet; ownership moves by two-step transfer. |
+| D-1 | High (ops) | Deploy | Every contract's owner defaulted to the deployer, which is the server's hot operator key. | **Fixed**: mainnet refuses to deploy unless `ADMIN` is a different wallet (two-step transfer), or the owner opts into one key with `ALLOW_SINGLE_KEY=1` (`setup-chain.sh --mainnet`, answer SAME). One key is the owner's choice: a server break-in then controls settings and future fees, though not users' balances or sells. |
 | D-2 | Medium (ops) | Deploy | On mainnet without $SWAY, staking would have been wired to a freshly minted test token. | **Fixed**: no staking (and never DevSway) on mainnet until `SWAY_TOKEN` is set; the stakers' half of the protocol fee goes to the treasury. |
 | W-1 | High (ops) | Web wallet | The "Create a Sway wallet" option keeps the private key in the browser's storage: clearing the browser loses the funds, and any script injection could read it. | **Mitigated**: off on mainnet (API reports `embedded: 'off'`, the UI and the link routes refuse it). People use wallet apps there. A custodial-grade embedded wallet (Privy/CDP) can bring it back. |
 | K-1 | Info (trust) | SwayKeys | The operator key can hand an unclaimed fan market and its escrow to any address, set referrers once per user, flag a creator inactive (their 6% then goes to holders) and open markets. | **Accepted**, by design (the server acts on X sign-ins). See operations below. |
-| K-2 | Low (trust) | SwayKeys | The owner can point `staking` at a contract whose `levelOf` burns gas, making trades fail. | **Accepted**: owner trust; the owner is the multisig/cold wallet. |
+| K-2 | Medium (trust) | SwayKeys | A compromised owner could point `staking` at a contract whose `levelOf` burns gas, reverts or returns a huge payload; `levelOf` runs on sells too, so holders could be stopped from selling. | **Fixed**: the staking read gets 50k gas, reads 32 bytes and treats anything odd as level 0. Tests in `HostileStaking.t.sol` (gas burner, return bomb, revert, out-of-range level). |
 | G-1 | Low | GenesisPass | `_safeMint` calls the receiver; one contract that rejects it makes the whole `mintBatch` revert. | **Accepted**: the issuer retries without that address. |
 
 ### Slither (23 results, none exploitable)
@@ -70,7 +70,9 @@ Solidity 0.8.24, OpenZeppelin 5.4. Also reviewed: the server's wallet handling t
 ## Running mainnet safely
 
 1. **Owner = your own wallet**, ideally a Safe multisig. `setup-chain.sh --mainnet` asks for it; then accept
-   ownership on each contract from that wallet (explorer → Contract → Write → `acceptOwnership`).
+   ownership on each contract from that wallet (explorer → Contract → Write → `acceptOwnership`). Answering SAME
+   keeps one key for owner and operator on the server (no acceptOwnership step); move ownership to a separate
+   wallet later with `transferOwnership` + `acceptOwnership` when you can.
 2. **Operator key = hot, minimal.** It lives only in `/srv/sway/.env` (mode 600) and needs only gas money. If the
    server is ever compromised: from the owner wallet, `pause()` SwayKeys, `setOperator(old, false)` and
    `setFanAdmin(old, false)`, then set a new key.

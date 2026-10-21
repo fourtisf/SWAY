@@ -3,7 +3,7 @@
 # Run as root, and again after funding the wallet; finished steps are skipped:
 #   bash /srv/sway/deploy/setup-chain.sh             Robinhood Chain testnet (free test ETH)
 #   bash /srv/sway/deploy/setup-chain.sh --mainnet   Robinhood Chain mainnet (real ETH; asks for confirmation
-#                                                    and for an owner wallet that isn't the server's key)
+#                                                    and for an owner wallet, or SAME to use one key for both)
 # The operator key is written to .env only (readable by the app user); it is never printed.
 set -euo pipefail
 [ "$(id -u)" = 0 ] || { echo "run as root: bash $0" >&2; exit 1; }
@@ -55,11 +55,26 @@ if [ "$MAINNET" = 1 ]; then
   case "$(get EXPLORER_URL)" in *mainnet*|*blockscout*) ;; *) put EXPLORER_URL https://explorer.mainnet.chain.robinhood.com ;; esac
   put FAUCET_URL ""
   put SWAY_ENABLE_MAINNET 1
-  if blank ADMIN_ADDRESS; then
-    echo "    The contracts' owner (pause, settings) must be YOUR wallet, not the server's key."
-    read -rp "    Owner wallet address (0x..., e.g. your MetaMask): " ADMIN_IN
-    [[ "$ADMIN_IN" =~ ^0x[0-9a-fA-F]{40}$ ]] || { echo "that is not an address" >&2; exit 1; }
-    put ADMIN_ADDRESS "$ADMIN_IN"
+  if blank ADMIN_ADDRESS && [ "$(get SINGLE_KEY)" != 1 ]; then
+    echo "    The contracts' owner (pause, settings, treasury) is best kept in YOUR wallet, apart from the server's key."
+    read -rp "    Owner wallet address (0x...), or SAME to use one key for owner and operator: " ADMIN_IN
+    if [ "$ADMIN_IN" = SAME ]; then
+      echo "    One key: it will sit on this server and can pause, change the treasury and hand over the contracts."
+      echo "    If the server is ever broken into, whoever gets it controls Sway's settings and future fees."
+      read -rp "    Type ONE KEY to confirm: " OK1
+      [ "$OK1" = "ONE KEY" ] || { echo "stopped" >&2; exit 1; }
+      read -rsp "    Paste that wallet's private key (hidden; Enter = create a new one): " PK_IN; echo
+      PK_IN="${PK_IN#0x}"
+      if [ -n "$PK_IN" ]; then
+        [[ "$PK_IN" =~ ^[0-9a-fA-F]{64}$ ]] || { echo "that is not a private key (64 hex characters)" >&2; exit 1; }
+        put OPERATOR_PRIVATE_KEY "0x$PK_IN"
+        put ISSUER_PRIVATE_KEY "0x$PK_IN"
+      fi
+      put SINGLE_KEY 1
+    else
+      [[ "$ADMIN_IN" =~ ^0x[0-9a-fA-F]{40}$ ]] || { echo "that is not an address" >&2; exit 1; }
+      put ADMIN_ADDRESS "$ADMIN_IN"
+    fi
   fi
 else
   echo "1/5 Robinhood Chain testnet settings"
@@ -91,8 +106,9 @@ ADDR="$(CAST wallet address --private-key "$(get OPERATOR_PRIVATE_KEY)")"
 echo "    operator address: $ADDR"
 GOT="$(CAST chain-id --rpc-url "$RPC" || true)"
 [ "$GOT" = "$(get CHAIN_ID)" ] || { echo "the RPC at $RPC answers chain '$GOT', expected $(get CHAIN_ID): fix RPC_URL in .env" >&2; exit 1; }
-if [ "$MAINNET" = 1 ] && [ "$(echo "$ADDR" | lower)" = "$(get ADMIN_ADDRESS | lower)" ]; then
-  echo "the owner wallet can't be the server's operator key: set ADMIN_ADDRESS in .env to your own wallet" >&2
+if [ "$MAINNET" = 1 ] && [ "$(get SINGLE_KEY)" != 1 ] && [ "$(echo "$ADDR" | lower)" = "$(get ADMIN_ADDRESS | lower)" ]; then
+  echo "the owner wallet is the server's operator key: run again and answer SAME to keep one key on purpose" >&2
+  put ADMIN_ADDRESS ""
   exit 1
 fi
 
@@ -116,7 +132,7 @@ if blank SWAY_KEYS_ADDRESS; then
     exit 0
   fi
   echo "    balance ok, deploying (a few minutes)"
-  as_app_env env RPC="$RPC" PK="$(get OPERATOR_PRIVATE_KEY)" ALLOW_MAINNET="$MAINNET" OWNER="$(get ADMIN_ADDRESS)" bash -lc \
+  as_app_env env RPC="$RPC" PK="$(get OPERATOR_PRIVATE_KEY)" ALLOW_MAINNET="$MAINNET" ALLOW_SINGLE_KEY="$(get SINGLE_KEY)" OWNER="$(get ADMIN_ADDRESS)" bash -lc \
     "cd '$ROOT/contracts' && if [ -n \"\$OWNER\" ]; then export ADMIN=\"\$OWNER\"; fi; ~/.foundry/bin/forge script script/Deploy.s.sol:Deploy --rpc-url \"\$RPC\" --private-key \"\$PK\" --broadcast --slow"
   bash "$ROOT/scripts/apply-deployment.sh" "$(get CHAIN_ID)"
   chown "$APP_USER:$APP_USER" "$ENV"
@@ -128,6 +144,13 @@ fi
 echo "5/5 Build and restart"
 bash "$ROOT/deploy/update.sh"
 
+if [ "$MAINNET" = 1 ] && [ "$(get SINGLE_KEY)" = 1 ]; then
+  echo
+  echo "Mainnet trading is on, with one key ($ADDR) as owner and operator."
+  echo "  Back up $ENV somewhere safe and keep that key's seed/private key offline too."
+  echo "People buy and sell with wallet apps (MetaMask, Coinbase Wallet, Rabby...) holding ETH on Robinhood Chain."
+  exit 0
+fi
 if [ "$MAINNET" = 1 ]; then
   echo
   echo "Mainnet trading is on. Two things only you can do:"

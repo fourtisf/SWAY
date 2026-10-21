@@ -30,7 +30,8 @@ contract DevSway is ERC20 {
 ///   GENESIS_BASE_URI
 ///   DEPLOY_LAUNCHPAD  1 to deploy SwayLaunchpad on mainnet (off by default there: migrate() trusts the owner).
 /// Mainnet (chain 4663) requires ALLOW_MAINNET=1 (the contracts have no third-party audit) and an ADMIN that
-/// isn't the deployer (the deployer is the server's operator key). Without SWAY_TOKEN, mainnet gets no staking
+/// isn't the deployer (the deployer is the server's operator key), unless the owner opts into one key for both
+/// with ALLOW_SINGLE_KEY=1. Without SWAY_TOKEN, mainnet gets no staking
 /// (the stakers' half of the protocol fee goes to the treasury) and never a DevSway.
 contract Deploy is Script {
     struct Config {
@@ -72,7 +73,10 @@ contract Deploy is Script {
         bool mainnet = block.chainid == 4663;
         if (mainnet) {
             require(vm.envOr("ALLOW_MAINNET", uint256(0)) == 1, "unaudited: set ALLOW_MAINNET=1 after the audit");
-            require(c.admin != c.deployer, "mainnet: set ADMIN to a separate wallet (ideally a Safe), not the operator key");
+            require(
+                c.admin != c.deployer || vm.envOr("ALLOW_SINGLE_KEY", uint256(0)) == 1,
+                "mainnet: set ADMIN to a separate wallet (ideally a Safe), or ALLOW_SINGLE_KEY=1 to keep one key"
+            );
         }
         uint256 startBlock = block.number;
         vm.startBroadcast();
