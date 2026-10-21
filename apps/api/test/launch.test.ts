@@ -247,6 +247,32 @@ describe('POST /api/launchpad/attest', () => {
     expect((await post<LaunchAttestation>('/api/launchpad/attest', opened.cookie)).body.permit).toBeNull();
   });
 
+  it('the creator picks the name and ticker; bad, reserved and taken tickers are refused', async () => {
+    const { c } = await creatorWithHolders([]);
+    const a = (await post<LaunchAttestation>('/api/launchpad/attest', c.cookie, { name: ' Nova Coin ', symbol: '$nova' })).body;
+    expect(a).toMatchObject({ name: 'Nova Coin', symbol: 'NOVA' });
+    expect(await prisma.launchToken.findUniqueOrThrow({ where: { userId: c.user.id } })).toMatchObject({ name: 'Nova Coin', symbol: 'NOVA' });
+    // Comes back prefilled until launch.
+    expect((await get<LaunchpadResponse>('/api/launchpad', c.cookie)).body.terms).toMatchObject({ name: 'Nova Coin', symbol: 'NOVA' });
+
+    const err = async (payload: object) => {
+      const r = await post<{ error: string }>('/api/launchpad/attest', c.cookie, payload);
+      return [r.status, r.body.error];
+    };
+    expect(await err({ symbol: 'A' })).toEqual([400, 'bad_symbol']);
+    expect(await err({ symbol: 'NO-DASH' })).toEqual([400, 'bad_symbol']);
+    expect(await err({ symbol: 'SWAY' })).toEqual([400, 'bad_symbol']);
+    expect(await err({ name: 'x'.repeat(40) })).toEqual([400, 'bad_name']);
+    const other = await member(ctx, 'tickerowner');
+    await prisma.launchToken.create({
+      data: { userId: other.user.id, name: 'Taken', symbol: 'TAKEN', tokenAddress: '0x00000000000000000000000000000000000000bb' },
+    });
+    expect(await err({ symbol: 'taken' })).toEqual([409, 'symbol_taken']);
+    // The official account may use the reserved ticker.
+    await prisma.user.update({ where: { id: c.user.id }, data: { official: true } });
+    expect((await post<LaunchAttestation>('/api/launchpad/attest', c.cookie, { symbol: 'SWAY' })).body.symbol).toBe('SWAY');
+  });
+
   it('creator only: the whole 10% goes to the account wallet', async () => {
     const { c } = await creatorWithHolders([]);
     const a = (await post<LaunchAttestation>('/api/launchpad/attest', c.cookie)).body;
@@ -290,7 +316,7 @@ describe('POST /api/launchpad/attest', () => {
       ['novareyes', '50'],
       ['carol', '50'],
     ]);
-    expect(preview.terms!.symbol).toBe('NOVARE');
+    expect(preview.terms!.symbol).toBe('NOVAREYES');
     expect(preview.terms!.startCapUsd).toBe(2000 + c.user.score * 60);
     expect(preview.terms!.startCapWei).toBe(usdToWei(2000 + c.user.score * 60, 3420).toString());
     expect(preview.terms!.graduationCapWei).toBe(usdToWei(69_000, 3420).toString());
@@ -317,7 +343,7 @@ describe('POST /api/launchpad/attest', () => {
       ).toBe(true);
     const lt = await prisma.launchToken.findUniqueOrThrow({ where: { userId: c.user.id } });
     expect(lt).toMatchObject({
-      symbol: 'NOVARE',
+      symbol: 'NOVAREYES',
       name: c.user.name,
       airdropRoot: a.airdropRoot,
       tokenAddress: null,
@@ -381,7 +407,7 @@ describe('launched tokens and airdrops', () => {
     const t = lp.token!;
     expect(t).toMatchObject({
       address: token,
-      symbol: 'NOVARE',
+      symbol: 'NOVAREYES',
       creatorAddress: c.address,
       creatorFeesWei: '12345',
       graduated: false,
@@ -396,7 +422,7 @@ describe('launched tokens and airdrops', () => {
     expect(t.balances).toEqual([{ address: c.address, balance: (7n * E18).toString(), allowance: '0' }]);
 
     const pub = (await get<LaunchTokenResponse>('/api/launchpad/tokens/novareyes')).body;
-    expect(pub).toMatchObject({ symbol: '$NOVARE', launched: true, creator: { handle: 'novareyes' } });
+    expect(pub).toMatchObject({ symbol: '$NOVAREYES', launched: true, creator: { handle: 'novareyes' } });
     expect(pub.token!.isMine).toBe(false);
     expect(pub.token!.balances).toEqual([]);
     const asBob = (await get<LaunchTokenResponse>('/api/launchpad/tokens/novareyes', bob.cookie)).body;
@@ -445,8 +471,8 @@ describe('launched tokens and airdrops', () => {
     expect(r.launchpad).toBe(PAD);
     expect(r.allocations.map((x) => [x.address, x.walletKind, x.symbol, x.creator.handle])).toEqual(
       expect.arrayContaining([
-        [bob.address, 'account', 'NOVARE', 'novareyes'],
-        [bobLinked, 'linked', 'NOVARE', 'novareyes'],
+        [bob.address, 'account', 'NOVAREYES', 'novareyes'],
+        [bobLinked, 'linked', 'NOVAREYES', 'novareyes'],
       ]),
     );
     expect(r.allocations).toHaveLength(2);

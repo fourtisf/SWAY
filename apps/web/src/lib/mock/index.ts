@@ -3,7 +3,7 @@
  * on the prototype's seed data and live simulation. Needs no API, chain or wallet.
  */
 import { ethToWei, priceAt, quoteWei, weiToEth } from '@sway/curve';
-import { POST_MAX, POST_MAX_STAKED, hash, normalizeHandle, type ConfigDTO, type LeaderboardRow, type MarketDTO } from '@sway/shared';
+import { POST_MAX, POST_MAX_STAKED, hash, launchSymbol, normalizeHandle, type ConfigDTO, type LeaderboardRow, type MarketDTO } from '@sway/shared';
 import { ApiRequestError, notifyAuthRequired, type SwayApi } from '../api';
 import { emitMock } from './bus';
 import { ETH_USD, fakeAddress, fakeHash } from './seed';
@@ -368,7 +368,7 @@ export function getMockApi(): SwayApi {
     async launchpad() {
       const u = w.user;
       return {
-        symbol: u ? '$' + u.handle.replace(/[^a-z0-9]/g, '').slice(0, 6).toUpperCase() : '$YOU',
+        symbol: u ? '$' + launchSymbol(u.handle, u.name) : '$YOU',
         score: u ? u.score : null,
         startCapUsd: u ? 2000 + u.score * 60 : null,
         launched: false,

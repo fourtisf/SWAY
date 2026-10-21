@@ -289,7 +289,7 @@ describe('leaderboard, genesis, launchpad', () => {
       await ctx.app.inject({ url: '/api/launchpad', headers: { cookie } })
     ).json<LaunchpadResponse>();
     expect(r).toEqual({
-      symbol: '$KENJIO',
+      symbol: '$KENJIONCHA', // display name too long for a ticker: the handle's first ten
       score: user.score,
       startCapUsd: 2000 + user.score * 60,
       launched: false,

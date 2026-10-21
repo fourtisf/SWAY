@@ -1178,6 +1178,12 @@ export interface LaunchTokenResponse {
 }
 
 /** POST /api/launchpad/attest: the operator-signed terms to pass to SwayLaunchpad.launch. */
+/** The creator's own token name and ticker (without "$"); the suggested ones when left out. */
+export interface LaunchAttestBody {
+  name?: string;
+  symbol?: string;
+}
+
 export interface LaunchAttestation {
   launchpad: Address;
   /** The account wallet that owns the key market; it must send the launch transaction. */
@@ -1271,8 +1277,9 @@ export interface GenesisListResponse {
 
 /**
  * [C] routes. Q/B/R as in ROUTES:
- *   launchAttest:         (member with an opened market, not launched)       R LaunchAttestation
- *                         409 no_wallet / no_market / already_launched; 503 launch_unavailable / signer_mismatch
+ *   launchAttest:         (member with an opened market, not launched)       B LaunchAttestBody R LaunchAttestation
+ *                         400 bad_name / bad_symbol; 409 no_wallet / no_market / already_launched / symbol_taken;
+ *                         503 launch_unavailable / signer_mismatch
  *   launchToken:                                                             R LaunchTokenResponse
  *   launchAirdrops:       (viewer's unclaimed allocations across all their wallets; claimed ones drop out
  *                         as soon as SwayLaunchpad.airdropClaimed reads true)  R AirdropsResponse

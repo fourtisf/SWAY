@@ -10,15 +10,34 @@ import {
   launchQuoteSell,
   launchStartCapUsd,
   launchSymbol,
+  normalizeSymbol,
+  symbolProblem,
+  tokenNameProblem,
 } from '../src/launch';
 
 const E18 = 10n ** 18n;
 
 describe('launch curve (SwayLaunchpad port)', () => {
-  it('symbol and start cap follow the prototype', () => {
-    expect(launchSymbol('kenji_onchain99')).toBe('KENJIO');
-    expect(launchSymbol('Nova.Reyes')).toBe('NOVARE');
+  it('suggests a ticker from the display name, else the handle; the start cap follows the prototype', () => {
+    expect(launchSymbol('swaydotfamily', 'Sway', true)).toBe('SWAY');
+    expect(launchSymbol('novareyes', 'Nova Reyes')).toBe('NOVAREYES');
+    expect(launchSymbol('kenji_onchain99', 'Kenji 🌊 on-chain builder')).toBe('KENJIONCHA');
+    // Only the official account gets the protocol's own ticker.
+    expect(launchSymbol('swayfan', 'Sway')).toBe('SWAYFAN');
     expect(launchStartCapUsd(82)).toBe(2000 + 82 * 60);
+  });
+
+  it('checks the ticker and name a creator picks', () => {
+    expect(normalizeSymbol(' $sway ')).toBe('SWAY');
+    expect(symbolProblem('SWAY', true)).toBeNull();
+    expect(symbolProblem('SWAY')).toMatch(/reserved/);
+    expect(symbolProblem('1INCH')).toBeNull();
+    expect(symbolProblem('A')).toMatch(/2 to 10/);
+    expect(symbolProblem('TOOLONGTICKER')).toMatch(/2 to 10/);
+    expect(symbolProblem('NO-DASH')).toMatch(/2 to 10/);
+    expect(tokenNameProblem(' Sway ')).toBeNull();
+    expect(tokenNameProblem('  ')).toMatch(/name/);
+    expect(tokenNameProblem('x'.repeat(33))).toMatch(/33/);
   });
 
   it('the start cap seeds the market cap (virtualEth = cap × 90%)', () => {

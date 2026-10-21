@@ -98,6 +98,7 @@ import {
   type WatchlistResponse,
   type AirdropsResponse,
   type GenesisListResponse,
+  type LaunchAttestBody,
   type LaunchAttestation,
   type LaunchRouteKey,
   type LaunchTokenResponse,
@@ -206,7 +207,7 @@ export interface SwayApi {
   adminOpenFanMarket(body: OpenFanMarketBody): Promise<AdminTxResult & { market: AdminMarketDTO }>;
 
   /* [C] launchpad, staking & genesis (LAUNCH_ROUTES) */
-  launchAttest(): Promise<LaunchAttestation>;
+  launchAttest(body?: LaunchAttestBody): Promise<LaunchAttestation>;
   launchToken(handle: string): Promise<LaunchTokenResponse>;
   launchAirdrops(): Promise<AirdropsResponse>;
   staking(): Promise<StakingResponse>;
@@ -471,7 +472,7 @@ export function createHttpApi(): SwayApi {
     adminOpenFanMarket: (body) => requestRoute(SOCIAL_ROUTES.adminOpenFanMarket, { body }),
 
     /* [C] launchpad, staking & genesis */
-    launchAttest: () => requestRoute(LAUNCH_ROUTES.launchAttest),
+    launchAttest: (body) => requestRoute(LAUNCH_ROUTES.launchAttest, { body: body ?? {} }),
     launchToken: (handle) => requestRoute(LAUNCH_ROUTES.launchToken, { params: p(handle) }),
     launchAirdrops: () => requestRoute(LAUNCH_ROUTES.launchAirdrops),
     staking: () => requestRoute(LAUNCH_ROUTES.staking),

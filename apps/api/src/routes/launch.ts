@@ -1,12 +1,12 @@
 /** [C] Launchpad (terms, attestation, tokens, key-holder airdrops) and $SWAY staking. */
 import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import {
   POST_MAX_STAKED,
   STAKING_COOLDOWN_S,
   STAKING_DEFAULT_THRESHOLDS,
   STAKING_LEVELS,
   launchStartCapUsd,
-  launchSymbol,
   type Address,
   type AirdropAllocationDTO,
   type AirdropsResponse,
@@ -15,7 +15,7 @@ import {
   type LaunchpadResponse,
   type StakingResponse,
 } from '@sway/shared';
-import { HandleParams, params, userByHandle } from './_util';
+import { HandleParams, body, params, userByHandle } from './_util';
 import { getViewer, requireViewer } from '../plugins/auth';
 import { userRef } from '../services/dto';
 import { permitsEnabled } from '../services/onboarding';
@@ -23,6 +23,7 @@ import {
   attest,
   launchChainOf,
   launchableMarket,
+  suggestedSymbol,
   termsDTO,
   tokenAddressOf,
   tokenDTO,
@@ -40,7 +41,7 @@ export async function launchRoutes(app: FastifyInstance) {
     const lt = await prisma.launchToken.findUnique({ where: { userId: v.user.id } });
     const token = await tokenAddressOf(lc(), lt, v.wallet?.address ?? null);
     const base: LaunchpadResponse = {
-      symbol: '$' + (lt?.symbol ?? launchSymbol(v.user.handle)),
+      symbol: '$' + (lt?.symbol ?? suggestedSymbol(v.user)),
       score: v.user.score,
       startCapUsd: launchStartCapUsd(v.user.score),
       launched: !!token,
@@ -72,7 +73,7 @@ export async function launchRoutes(app: FastifyInstance) {
     const v = await getViewer(req);
     const out: LaunchTokenResponse = {
       creator: { ...userRef(u, u.market), score: u.score },
-      symbol: '$' + (lt?.symbol ?? launchSymbol(u.handle)),
+      symbol: '$' + (lt?.symbol ?? suggestedSymbol(u)),
       launched: !!token,
       token: null,
     };
@@ -86,7 +87,11 @@ export async function launchRoutes(app: FastifyInstance) {
   app.post(
     '/launchpad/attest',
     { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } },
-    async (req): Promise<LaunchAttestation> => attest(app.deps, lc(), await requireViewer(req)),
+    async (req): Promise<LaunchAttestation> => {
+      const v = await requireViewer(req);
+      const b = body(z.object({ name: z.string().max(200).optional(), symbol: z.string().max(40).optional() }), req);
+      return attest(app.deps, lc(), v, b);
+    },
   );
 
   app.get('/launchpad/airdrops', async (req): Promise<AirdropsResponse> => {

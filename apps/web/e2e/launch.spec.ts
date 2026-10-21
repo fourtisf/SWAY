@@ -36,28 +36,37 @@ test('launch my token, trade it and claim creator fees', async ({ page }) => {
   await expect(page.locator('#main')).toContainText('Turn your reach into a token with one switch.');
   await page.locator('#main').getByRole('switch', { name: 'Launch your reach as a token' }).click();
   await expect(page.locator('.tok .tag')).toHaveText('Ready');
-  await page.getByRole('button', { name: 'Launch $LAUNCH' }).click();
+  await page.getByRole('button', { name: /^Launch \$/ }).click();
 
   const sheet = page.locator('.modal');
-  await expect(sheet).toContainText('Launch $LAUNCH?');
   await expect(sheet).toContainText('Start cap');
   // The live simulation may have sold someone one of our keys already.
   await expect(sheet).toContainText(/Nobody else holds your keys yet|10% to \d+ holder/);
-  await sheet.getByRole('button', { name: 'Launch $LAUNCH' }).click();
-  await expect(page.locator('.toasts')).toContainText('$LAUNCH is live');
+  // The creator picks the name and ticker; a bad or reserved ticker can't be launched.
+  await sheet.getByLabel('Token name').fill('Launch Test');
+  const ticker = sheet.getByLabel('Ticker');
+  await ticker.fill('a');
+  await expect(sheet.locator('#lt-hint')).toContainText('2 to 10 letters or digits');
+  await expect(sheet.getByRole('button', { name: /^Launch \$/ })).toBeDisabled();
+  await ticker.fill('$sway');
+  await expect(sheet.locator('#lt-hint')).toContainText('$SWAY is reserved for Sway');
+  await ticker.fill('ltest');
+  await expect(sheet).toContainText('Launch $LTEST?');
+  await sheet.getByRole('button', { name: 'Launch $LTEST' }).click();
+  await expect(page.locator('.toasts')).toContainText('$LTEST is live');
   await expect(page.locator('.modal')).toHaveCount(0);
-  await expect(page.locator('#main')).toContainText('$LAUNCH is live.');
+  await expect(page.locator('#main')).toContainText('$LTEST is live.');
 
   const box = page.locator('#tokenBox');
   await expect(box).toContainText('Progress to graduation');
   await box.getByRole('button', { name: '0.05 ETH' }).click();
-  await box.getByRole('button', { name: /^Buy \$LAUNCH for \$/ }).click();
-  await expect(page.locator('.toasts')).toContainText(/Bought .* \$LAUNCH/);
+  await box.getByRole('button', { name: /^Buy \$LTEST for \$/ }).click();
+  await expect(page.locator('.toasts')).toContainText(/Bought .* \$LTEST/);
 
   await box.locator('.tside').getByRole('button', { name: 'Sell' }).click();
   await box.getByRole('button', { name: 'Max' }).click();
-  await box.getByRole('button', { name: /^Sell .* \$LAUNCH$/ }).click();
-  await expect(page.locator('.toasts')).toContainText(/Sold .* \$LAUNCH/);
+  await box.getByRole('button', { name: /^Sell .* \$LTEST$/ }).click();
+  await expect(page.locator('.toasts')).toContainText(/Sold .* \$LTEST/);
   await expect(box).toContainText('You hold 0');
 
   await box.getByRole('button', { name: 'Claim creator fees' }).click();
@@ -77,26 +86,26 @@ test('a creator whose keys I hold launches: claim the airdrop, trade another tok
   await nav(page, 'Wallet');
   const card = page.locator('#airdrops');
   await expect(card).toContainText('Token airdrops to claim');
-  await expect(card).toContainText('$NOVARE');
+  await expect(card).toContainText('$NOVAREYES');
   await card.getByRole('button', { name: 'Claim' }).click();
-  await expect(page.locator('.toasts')).toContainText(/Claimed .* \$NOVARE/);
+  await expect(page.locator('.toasts')).toContainText(/Claimed .* \$NOVAREYES/);
   await expect(page.locator('#airdrops')).toHaveCount(0);
 
   // The token page of any creator; the claimed tokens are in my balance.
   await go(page, '/launchpad/novareyes');
   const box = page.locator('#tokenBox');
-  await expect(box).toContainText('$NOVARE');
+  await expect(box).toContainText('$NOVAREYES');
   await box.locator('.tside').getByRole('button', { name: 'Sell' }).click();
   await expect(box).not.toContainText('You hold 0');
 
   await go(page, '/launchpad/makotrades');
-  await expect(page.locator('#tokenBox')).toContainText('$MAKOTR');
-  await page.locator('#tokenBox').getByRole('button', { name: /^Buy \$MAKOTR for \$/ }).click();
-  await expect(page.locator('.toasts')).toContainText(/Bought .* \$MAKOTR/);
+  await expect(page.locator('#tokenBox')).toContainText('$MAKO');
+  await page.locator('#tokenBox').getByRole('button', { name: /^Buy \$MAKO for \$/ }).click();
+  await expect(page.locator('.toasts')).toContainText(/Bought .* \$MAKO/);
   await page.locator('#tokenBox .tside').getByRole('button', { name: 'Sell' }).click();
   await page.locator('#tokenBox').getByRole('button', { name: '50%' }).click();
-  await page.locator('#tokenBox').getByRole('button', { name: /^Sell .* \$MAKOTR$/ }).click();
-  await expect(page.locator('.toasts')).toContainText(/Sold .* \$MAKOTR/);
+  await page.locator('#tokenBox').getByRole('button', { name: /^Sell .* \$MAKO$/ }).click();
+  await expect(page.locator('.toasts')).toContainText(/Sold .* \$MAKO/);
 
   await go(page, '/launchpad/kenjionchain');
   await expect(page.locator('#main')).toContainText('hasn’t launched a token yet');

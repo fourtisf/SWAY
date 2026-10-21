@@ -1,11 +1,15 @@
 'use client';
-/** [C] The "Launch $SYM?" confirm sheet: the terms the operator will sign, then attest → launch → wait. */
+/**
+ * [C] The "Launch $SYM?" confirm sheet: the creator picks the token's name and ticker (suggested from their display
+ * name), sees the terms the operator will sign, then attest → launch → wait.
+ */
 import { weiToEth } from '@sway/curve';
+import { LAUNCH_NAME_MAX, symbolProblem, tokenNameProblem } from '@sway/shared';
 import { useState } from 'react';
 import { MOCK } from '@/lib/env';
 import { useFormat } from '@/lib/format';
 import { fmtTokens, useLaunchActions } from '@/lib/launch-actions';
-import { useConfig, useLaunchpad } from '@/lib/queries';
+import { useConfig, useLaunchpad, useMe } from '@/lib/queries';
 import { closeModal } from '@/lib/store';
 import { Icon } from '../icons';
 import { Avatar, Loading, Spinner } from '../ui';
@@ -15,12 +19,16 @@ const STEP = { attest: 'Signing the launch terms…', sign: 'Confirm in your wal
 export function LaunchSheet() {
   const lp = useLaunchpad().data;
   const cfg = useConfig().data;
+  const official = !!useMe().data?.user.official;
   const F = useFormat();
   const act = useLaunchActions();
   const [step, setStep] = useState<keyof typeof STEP | null>(null);
+  // null until edited: the suggested name and ticker from the terms.
+  const [picked, setPicked] = useState<{ name: string; symbol: string } | null>(null);
+  const pick = picked ?? (lp?.terms ? { name: lp.terms.name, symbol: lp.terms.symbol } : null);
   const head = (
     <div className="m-h">
-      <h3>{`Launch ${lp?.symbol ?? 'your token'}?`}</h3>
+      <h3>{`Launch ${pick ? `$${pick.symbol || '…'}` : (lp?.symbol ?? 'your token')}?`}</h3>
       <button className="x-btn" aria-label="Close" onClick={closeModal}>
         <Icon name="close" />
       </button>
@@ -57,6 +65,8 @@ export function LaunchSheet() {
         </div>
       </>
     );
+  const p = pick!;
+  const problem = tokenNameProblem(p.name) ?? symbolProblem(p.symbol, official);
   const row = (a: string, b: string) => (
     <div className="sum-r">
       <span>{a}</span>
@@ -68,7 +78,41 @@ export function LaunchSheet() {
       {head}
       <div className="m-b" id="launchSheet">
         <p className="t2" style={{ margin: '0 0 14px' }}>
-          This signs one transaction from your Sway wallet and ${t.symbol} goes live on Robinhood Chain.
+          Pick a name and ticker. This signs one transaction from your Sway wallet and ${p.symbol || '…'} goes live on Robinhood
+          Chain; neither can change after launch.
+        </p>
+        <div className="grid2" style={{ marginBottom: 6 }}>
+          <div>
+            <label className="lbl" htmlFor="lt-name">
+              Token name
+            </label>
+            <input
+              className="field"
+              id="lt-name"
+              maxLength={LAUNCH_NAME_MAX}
+              value={p.name}
+              disabled={!!step}
+              onChange={(e) => setPicked({ ...p, name: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="lbl" htmlFor="lt-symbol">
+              Ticker
+            </label>
+            <input
+              className="field"
+              id="lt-symbol"
+              autoCapitalize="characters"
+              spellCheck={false}
+              value={p.symbol}
+              disabled={!!step}
+              // Letters and digits only, so the ticker can't be made to look like another one.
+              onChange={(e) => setPicked({ ...p, symbol: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10) })}
+            />
+          </div>
+        </div>
+        <p className={problem ? 'dn' : 't3'} style={{ fontSize: 12.5, margin: '0 0 14px' }} id="lt-hint">
+          {problem ?? '2 to 10 letters or digits. Shown with a $ everywhere.'}
         </p>
         <div className="sum">
           <div className="sum-r tot">
@@ -111,9 +155,9 @@ export function LaunchSheet() {
         )}
         <button
           className="btn btn-white btn-lg btn-block"
-          disabled={!!step}
+          disabled={!!step || !!problem}
           onClick={async () => {
-            await act.launch((s) => setStep(s));
+            await act.launch((s) => setStep(s), { name: p.name.trim(), symbol: p.symbol });
             setStep(null);
           }}
         >
@@ -123,7 +167,7 @@ export function LaunchSheet() {
               {STEP[step]}
             </>
           ) : (
-            `Launch $${t.symbol}`
+            `Launch $${p.symbol}`
           )}
         </button>
         <p className="t3" style={{ fontSize: 12, textAlign: 'center', margin: '10px 0 0' }}>

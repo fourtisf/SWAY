@@ -15,6 +15,7 @@ import {
   type Address,
   type AirdropAllocationDTO,
   type AirdropsResponse,
+  type LaunchAttestBody,
   type LaunchTokenDTO,
   type StakingResponse,
 } from '@sway/shared';
@@ -115,12 +116,12 @@ export function useLaunchActions() {
     needWallet,
 
     /** Attest, launch from the account wallet, then wait for the token to show. */
-    async launch(onStep?: (s: 'attest' | 'sign' | 'mine' | 'index') => void): Promise<boolean> {
+    async launch(onStep?: (s: 'attest' | 'sign' | 'mine' | 'index') => void, choice?: LaunchAttestBody): Promise<boolean> {
       const w = needWallet(me?.wallet?.address);
       if (!w) return false;
       try {
         onStep?.('attest');
-        const a = await api().launchAttest();
+        const a = await api().launchAttest(choice);
         if (!same(w.address, a.creator)) {
           toast(`Launch from your account wallet ${shortAddress(a.creator)}`);
           return false;

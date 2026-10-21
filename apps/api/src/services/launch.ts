@@ -15,6 +15,7 @@ import {
   LAUNCH_ATTEST_TTL_S,
   LAUNCH_GRADUATION_USD,
   LAUNCH_HOLDER_ALLOCATION,
+  LAUNCH_NAME_MAX,
   LAUNCH_TOTAL_SUPPLY,
   LAUNCH_TYPES,
   buildAirdrop,
@@ -25,8 +26,12 @@ import {
   launchStartCapUsd,
   launchSymbol,
   launchVirtualEth,
+  normalizeSymbol,
+  symbolProblem,
+  tokenNameProblem,
   type Address,
   type AirdropEntry,
+  type LaunchAttestBody,
   type LaunchAttestation,
   type LaunchTermsDTO,
   type LaunchTokenDTO,
@@ -34,7 +39,7 @@ import {
 import type { Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import type { AppDeps, Viewer } from '../deps';
-import { conflict, unavailable } from '../errors';
+import { badRequest, conflict, unavailable } from '../errors';
 import { withRedisLock } from './chain';
 import { membersByAddress, userRef } from './dto';
 import { ViemLaunchChain, type LaunchChain, type LaunchMessage } from './launch-chain';
@@ -55,9 +60,13 @@ export function launchChainOf(app: FastifyInstance): LaunchChain {
   return lc;
 }
 
-/** Token name shown onchain: the creator's display name (ERC-20 names stay short). */
+/** Suggested token name: the creator's display name (ERC-20 names stay short). They can pick another at launch. */
 export const launchName = (u: Pick<User, 'name' | 'handle'>): string =>
-  (u.name.trim() || u.handle).slice(0, 40);
+  (u.name.trim() || u.handle).slice(0, LAUNCH_NAME_MAX);
+
+/** Suggested ticker ("Sway" → SWAY); only the official account gets a reserved one. */
+export const suggestedSymbol = (u: Pick<User, 'name' | 'handle' | 'official'>): string =>
+  launchSymbol(u.handle, u.name, u.official);
 
 export interface AirdropPlan {
   root: Hex;
@@ -118,6 +127,8 @@ export function launchableMarket(v: Viewer, lazy: boolean): KeyMarket | null {
 }
 
 export async function termsDTO(deps: AppDeps, v: Viewer, market: KeyMarket): Promise<LaunchTermsDTO> {
+  // A name and ticker picked at an earlier attestation (not launched) come back prefilled.
+  const picked = await deps.prisma.launchToken.findUnique({ where: { userId: v.user.id }, select: { name: true, symbol: true } });
   const plan = await planAirdrop(deps.prisma, market, v.wallet!.address);
   const caps = await launchCaps(deps, v.user.score);
   const members = await membersByAnyAddress(
@@ -138,8 +149,8 @@ export async function termsDTO(deps: AppDeps, v: Viewer, market: KeyMarket): Pro
     })
     .sort((a, b) => (BigInt(b.amount) > BigInt(a.amount) ? 1 : BigInt(b.amount) < BigInt(a.amount) ? -1 : 0));
   return {
-    name: launchName(v.user),
-    symbol: launchSymbol(v.user.handle),
+    name: picked?.name ?? launchName(v.user),
+    symbol: picked?.symbol ?? suggestedSymbol(v.user),
     startCapWei: caps.startCapWei.toString(),
     startCapUsd: caps.startCapUsd,
     graduationCapWei: caps.graduationCapWei.toString(),
@@ -172,9 +183,18 @@ export async function tokenAddressOf(
   return lc.tokenOf(creatorWallet as Address).catch(() => null);
 }
 
-/** Builds and stores the airdrop, then signs the attestation. Called under a per-creator lock. */
-export async function attest(deps: AppDeps, lc: LaunchChain, v: Viewer): Promise<LaunchAttestation> {
+/**
+ * Builds and stores the airdrop, then signs the attestation for the creator's chosen name and ticker (the suggested
+ * ones when left out). Called under a per-creator lock.
+ */
+export async function attest(deps: AppDeps, lc: LaunchChain, v: Viewer, choice: LaunchAttestBody = {}): Promise<LaunchAttestation> {
   const { prisma, config, redis } = deps;
+  const name = choice.name?.trim() || launchName(v.user);
+  const symbol = choice.symbol?.trim() ? normalizeSymbol(choice.symbol) : suggestedSymbol(v.user);
+  const badName = tokenNameProblem(name);
+  if (badName) throw badRequest('bad_name', badName);
+  const badSymbol = symbolProblem(symbol, v.user.official);
+  if (badSymbol) throw badRequest('bad_symbol', badSymbol);
   if (!v.wallet) throw conflict('no_wallet', 'Link a wallet before launching');
   const market = launchableMarket(v, permitsEnabled(deps));
   if (!market) throw conflict('no_market', 'Open your key market before launching a token');
@@ -188,6 +208,11 @@ export async function attest(deps: AppDeps, lc: LaunchChain, v: Viewer): Promise
     if (lt?.tokenAddress || lt?.launchedAt) throw conflict('already_launched', 'Your token is already live');
     if (await lc.tokenOf(creator).catch(() => null))
       throw conflict('already_launched', 'Your token is already live');
+    const taken = await prisma.launchToken.findFirst({
+      where: { symbol: { equals: symbol, mode: 'insensitive' }, tokenAddress: { not: null }, userId: { not: v.user.id } },
+      select: { id: true },
+    });
+    if (taken) throw conflict('symbol_taken', `$${symbol} is already live on Sway. Pick another ticker.`);
 
     const operator = privateKeyToAccount(config.operatorKey!).address.toLowerCase();
     const signer = await lc.signer().catch(() => null);
@@ -200,8 +225,6 @@ export async function attest(deps: AppDeps, lc: LaunchChain, v: Viewer): Promise
 
     const plan = await planAirdrop(prisma, market, creator);
     const caps = await launchCaps(deps, v.user.score);
-    const name = launchName(v.user);
-    const symbol = launchSymbol(v.user.handle);
     const deadline = BigInt(Math.floor(Date.now() / 1000) + LAUNCH_ATTEST_TTL_S);
     const message: LaunchMessage = {
       creator,
@@ -306,7 +329,7 @@ export async function tokenDTO(
   return {
     address: token,
     name: lt?.name ?? launchName(owner.user),
-    symbol: lt?.symbol ?? launchSymbol(owner.user.handle),
+    symbol: lt?.symbol ?? suggestedSymbol(owner.user),
     creator: userRef(owner.user, owner.user.market),
     creatorAddress,
     priceWei: launchPriceWei(curve).toString(),

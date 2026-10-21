@@ -25,12 +25,40 @@ export const LAUNCH_SLIPPAGE_BPS = 100n;
 export const launchStartCapUsd = (score: number): number =>
   LAUNCH_START_USD_BASE + score * LAUNCH_START_USD_PER_SCORE;
 
-/** Ticker without the "$": up to six letters/digits of the handle (prototype). */
-export const launchSymbol = (handle: string): string =>
-  handle
-    .replace(/[^a-z0-9]/gi, '')
-    .slice(0, 6)
-    .toUpperCase() || 'SWAY';
+/** Tickers are written without the "$": 2 to 10 letters or digits. */
+export const LAUNCH_SYMBOL_RE = /^[A-Z0-9]{2,10}$/;
+export const LAUNCH_NAME_MAX = 32;
+/** Only the official account can launch these, so no creator token passes for the protocol's own. */
+export const RESERVED_SYMBOLS: readonly string[] = ['SWAY'];
+
+/** What the creator typed, as a ticker: "$sway " → "SWAY". */
+export const normalizeSymbol = (s: string): string => s.trim().replace(/^\$/, '').toUpperCase();
+
+/** Why a ticker can't be used, or null. */
+export function symbolProblem(symbol: string, official = false): string | null {
+  if (!LAUNCH_SYMBOL_RE.test(symbol)) return 'Use 2 to 10 letters or digits.';
+  if (!official && RESERVED_SYMBOLS.includes(symbol)) return `$${symbol} is reserved for Sway.`;
+  return null;
+}
+
+/** Why a token name can't be used, or null. */
+export function tokenNameProblem(name: string): string | null {
+  const n = name.trim();
+  if (!n) return 'Give your token a name.';
+  if (n.length > LAUNCH_NAME_MAX) return `Keep the name under ${LAUNCH_NAME_MAX + 1} characters.`;
+  if (/[\u0000-\u001f\u007f]/.test(n)) return 'The name can’t contain control characters.';
+  return null;
+}
+
+/**
+ * The suggested ticker, which the creator can change at launch: their display name when it makes one ("Sway" →
+ * SWAY), else the first ten letters and digits of their handle.
+ */
+export function launchSymbol(handle: string, name = '', official = false): string {
+  const clean = (s: string) => s.replace(/[^a-z0-9]/gi, '').toUpperCase();
+  for (const s of [clean(name), clean(handle).slice(0, 10)]) if (!symbolProblem(s, official)) return s;
+  return 'TOKEN';
+}
 
 export interface LaunchCurveState {
   virtualEth: bigint;

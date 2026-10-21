@@ -15,7 +15,7 @@ describe('[C] mock launchpad', () => {
     const api = getMockApi();
     const me = await api.devLogin({ handle: 'launcher', followers: 5000 });
     const lp = await api.launchpad();
-    expect(lp.terms).toMatchObject({ symbol: 'LAUNCH', creatorOnly: true });
+    expect(lp.terms).toMatchObject({ symbol: 'LAUNCHER', creatorOnly: true });
     expect(lp.terms!.holders.map((h) => h.amount)).toEqual([LAUNCH_HOLDER_ALLOCATION.toString()]);
     const a = await api.launchAttest();
     const w = mockWallet(me.wallet!.address);
@@ -28,7 +28,7 @@ describe('[C] mock launchpad', () => {
       args: [a.name, a.symbol, BigInt(a.startCapWei), BigInt(a.graduationCapWei), a.airdropRoot, BigInt(a.deadline), a.signature],
     });
     const t = (await api.launchpad()).token!;
-    expect(t).toMatchObject({ symbol: 'LAUNCH', isMine: true, graduated: false, progress: 0 });
+    expect(t).toMatchObject({ symbol: 'LAUNCHER', isMine: true, graduated: false, progress: 0 });
     await expect(api.launchAttest()).rejects.toThrow(/already live/);
 
     const q = launchQuoteBuy(curveOf(t), E18 / 100n);
@@ -49,7 +49,7 @@ describe('[C] mock launchpad', () => {
     expect((await api.launchpad()).token!.creatorFeesWei).toBe('0');
 
     const mako = await api.launchToken('makotrades');
-    expect(mako).toMatchObject({ launched: true, symbol: '$MAKOTR' });
+    expect(mako).toMatchObject({ launched: true, symbol: '$MAKO' });
     expect(BigInt(mako.token!.ethReserveWei)).toBeGreaterThan(0n);
   });
 
@@ -65,7 +65,7 @@ describe('[C] mock launchpad', () => {
     const r = await api.launchAirdrops();
     expect(r.allocations).toHaveLength(1);
     const d = r.allocations[0]!;
-    expect(d).toMatchObject({ symbol: 'NOVARE', address: me.wallet!.address, walletKind: 'account' });
+    expect(d).toMatchObject({ symbol: 'NOVAREYES', address: me.wallet!.address, walletKind: 'account' });
     const t = (await api.launchToken('novareyes')).token!;
     await w.writeContract({ address: MOCK_LAUNCHPAD, abi: swayLaunchpadAbi, functionName: 'claimAirdrop', args: [d.token, BigInt(d.amount), d.proof] });
     expect((await api.launchAirdrops()).allocations).toEqual([]);

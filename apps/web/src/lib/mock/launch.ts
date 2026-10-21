@@ -22,11 +22,15 @@ import {
   launchQuoteSell,
   launchStartCapUsd,
   launchSymbol,
+  normalizeSymbol,
+  symbolProblem,
+  tokenNameProblem,
   shortAddress,
   type Address,
   type AirdropsResponse,
   type GenesisListResponse,
   type GenesisResponse,
+  type LaunchAttestBody,
   type LaunchAttestation,
   type LaunchCurveState,
   type LaunchTermsDTO,
@@ -123,14 +127,22 @@ function plan(w: MockWorld, handle: string, creatorAddress: Address) {
   return { ...d, inputs, creatorOnly };
 }
 
-function launchToken(w: MockWorld, st: LaunchState, handle: string, creatorAddress: Address, score: number, name: string): MockToken {
+function launchToken(
+  w: MockWorld,
+  st: LaunchState,
+  handle: string,
+  creatorAddress: Address,
+  score: number,
+  name: string,
+  symbol = launchSymbol(handle, name),
+): MockToken {
   const { startCapWei, graduationCapWei } = caps(score);
   const p = plan(w, handle, creatorAddress);
   const t: MockToken = {
     handle,
     address: fakeAddress('token:' + handle),
     name,
-    symbol: launchSymbol(handle),
+    symbol,
     curve: launchInitialCurve(startCapWei),
     startCapWei,
     graduationCapWei,
@@ -211,7 +223,7 @@ function termsDTO(w: MockWorld): LaunchTermsDTO {
   const units = new Map(p.inputs.map((h) => [lc(h.address), h]));
   return {
     name: u.name,
-    symbol: launchSymbol(u.handle),
+    symbol: launchSymbol(u.handle, u.name),
     startCapWei: startCapWei.toString(),
     startCapUsd: launchStartCapUsd(u.score),
     graduationCapWei: graduationCapWei.toString(),
@@ -271,7 +283,7 @@ function handleWrite(w: MockWorld, st: LaunchState, call: ContractCall): `0x${st
         if (Number(a[5]) < now(st)) fail('Expired');
         // The "signature" covers the airdrop root: holdings that moved since the attestation invalidate it.
         if (plan(w, u.handle, u.wallet).root !== a[4]) fail('BadSignature');
-        return launchToken(w, st, u.handle, u.wallet, u.score, String(a[0])).launchTx;
+        return launchToken(w, st, u.handle, u.wallet, u.score, String(a[0]), String(a[1])).launchTx;
       }
       case 'buy': {
         const t = tokenAt(a[0]);
@@ -430,16 +442,24 @@ function listResponse(st: LaunchState, w: MockWorld): GenesisListResponse {
 export function launchMockApi(w: MockWorld): Pick<SwayApi, 'launchAttest' | 'launchToken' | 'launchAirdrops' | 'staking' | 'genesisLatest' | 'genesisSnapshot'> {
   const st = () => stateOf(w);
   return {
-    async launchAttest(): Promise<LaunchAttestation> {
+    async launchAttest(choice: LaunchAttestBody = {}): Promise<LaunchAttestation> {
       const u = needUser(w);
       if (st().tokens.has(u.handle)) throw new ApiRequestError(409, 'already_launched', 'Your token is already live');
       const t = termsDTO(w);
+      const name = choice.name?.trim() || t.name;
+      const symbol = choice.symbol?.trim() ? normalizeSymbol(choice.symbol) : t.symbol;
+      const badName = tokenNameProblem(name);
+      if (badName) throw new ApiRequestError(400, 'bad_name', badName);
+      const badSymbol = symbolProblem(symbol);
+      if (badSymbol) throw new ApiRequestError(400, 'bad_symbol', badSymbol);
+      if ([...st().tokens.values()].some((x) => x.symbol === symbol))
+        throw new ApiRequestError(409, 'symbol_taken', `$${symbol} is already live on Sway. Pick another ticker.`);
       const p = plan(w, u.handle, u.wallet);
       return {
         launchpad: MOCK_LAUNCHPAD,
         creator: u.wallet,
-        name: t.name,
-        symbol: t.symbol,
+        name,
+        symbol,
         startCapWei: t.startCapWei,
         graduationCapWei: t.graduationCapWei,
         airdropRoot: p.root,
@@ -453,7 +473,7 @@ export function launchMockApi(w: MockWorld): Pick<SwayApi, 'launchAttest' | 'lau
       const c = w.C[handle];
       if (!c) throw new ApiRequestError(404, 'user_not_found', `No account @${handle}`);
       const t = st().tokens.get(handle);
-      return { creator: { ...w.ref(handle), score: c.score }, symbol: '$' + launchSymbol(handle), launched: !!t, token: t ? tokenDTO(w, t) : null };
+      return { creator: { ...w.ref(handle), score: c.score }, symbol: '$' + (t?.symbol ?? launchSymbol(handle, c.name)), launched: !!t, token: t ? tokenDTO(w, t) : null };
     },
     async launchAirdrops(): Promise<AirdropsResponse> {
       if (!w.user) return { launchpad: MOCK_LAUNCHPAD, allocations: [] };
@@ -524,7 +544,7 @@ export function installLaunchMock(api: SwayApi, w: MockWorld): void {
     const base = await baseLaunchpad();
     if (!w.user) return base;
     const t = st().tokens.get(w.user.handle);
-    if (t) return { ...base, launched: true, tokenAddress: t.address, token: tokenDTO(w, t) };
+    if (t) return { ...base, symbol: '$' + t.symbol, launched: true, tokenAddress: t.address, token: tokenDTO(w, t) };
     return { ...base, terms: termsDTO(w) };
   };
 
