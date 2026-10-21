@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ROUTES, type ConfigDTO } from '@sway/shared';
+import { OFFICIAL_HANDLE, ROUTES, type ConfigDTO } from '@sway/shared';
 import { ConfigError, loadConfig } from '../src/config';
 import { jsonReplacer } from '../src/app';
+import { resetOfficialCache } from '../src/services/notify';
 import { PRICE_KEY, resetPriceMemo } from '../src/services/price';
-import { makeApp, resetState, TEST_ENV, type TestCtx } from './helpers';
+import { makeApp, prisma, resetState, TEST_ENV, type TestCtx } from './helpers';
 
 let ctx: TestCtx;
 beforeAll(async () => {
@@ -39,8 +40,21 @@ describe('config', () => {
       'mainnet',
       'rpcUrl',
       'snapshotAt',
+      'swayToken',
       'wallets',
     ]);
+    expect(c.swayToken).toBeNull();
+  });
+
+  it('shows the token @swaydotfamily launched as swayToken', async () => {
+    const u = await prisma.user.create({ data: { xId: '9100', handle: OFFICIAL_HANDLE, name: 'Sway', official: true } });
+    const token = '0x00000000000000000000000000000000005a1a7e';
+    await prisma.launchToken.create({ data: { userId: u.id, symbol: 'SWAY', name: 'Sway', tokenAddress: token } });
+    resetOfficialCache();
+    const c = (await ctx.app.inject('/api/config')).json<ConfigDTO>();
+    expect(c.swayToken).toBe(token);
+    await prisma.user.delete({ where: { id: u.id } });
+    resetOfficialCache();
   });
 
   it('GET /api/price falls back, then reads the workers’ Redis price', async () => {

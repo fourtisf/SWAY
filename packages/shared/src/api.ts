@@ -425,6 +425,8 @@ export interface ConfigDTO {
   wallets: { embedded: 'privy' | 'cdp' | 'burner' | 'off'; walletConnectProjectId: string | null };
   /** Contracts are unaudited: mainnet stays off until the audit is published. */
   mainnet: boolean;
+  /** The token @swaydotfamily launched on the launchpad ($SWAY), null until it's live. */
+  swayToken: Address | null;
 }
 
 export interface DevLoginBody {

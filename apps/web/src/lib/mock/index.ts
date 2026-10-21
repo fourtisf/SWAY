@@ -55,6 +55,7 @@ export function getMockApi(): SwayApi {
         auth: { x: false, dev: true },
         wallets: { embedded: 'burner', walletConnectProjectId: null },
         mainnet: false,
+        swayToken: null,
       };
     },
     async price() {

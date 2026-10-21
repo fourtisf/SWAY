@@ -1,14 +1,17 @@
 'use client';
 import { OFFICIAL_HANDLE } from '@sway/shared';
+import { useConfig } from '@/lib/queries';
 import { toast } from '@/lib/store';
 import { Icon } from '../icons';
 
 export const OFFICIAL_X_URL = `https://x.com/${OFFICIAL_HANDLE}`;
-// The $SWAY token address is set at build time once it is live; until then the card says "Coming soon".
-const CA = (process.env.NEXT_PUBLIC_SWAY_CA ?? '').trim();
+// NEXT_PUBLIC_SWAY_CA pins the $SWAY address at build time; otherwise the card shows the token @swaydotfamily
+// launched, and "Coming soon" until then.
+const PINNED_CA = (process.env.NEXT_PUBLIC_SWAY_CA ?? '').trim();
 
 /** $SWAY contract address + the official X account (rail on desktop, drawer on mobile). */
 export function CommunityCard() {
+  const CA = PINNED_CA || (useConfig().data?.swayToken ?? '');
   const copy = () => {
     navigator.clipboard?.writeText(CA).catch(() => null);
     toast('Contract address copied');

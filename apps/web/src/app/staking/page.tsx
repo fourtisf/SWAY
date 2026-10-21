@@ -46,6 +46,13 @@ export default function StakingPage() {
         $SWAY is staked from your Sway wallet on Robinhood Chain.
       </Empty>
     );
+  // Mainnet deploys without staking: it needs the $SWAY token, which the official account launches first.
+  if (!s.stakingAddress)
+    return (
+      <Empty icon="rocket" title="Staking isn’t open yet">
+        Staking opens on this network once $SWAY is live.
+      </Empty>
+    );
 
   const balance = BigInt(s.balanceWei),
     staked = BigInt(s.stakedWei),
