@@ -168,7 +168,7 @@ test('direct messages and notifications', async ({ page }) => {
   await expect(page.locator('.toasts')).toContainText('Backed with 100 pts');
 });
 
-test('a new member launches their own key from their profile', async ({ page }) => {
+test('a new member launches their own key from their profile, then buys more of it', async ({ page }) => {
   await connect(page, 'keylauncher');
   await nav(page, 'Wallet');
   await expect(page.locator('#launchKeyCard')).toContainText('Your key isn’t onchain yet');
@@ -179,6 +179,13 @@ test('a new member launches their own key from their profile', async ({ page }) 
   await expect(page.locator('.toasts')).toContainText('Your key is live');
   await expect(bar.getByRole('button', { name: 'Launch my key' })).toHaveCount(0);
   await expect(page.locator('#launchKeyNote')).toHaveCount(0);
+
+  // Once it's live, the creator can buy more of their own key (and sell those, never the first).
+  await expect(bar.getByRole('button', { name: 'Sell' })).toHaveCount(0);
+  await bar.getByRole('button', { name: 'Buy key' }).click();
+  await page.locator('.modal').getByRole('button', { name: /^Buy 1 key/ }).click();
+  await expect(page.locator('.toasts')).toContainText('Bought 1 key of');
+  await expect(bar.getByRole('button', { name: 'Sell' })).toBeVisible();
   await nav(page, 'Wallet');
   await expect(page.locator('.wl-list .tr.wl')).toHaveCount(1);
   await expect(page.locator('#launchKeyCard')).toHaveCount(0);

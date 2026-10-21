@@ -102,6 +102,11 @@ export function useActions() {
     openTrade: (handle: string, side: 'buy' | 'sell' = 'buy') => openModal({ type: 'trade', handle, side }),
 
     async execTrade(p: ProfileDTO, side: 'buy' | 'sell', q: QuoteWei) {
+      // A first buy opens the market onchain bound to its account wallet: not to one that can't sign here.
+      if (p.isMe && me?.market && !me.market.opened && memberWallets.find((x) => x.account)?.status === 'unsupported') {
+        toast(SWAY_WALLET_OFF);
+        return false;
+      }
       const w = needWallet();
       if (!w) return false;
       try {

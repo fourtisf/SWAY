@@ -218,6 +218,16 @@ function Profile({ handle }: { handle: string }) {
               <button className="btn btn-glass" onClick={() => router.push('/wallet')}>
                 Earnings {F.$(claimable)}
               </button>
+              {!unlaunched && held > 1 && (
+                <button className="btn btn-glass" onClick={() => a.openTrade(handle, 'sell')}>
+                  Sell
+                </button>
+              )}
+              {!unlaunched && (
+                <button className="btn btn-buy" onClick={() => a.openTrade(handle, 'buy')}>
+                  Buy key
+                </button>
+              )}
               {unlaunched && (
                 <button
                   className="btn btn-buy"
