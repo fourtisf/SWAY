@@ -155,9 +155,8 @@ function Bridge({ cfg, config }: { cfg: Config; config: ConfigDTO }) {
 export default function ExternalWalletRoot({ config }: { config: ConfigDTO }) {
   const { chainId, rpcUrl, explorerUrl, chainName } = config;
   const projectId = config.wallets.walletConnectProjectId;
-  // Keyed on the chain alone: a new wagmi config drops the live connections, and its reconnect is a no-op while
-  // the previous one is still running (wagmi keeps one module-wide flag), so wallet apps would read as not
-  // connected after any ConfigDTO refetch (ethUsd changes with the price).
+  // Keyed on the chain alone: a new wagmi config starts over (new connectors, a fresh reconnect), which a ConfigDTO
+  // refetch shouldn't cause (ethUsd changes with the price).
   const cfg = useMemo(() => {
     const chain = swayChain({ chainId, rpcUrl, explorerUrl, name: chainName });
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://swayfamily.com';
