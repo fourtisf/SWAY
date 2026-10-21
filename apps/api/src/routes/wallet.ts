@@ -79,6 +79,8 @@ export async function walletRoutes(app: FastifyInstance) {
     const v = await requireViewer(req);
     const b = body(LinkBody, req);
     const address = b.address.toLowerCase();
+    if (b.kind === 'embedded' && config.wallets.embedded === 'off')
+      throw conflict('embedded_off', 'Browser-made Sway wallets are off on this network: connect a wallet app instead');
     if (v.wallet) {
       if (v.wallet.address === address) return buildMe(prisma, v);
       throw conflict('wallet_exists', 'Your account already has a wallet. Add more wallets from the Wallet page.');

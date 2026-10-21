@@ -60,6 +60,9 @@ contract SwayLaunchpad is Ownable2Step, ReentrancyGuard, EIP712 {
     mapping(address token => Curve) public curves;
     mapping(address creator => address token) public tokenOf;
     mapping(address token => mapping(address account => bool)) public airdropClaimed;
+    /// @notice Airdrop tokens paid out per launch: never more than HOLDER_ALLOCATION, whatever the root says,
+    ///         so a bad root can't reach the curve's tokens.
+    mapping(address token => uint256) public airdropped;
     mapping(address creator => uint256) public creatorFees;
 
     event Launched(address indexed creator, address indexed token, string symbol, uint256 startCapWei, uint256 graduationCapWei, bytes32 airdropRoot);
@@ -83,6 +86,7 @@ contract SwayLaunchpad is Ownable2Step, ReentrancyGuard, EIP712 {
     error ZeroAmount();
     error AlreadyClaimed();
     error BadProof();
+    error AirdropExceeded();
     error TransferFailed();
 
     constructor(address initialOwner, ISwayKeysMarkets keys_, address signer_) Ownable(initialOwner) EIP712("SwayLaunchpad", "1") {
@@ -231,6 +235,8 @@ contract SwayLaunchpad is Ownable2Step, ReentrancyGuard, EIP712 {
         if (airdropClaimed[token][msg.sender]) revert AlreadyClaimed();
         bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(msg.sender, amount))));
         if (!MerkleProof.verifyCalldata(proof, c.airdropRoot, leaf)) revert BadProof();
+        if (airdropped[token] + amount > HOLDER_ALLOCATION) revert AirdropExceeded();
+        airdropped[token] += amount;
         airdropClaimed[token][msg.sender] = true;
         emit AirdropClaimed(token, msg.sender, amount);
         IERC20(token).safeTransfer(msg.sender, amount);

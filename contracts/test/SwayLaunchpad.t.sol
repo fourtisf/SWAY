@@ -133,6 +133,28 @@ contract SwayLaunchpadTest is Base {
         pad.claimAirdrop(token, 50_000_000 ether, proofCarol);
     }
 
+    /// A root that promises more than 10% can't pay out past HOLDER_ALLOCATION (the curve's tokens stay put).
+    function test_airdropCappedAtHolderAllocation() public {
+        bytes32 lb = keccak256(bytes.concat(keccak256(abi.encode(bob, uint256(60_000_000 ether)))));
+        bytes32 lc = keccak256(bytes.concat(keccak256(abi.encode(carol, uint256(60_000_000 ether)))));
+        bytes32 root = lb < lc ? keccak256(abi.encodePacked(lb, lc)) : keccak256(abi.encodePacked(lc, lb));
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes memory sig = _sig(alice, 1 ether, 20 ether, root, deadline);
+        vm.prank(alice);
+        address token = pad.launch("Alice", "ALICE", 1 ether, 20 ether, root, deadline, sig);
+
+        bytes32[] memory pb = new bytes32[](1);
+        pb[0] = lc;
+        vm.prank(bob);
+        pad.claimAirdrop(token, 60_000_000 ether, pb);
+        bytes32[] memory pc = new bytes32[](1);
+        pc[0] = lb;
+        vm.prank(carol);
+        vm.expectRevert(SwayLaunchpad.AirdropExceeded.selector);
+        pad.claimAirdrop(token, 60_000_000 ether, pc);
+        assertEq(pad.airdropped(token), 60_000_000 ether);
+    }
+
     function testFuzz_buyNeverOverdrawsCurve(uint256 ethIn) public {
         address token = _launch();
         ethIn = bound(ethIn, 1 gwei, 19 ether);

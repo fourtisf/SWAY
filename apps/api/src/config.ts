@@ -155,7 +155,7 @@ export interface Config {
   };
   operatorKey: `0x${string}` | null;
   push: { publicKey: string | null; devHosts: string[] };
-  wallets: { embedded: 'privy' | 'cdp' | 'burner'; walletConnectProjectId: string | null };
+  wallets: { embedded: 'privy' | 'cdp' | 'burner' | 'off'; walletConnectProjectId: string | null };
   ethUsdFallback: number;
   snapshotAt: Date;
   genesisMinScore: number;
@@ -256,7 +256,8 @@ export function loadConfig(
       devHosts: e.NODE_ENV === 'production' ? [] : (e.PUSH_DEV_HOSTS ?? '').split(',').map((h) => h.trim()).filter(Boolean),
     },
     wallets: {
-      embedded: e.EMBEDDED_WALLET_PROVIDER,
+      // The burner keeps its key in browser storage: fine for testnets, not for real funds.
+      embedded: e.CHAIN_ID === ROBINHOOD_MAINNET_ID && e.EMBEDDED_WALLET_PROVIDER === 'burner' ? 'off' : e.EMBEDDED_WALLET_PROVIDER,
       walletConnectProjectId: e.WALLETCONNECT_PROJECT_ID ?? null,
     },
     ethUsdFallback: e.ETH_USD_FALLBACK,

@@ -150,6 +150,8 @@ export async function createEmbeddedWallet(userId: string, config: ConfigDTO): P
       return privyWallet(userId, config);
     case 'cdp':
       return cdpWallet(userId, config);
+    case 'off':
+      throw new Error('Browser-made Sway wallets are off on this network: connect a wallet app instead');
   }
 }
 

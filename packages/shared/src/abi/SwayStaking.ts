@@ -116,7 +116,7 @@ export const swayStakingAbi = [
     "inputs": [],
     "outputs": [
       {
-        "name": "amount",
+        "name": "",
         "type": "uint256",
         "internalType": "uint256"
       }

@@ -95,6 +95,38 @@ contract SwayStakingTest is Base {
         assertApproxEqAbs(st.pendingRewards(bob), h, 1);
     }
 
+    /// A whale staking right before a harvest must not take fees earned before it arrived.
+    function test_lateStakerCannotTakeEarlierFees() public {
+        vm.prank(bob);
+        st.stake(1_000 ether);
+        _buy(dave, alice, 500);
+        (,,, uint256 stakerShare) = keys.earnings(address(st));
+        assertGt(stakerShare, 0);
+
+        vm.prank(carol);
+        st.stake(1_000_000 ether);
+        st.harvest();
+        assertEq(st.pendingRewards(carol), 0, "nothing from before the stake");
+        assertApproxEqAbs(st.pendingRewards(bob), stakerShare, 1, "the earlier staker keeps it all");
+
+        // Fees after the stake are shared pro rata again (carol 1000x bob).
+        _buy(dave, alice, 300);
+        (,,, uint256 next) = keys.earnings(address(st));
+        st.harvest();
+        assertApproxEqAbs(st.pendingRewards(carol), next * 1_000 / 1_001, 2);
+    }
+
+    /// Leaving also harvests first, so an unstaker isn't cut out of fees earned while it was staked.
+    function test_unstakeKeepsFeesEarnedWhileStaked() public {
+        vm.prank(bob);
+        st.stake(1_000 ether);
+        _buy(dave, alice, 500);
+        (,,, uint256 stakerShare) = keys.earnings(address(st));
+        vm.prank(bob);
+        st.requestUnstake(1_000 ether);
+        assertApproxEqAbs(st.pendingRewards(bob), stakerShare, 1);
+    }
+
     function test_rejectsStrayEthAndBadThresholds() public {
         (bool ok,) = address(st).call{value: 1}("");
         assertFalse(ok);

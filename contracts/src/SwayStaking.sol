@@ -17,7 +17,9 @@ interface ISwayKeysClaim {
 ///         and unlocks 2,000-character posts. Stakers share half of the protocol fee, paid in ETH.
 ///         Staker rewards are variable and may be zero.
 /// @dev Unstaking starts a cooldown and drops the level immediately, so a level can't be borrowed for a
-///      single trade. UNAUDITED.
+///      single trade. Every stake and unstake harvests first, so fees earned before a stake go to the
+///      stakers who were in (a large stake placed just before a harvest gets nothing from the past).
+///      UNAUDITED.
 contract SwayStaking is ISwayStaking, Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -79,6 +81,7 @@ contract SwayStaking is ISwayStaking, Ownable2Step, ReentrancyGuard {
 
     function stake(uint256 amount) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
+        _harvest();
         _settle(msg.sender);
         Account storage a = accounts[msg.sender];
         a.staked += amount;
@@ -92,6 +95,7 @@ contract SwayStaking is ISwayStaking, Ownable2Step, ReentrancyGuard {
         Account storage a = accounts[msg.sender];
         if (amount == 0) revert ZeroAmount();
         if (a.staked < amount) revert InsufficientStake();
+        _harvest();
         _settle(msg.sender);
         a.staked -= amount;
         totalStaked -= amount;
@@ -112,9 +116,15 @@ contract SwayStaking is ISwayStaking, Ownable2Step, ReentrancyGuard {
     }
 
     /// @notice Pulls the stakers' protocol share from SwayKeys and distributes it pro rata.
-    function harvest() public nonReentrant returns (uint256 amount) {
+    function harvest() external nonReentrant returns (uint256) {
+        return _harvest();
+    }
+
+    function _harvest() internal returns (uint256 amount) {
         uint256 before = address(this).balance;
-        try keys.claim(new address[](0)) {} catch {}
+        if (address(keys) != address(0)) {
+            try keys.claim(new address[](0)) {} catch {}
+        }
         amount = address(this).balance - before + undistributed;
         if (amount == 0) return 0;
         if (totalStaked == 0) {
@@ -132,6 +142,7 @@ contract SwayStaking is ISwayStaking, Ownable2Step, ReentrancyGuard {
     }
 
     function claimRewards() external nonReentrant returns (uint256 amount) {
+        _harvest();
         _settle(msg.sender);
         Account storage a = accounts[msg.sender];
         amount = a.rewards;

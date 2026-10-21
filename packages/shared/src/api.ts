@@ -420,7 +420,9 @@ export interface ConfigDTO {
   ethUsd: number;
   snapshotAt: ISODate;
   auth: { x: boolean; dev: boolean };
-  wallets: { embedded: 'privy' | 'cdp' | 'burner'; walletConnectProjectId: string | null };
+  /** 'off' on mainnet when the provider is the in-browser burner: its key lives in browser storage, which isn't
+   *  fit for real funds. Only wallet apps can be connected then. */
+  wallets: { embedded: 'privy' | 'cdp' | 'burner' | 'off'; walletConnectProjectId: string | null };
   /** Contracts are unaudited: mainnet stays off until the audit is published. */
   mainnet: boolean;
 }

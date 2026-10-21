@@ -72,7 +72,10 @@ deviates from it, and what is still open. Keep this current.
 
 ## Open items before mainnet
 
-1. **Audit** of all contracts; publish the report, then lift the mainnet flags.
+1. **Audit** of all contracts. An internal review is done (`docs/SECURITY_REVIEW.md`: two staking bugs and a launchpad
+   cap fixed, deploy hardened); a third-party audit is still recommended before significant value. Mainnet runs
+   through `deploy/setup-chain.sh --mainnet` (owner wallet separate from the operator key, no launchpad, no staking
+   until $SWAY, browser wallets off, unaudited notice on trades).
 2. **Verify Robinhood Chain parameters**: chain id (4663 per influence.family), explorer, ArbOS version / EVM target, RPC.
 3. **Embedded wallets**: choose Privy or Coinbase CDP and wire the adapter (the web has the interface and a
    burner implementation for local/testnet).

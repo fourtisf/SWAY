@@ -64,6 +64,13 @@ describe('config', () => {
     expect(c.chain.explorerUrl).toBe('https://explorer.mainnet.chain.robinhood.com');
   });
 
+  it('turns the in-browser Sway wallet off on mainnet', () => {
+    const main = loadConfig({ ...TEST_ENV, CHAIN_ID: '4663', SWAY_ENABLE_MAINNET: '1' });
+    expect(main.wallets.embedded).toBe('off');
+    expect(loadConfig({ ...TEST_ENV, CHAIN_ID: '4663', SWAY_ENABLE_MAINNET: '1', EMBEDDED_WALLET_PROVIDER: 'privy' }).wallets.embedded).toBe('privy');
+    expect(loadConfig({ ...TEST_ENV, CHAIN_ID: '46630' }).wallets.embedded).toBe('burner');
+  });
+
   it('never enables dev auth in production and requires a strong secret there', () => {
     expect(() =>
       loadConfig({

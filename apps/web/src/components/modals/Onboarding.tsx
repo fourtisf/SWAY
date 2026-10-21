@@ -288,7 +288,7 @@ export function OnboardingModal({ handle, followers }: { handle?: string; follow
               <LogoBox logo={{ kind: 'sway' }} size={38} />
               <span className="wopt-t">
                 <b>Create a Sway wallet</b>
-                <small>{embeddedOk ? 'Made in this browser. No extension.' : 'Not available on this server yet'}</small>
+                <small>{embeddedOk ? 'Made in this browser. No extension.' : cfg?.wallets.embedded === 'off' ? 'Off on mainnet: use a wallet app below' : 'Not available on this server yet'}</small>
               </span>
               {embeddedOk && <span className="tag">Recommended</span>}
             </button>

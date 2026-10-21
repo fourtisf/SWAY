@@ -59,12 +59,17 @@ it deploys the contracts, writes their addresses into `.env` and redeploys the s
 the contracts existed open their market with "Open your key market"; fan markets opened earlier are opened onchain
 by submitting the handle again in Admin → Markets.
 
+**Mainnet** (real ETH): `bash /srv/sway/deploy/setup-chain.sh --mainnet`. It asks you to type I UNDERSTAND and for
+your own wallet as the contracts' owner, checks the RPC answers chain 4663, deploys without the launchpad (and
+without staking until $SWAY exists), and turns browser-made wallets off: people trade with wallet apps. Then accept
+ownership on each contract from your wallet. Read `docs/SECURITY_REVIEW.md` first.
+
 The same by hand:
 
 
 ```bash
 sudo -iu sway bash -c 'curl -L https://foundry.paradigm.xyz | bash && ~/.foundry/bin/foundryup'
-sudo -iu sway bash -c 'cd /srv/sway/contracts && set -a && . ../.env && set +a && \
+sudo -u sway -H bash -lc 'cd /srv/sway/contracts && set -a && . ../.env && set +a && \
   ~/.foundry/bin/forge script script/Deploy.s.sol:Deploy --rpc-url "$RPC_URL" \
     --private-key "$OPERATOR_PRIVATE_KEY" --broadcast --slow && \
   bash ../scripts/apply-deployment.sh'
@@ -101,4 +106,4 @@ Then open https://swayfamily.com, sign in with X, create the Sway wallet and buy
 - **Updates:** push to the branch, then `sway-update` (as root).
 - **Backups:** `/var/backups/sway` (nightly, 14 days). Copy them off the machine.
 - **Certificates:** renewed by certbot's timer; nginx reloads after each renewal.
-- **Mainnet:** only after an audit; see the open items in `docs/BUILD_NOTES.md`.
+- **Mainnet:** `setup-chain.sh --mainnet` (see step 4) after reading `docs/SECURITY_REVIEW.md`; a third-party audit is still recommended.

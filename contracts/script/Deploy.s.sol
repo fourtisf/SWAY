@@ -28,7 +28,10 @@ contract DevSway is ERC20 {
 ///   LAUNCH_SIGNER  signs launchpad terms. Defaults to OPERATOR.
 ///   SWAY_TOKEN     $SWAY address. If unset a DevSway token is deployed (dev chains only).
 ///   GENESIS_BASE_URI
-/// Mainnet (chain 4663) requires ALLOW_MAINNET=1: the contracts are unaudited.
+///   DEPLOY_LAUNCHPAD  1 to deploy SwayLaunchpad on mainnet (off by default there: migrate() trusts the owner).
+/// Mainnet (chain 4663) requires ALLOW_MAINNET=1 (the contracts have no third-party audit) and an ADMIN that
+/// isn't the deployer (the deployer is the server's operator key). Without SWAY_TOKEN, mainnet gets no staking
+/// (the stakers' half of the protocol fee goes to the treasury) and never a DevSway.
 contract Deploy is Script {
     struct Config {
         address deployer;
@@ -66,27 +69,32 @@ contract Deploy is Script {
 
     function run() external {
         Config memory c = _config();
-        if (block.chainid == 4663) {
+        bool mainnet = block.chainid == 4663;
+        if (mainnet) {
             require(vm.envOr("ALLOW_MAINNET", uint256(0)) == 1, "unaudited: set ALLOW_MAINNET=1 after the audit");
-            require(c.swayToken != address(0), "SWAY_TOKEN required on mainnet");
+            require(c.admin != c.deployer, "mainnet: set ADMIN to a separate wallet (ideally a Safe), not the operator key");
         }
         uint256 startBlock = block.number;
         vm.startBroadcast();
-        Deployed memory d = _deploy(c);
+        Deployed memory d = _deploy(c, mainnet);
         _wire(c, d);
         vm.stopBroadcast();
         _write(c, d, startBlock);
     }
 
-    function _deploy(Config memory c) internal returns (Deployed memory d) {
+    function _deploy(Config memory c, bool mainnet) internal returns (Deployed memory d) {
         d.keys = new SwayKeys(c.deployer, c.treasury);
         d.escrow = new FanEscrow(c.deployer);
-        d.swayToken = c.swayToken == address(0) ? address(new DevSway(c.admin)) : c.swayToken;
-        d.staking = new SwayStaking(
-            c.deployer, IERC20(d.swayToken), [uint256(1_000 ether), 10_000 ether, 50_000 ether, 250_000 ether]
-        );
+        if (c.swayToken != address(0) || !mainnet) {
+            d.swayToken = c.swayToken == address(0) ? address(new DevSway(c.admin)) : c.swayToken;
+            d.staking = new SwayStaking(
+                c.deployer, IERC20(d.swayToken), [uint256(1_000 ether), 10_000 ether, 50_000 ether, 250_000 ether]
+            );
+        }
         d.pass = new GenesisPass(c.deployer, c.issuer, c.baseURI);
-        d.launchpad = new SwayLaunchpad(c.deployer, ISwayKeysMarkets(address(d.keys)), c.launchSigner);
+        if (!mainnet || vm.envOr("DEPLOY_LAUNCHPAD", uint256(0)) == 1) {
+            d.launchpad = new SwayLaunchpad(c.deployer, ISwayKeysMarkets(address(d.keys)), c.launchSigner);
+        }
         d.drops = new SwayDrops();
     }
 
@@ -94,15 +102,17 @@ contract Deploy is Script {
         d.keys.setOperator(c.operator, true);
         d.keys.setFanAdmin(c.fanAdmin, true);
         d.keys.setFanEscrow(address(d.escrow));
-        d.keys.setStaking(address(d.staking));
         d.escrow.setKeys(address(d.keys));
-        d.staking.setKeys(address(d.keys));
+        if (address(d.staking) != address(0)) {
+            d.keys.setStaking(address(d.staking));
+            d.staking.setKeys(address(d.keys));
+        }
         if (c.admin != c.deployer) {
             d.keys.transferOwnership(c.admin);
             d.escrow.transferOwnership(c.admin);
-            d.staking.transferOwnership(c.admin);
+            if (address(d.staking) != address(0)) d.staking.transferOwnership(c.admin);
             d.pass.transferOwnership(c.admin);
-            d.launchpad.transferOwnership(c.admin);
+            if (address(d.launchpad) != address(0)) d.launchpad.transferOwnership(c.admin);
         }
     }
 
