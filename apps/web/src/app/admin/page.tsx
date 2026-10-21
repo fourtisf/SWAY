@@ -1,20 +1,25 @@
 'use client';
-/** [B] Admin panel: reports, claim/takedown requests, members (bot flag, admin) and markets (halt, open fan market). */
-import { MARKET_CATEGORIES, minutesSince, type AdminReportDTO, type MarketCategory, type ReportStatus } from '@sway/shared';
+/**
+ * [B] Admin panel: reports, claim/takedown requests, members (bot flag, admin), markets (halt, open fan market) and
+ * contract owners (accept a two-step ownership transfer from the owner wallet, no explorer needed).
+ */
+import { MARKET_CATEGORIES, minutesSince, shortAddress, swayChain, type AdminReportDTO, type MarketCategory, type ReportStatus } from '@sway/shared';
 import { unitsToKeys } from '@sway/curve';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
+import { createPublicClient, http, parseAbi, type Address } from 'viem';
 import { Icon } from '@/components/icons';
 import { Avatar, Empty, Loading, NeedUser, Tabs, VB } from '@/components/ui';
 import { MediaGrid } from '@/components/views/Post';
 import { errorMessage, getApi } from '@/lib/api';
 import { useFormat } from '@/lib/format';
-import { useMe } from '@/lib/queries';
+import { useConfig, useMe } from '@/lib/queries';
 import { refreshPosts, sk } from '@/lib/social';
 import { toast } from '@/lib/store';
+import { useExternalWallet } from '@/lib/wallet';
 
-type Tab = 'reports' | 'claims' | 'members' | 'markets';
+type Tab = 'reports' | 'claims' | 'members' | 'markets' | 'contracts';
 const api = () => getApi();
 
 const REASON: Record<string, string> = { spam: 'Spam', abuse: 'Abuse', impersonation: 'Impersonation', other: 'Other' };
@@ -390,6 +395,127 @@ function Markets() {
   );
 }
 
+const OWNABLE = parseAbi([
+  'function owner() view returns (address)',
+  'function pendingOwner() view returns (address)',
+  'function acceptOwnership()',
+]);
+const OWNED = [
+  ['swayKeys', 'SwayKeys'],
+  ['fanEscrow', 'FanEscrow'],
+  ['genesisPass', 'GenesisPass'],
+  ['swayStaking', 'SwayStaking'],
+  ['launchpad', 'SwayLaunchpad'],
+] as const;
+const ZERO = /^0x0{40}$/i;
+
+interface OwnedContract {
+  name: string;
+  address: Address;
+  owner: Address;
+  pending: Address | null;
+}
+
+/** Owners read from the chain. The deploy hands each contract to the owner wallet, which accepts here. */
+function Contracts() {
+  const cfg = useConfig().data;
+  const detected = useExternalWallet((s) => s.detected);
+  // MetaMask by default: with several wallet extensions installed, the plain browser wallet can be any of them.
+  const [chosen, setVia] = useState<string | null>(null);
+  const via = chosen ?? detected.find((d) => d.rdns === 'io.metamask')?.rdns ?? '';
+  const { busy, run } = useRun();
+  const deployed = cfg ? OWNED.flatMap(([k, name]) => (cfg.contracts[k] ? [{ name, address: cfg.contracts[k]! }] : [])) : [];
+  const { data, isError } = useQuery({
+    queryKey: ['admin', 'contracts', cfg?.chainId, deployed.map((c) => c.address).join()],
+    enabled: deployed.length > 0,
+    queryFn: async (): Promise<OwnedContract[]> => {
+      const pub = createPublicClient({ chain: swayChain({ chainId: cfg!.chainId, rpcUrl: cfg!.rpcUrl }), transport: http(cfg!.rpcUrl) });
+      return Promise.all(
+        deployed.map(async (c) => {
+          const [owner, pending] = await Promise.all([
+            pub.readContract({ address: c.address, abi: OWNABLE, functionName: 'owner' }),
+            pub.readContract({ address: c.address, abi: OWNABLE, functionName: 'pendingOwner' }),
+          ]);
+          return { ...c, owner, pending: ZERO.test(pending) ? null : pending };
+        }),
+      );
+    },
+  });
+
+  const accept = async (c: OwnedContract & { pending: Address }) => {
+    const ext = useExternalWallet.getState().api;
+    if (!ext) throw new Error('Wallet apps aren’t available in this browser');
+    const { address, wallet } = await ext.connect({ via: 'injected', rdns: via || null });
+    if (address.toLowerCase() !== c.pending.toLowerCase())
+      throw new Error(`Switch your wallet app to ${shortAddress(c.pending)} (it shared ${shortAddress(address)})`);
+    await wallet.waitForReceipt(await wallet.writeContract({ address: c.address, abi: OWNABLE, functionName: 'acceptOwnership' }));
+  };
+
+  if (!cfg) return <Loading />;
+  if (!deployed.length)
+    return (
+      <Empty icon="shield" title="No contracts yet">
+        Nothing is deployed on this chain.
+      </Empty>
+    );
+  return (
+    <>
+      <div className="glass adm-card" id="owners">
+        <b style={{ fontSize: 16 }}>Contract owners</b>
+        <p className="t2" style={{ fontSize: 13.5, margin: '4px 0 12px' }}>
+          Ownership moves in two steps: the deploy hands each contract to your owner wallet, then that wallet accepts. Open your wallet app on that
+          account (it pays a little gas on {cfg.chainName}) and press Accept on each contract.
+        </p>
+        {detected.length > 1 && (
+          <select className="field" aria-label="Wallet app" value={via} onChange={(e) => setVia(e.target.value)}>
+            <option value="">Browser wallet</option>
+            {detected.map((d) => (
+              <option key={d.rdns} value={d.rdns}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+      {isError ? (
+        <Empty icon="shield" title="Couldn’t read the contracts">
+          The chain didn’t answer. Try again in a moment.
+        </Empty>
+      ) : !data ? (
+        <Loading />
+      ) : (
+        data.map((c) => (
+          <div key={c.address} className="tr adm-row" data-contract={c.name}>
+            <div style={{ minWidth: 0 }}>
+              <div className="nm">
+                <b>{c.name}</b>
+                {c.pending ? <span className="tag warn">Waiting for accept</span> : <span className="tag line">Owned</span>}
+              </div>
+              <div className="hd" style={{ fontSize: 14 }}>
+                <a href={`${cfg.explorerUrl}/address/${c.address}`} target="_blank" rel="noreferrer">
+                  {shortAddress(c.address)}
+                </a>
+                {' · owner '}
+                {shortAddress(c.owner)}
+                {c.pending && ` → ${shortAddress(c.pending)}`}
+              </div>
+            </div>
+            {c.pending && (
+              <button
+                className="btn btn-white btn-sm"
+                disabled={!!busy}
+                onClick={() => run(c.address, () => accept({ ...c, pending: c.pending! }), `${c.name}: ownership accepted`)}
+              >
+                {busy === c.address ? 'Confirm in wallet…' : 'Accept'}
+              </button>
+            )}
+          </div>
+        ))
+      )}
+    </>
+  );
+}
+
 export default function AdminPage() {
   const me = useMe();
   const [tab, setTab] = useState<Tab>('reports');
@@ -409,6 +535,7 @@ export default function AdminPage() {
           ['claims', 'Claims & takedowns'],
           ['members', 'Members'],
           ['markets', 'Markets'],
+          ['contracts', 'Contracts'],
         ]}
         value={tab}
         onChange={setTab}
@@ -417,6 +544,7 @@ export default function AdminPage() {
       {tab === 'claims' && <Claims />}
       {tab === 'members' && <Members />}
       {tab === 'markets' && <Markets />}
+      {tab === 'contracts' && <Contracts />}
     </>
   );
 }
