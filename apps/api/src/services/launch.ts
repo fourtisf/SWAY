@@ -307,6 +307,7 @@ export async function tokenDTO(
   };
   let creatorFees = 0n;
   let balances = wallets.map(() => ({ balance: 0n, allowance: 0n }));
+  let pool: Address | null = null;
   try {
     const [c, fees, bals] = await Promise.all([
       lc.curve(token),
@@ -317,9 +318,13 @@ export async function tokenDTO(
     curve = c;
     creatorFees = fees;
     balances = bals;
+    if (c.migrated) pool = await lc.pairOf(token).catch(() => null);
   } catch {
     source = 'mirror';
   }
+  // A graduated curve is empty onchain (its liquidity is in the pool): show its last price from the mirror.
+  if (curve.graduated && curve.tokenReserve === 0n && lt)
+    curve = { ...curve, ethReserve: decToBig(lt.ethReserveWei), tokenReserve: decToBig(lt.tokenReserve) };
   const capNow = launchMarketCap(curve);
   // Start cap from the stored terms; virtualEth inverts it when the row is missing (launched elsewhere).
   const start =
@@ -342,6 +347,7 @@ export async function tokenDTO(
     tokenReserve: curve.tokenReserve.toString(),
     volumeWei: lt ? lt.volumeWei.toFixed(0) : '0',
     graduated: curve.graduated,
+    pool,
     creatorFeesWei: creatorFees.toString(),
     balances: wallets.map((address, i) => ({
       address,

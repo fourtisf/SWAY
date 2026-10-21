@@ -11,7 +11,7 @@ contracts hold significant value.
 | `SwayKeys.sol` | 614 | Key markets, every trade's ETH, all earnings until claimed |
 | `FanEscrow.sol` | 58 | Creator fees of unclaimed fan markets |
 | `SwayStaking.sol` | 177 | Staked $SWAY, stakers' ETH rewards |
-| `SwayLaunchpad.sol` | 276 | Creator tokens' bonding curves (ETH + tokens) |
+| `SwayLaunchpad.sol` | 305 | Creator tokens' bonding curves (ETH + tokens) until they graduate into Uniswap V2 |
 | `GenesisPass.sol` | 115 | Soulbound passes (no funds) |
 | `SwayDrops.sol` | 88 | Creator airdrops to holders (ETH) |
 | `SwayCreatorToken.sol` | 18 | Fixed-supply ERC-20 |
@@ -35,7 +35,7 @@ Solidity 0.8.24, OpenZeppelin 5.4. Also reviewed: the server's wallet handling t
 |---|---|---|---|---|
 | S-1 | Medium | SwayStaking | A stake placed just before the public `harvest()` took the protocol fees earned before it arrived. In the test, a late large stake took 99.9% of them. | **Fixed**: stake, unstake and claim harvest first. Test `test_lateStakerCannotTakeEarlierFees`. |
 | S-2 | Medium | SwayStaking | Requesting an unstake dropped the fees earned while staked but not yet harvested. | **Fixed** by the same change. Test `test_unstakeKeepsFeesEarnedWhileStaked`. |
-| L-1 | High (trust) | SwayLaunchpad | `migrate()` sends a graduated curve's ETH and tokens to any address the owner names; nothing onchain ties it to a pool. | **Mitigated**: the launchpad is not deployed on mainnet unless `DEPLOY_LAUNCHPAD=1`. Fix before enabling: migrate into a fixed DEX router/pool in the same call. |
+| L-1 | High (trust) | SwayLaunchpad | `migrate()` sent a graduated curve's ETH and tokens to any address the owner named; nothing onchain tied it to a pool. | **Fixed**: `migrate()` is gone. The buy that reaches the graduation cap seeds the token's Uniswap V2 pair (created at launch, router fixed at deploy and checked against Uniswap's factory) with all of the curve's ETH and the tokens matching its last price, burns the LP tokens and the leftover curve tokens. The token refuses transfers into its pair until then, so nobody can seed the pool at another price first; a pair made ahead of launch is reused, and WETH sent to it stays in the pool. Tests `test_graduatingBuyMovesTheCurveIntoUniswap_atItsLastPrice`, `test_nobodyCanSeedThePoolBeforeGraduation`, `test_aPairMadeAheadOfLaunch_withWethInIt_doesntBlockOrSkewGraduation`, the fuzz test, and `test/fork/RobinhoodUniswap.t.sol` (the real Uniswap V2 on a mainnet fork, run by `deploy/setup-launchpad.sh` before it deploys). |
 | L-2 | Low | SwayLaunchpad | Airdrop claims weren't capped at the 10% allocation, so a wrong root could pay out tokens that belong to the curve. | **Fixed**: `airdropped[token]` capped at `HOLDER_ALLOCATION`. Test `test_airdropCappedAtHolderAllocation`. |
 | D-1 | High (ops) | Deploy | Every contract's owner defaulted to the deployer, which is the server's hot operator key. | **Fixed**: mainnet refuses to deploy unless `ADMIN` is a different wallet (two-step transfer), or the owner opts into one key with `ALLOW_SINGLE_KEY=1` (`setup-chain.sh --mainnet`, answer SAME). One key is the owner's choice: a server break-in then controls settings and future fees, though not users' balances or sells. |
 | D-2 | Medium (ops) | Deploy | On mainnet without $SWAY, staking would have been wired to a freshly minted test token. | **Fixed**: no staking (and never DevSway) on mainnet until `SWAY_TOKEN` is set; the stakers' half of the protocol fee goes to the treasury. |
@@ -81,5 +81,6 @@ Solidity 0.8.24, OpenZeppelin 5.4. Also reviewed: the server's wallet handling t
 3. **Emergency stop**: owner → `SwayKeys.pause()`. Buys stop; holders can still sell and claim.
 4. **Treasury** defaults to the owner wallet.
 5. **Watch** `FanMarketClaimed`, `ReferrerSet` and `CreatorInactiveSet` for anything the app didn't do.
-6. **Still open**: the 5% early-sell fee is a build assumption (confirm it), launchpad migration (L-1) and staking
-   wait for $SWAY, and a third-party audit is recommended before the contracts hold significant value.
+6. **Still open**: the 5% early-sell fee is a build assumption (confirm it), staking waits for $SWAY, the Uniswap
+   V2 router and factory addresses come from Uniswap's docs (the fork rehearsal checks them against the chain before
+   the launchpad deploys), and a third-party audit is recommended before the contracts hold significant value.

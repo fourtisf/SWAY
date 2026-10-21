@@ -71,6 +71,8 @@ export interface LaunchChain {
   /** SwayLaunchpad.tokenOf(creator), null before launch. */
   tokenOf(creator: Address): Promise<Address | null>;
   curve(token: Address): Promise<OnchainCurve | null>;
+  /** SwayLaunchpad.pairOf(token): the Uniswap V2 pair a graduated curve moves into. */
+  pairOf(token: Address): Promise<Address | null>;
   creatorFees(creator: Address): Promise<bigint>;
   airdropClaimed(token: Address, account: Address): Promise<boolean>;
   /** ERC-20 balance and allowance to the launchpad, per owner. */
@@ -174,6 +176,16 @@ export class ViemLaunchChain implements LaunchChain {
       graduated: r[6],
       migrated: r[7],
     };
+  }
+
+  async pairOf(token: Address): Promise<Address | null> {
+    const p = (await this.pub.readContract({
+      address: this.pad(),
+      abi: swayLaunchpadAbi,
+      functionName: 'pairOf',
+      args: [token],
+    })) as string;
+    return isZeroAddress(p) ? null : lower(p);
   }
 
   async creatorFees(creator: Address): Promise<bigint> {

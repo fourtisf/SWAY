@@ -98,6 +98,9 @@ class FakeLaunchChain implements LaunchChain {
   async curve(token: Address) {
     return this.curves.get(token.toLowerCase()) ?? null;
   }
+  async pairOf() {
+    return null;
+  }
   async creatorFees(creator: Address) {
     return this.fees.get(creator.toLowerCase()) ?? 0n;
   }

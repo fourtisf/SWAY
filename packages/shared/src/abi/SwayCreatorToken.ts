@@ -19,7 +19,7 @@ export const swayCreatorTokenAbi = [
         "internalType": "address"
       },
       {
-        "name": "mintTo",
+        "name": "launchpad_",
         "type": "address",
         "internalType": "address"
       },
@@ -126,6 +126,19 @@ export const swayCreatorTokenAbi = [
   },
   {
     "type": "function",
+    "name": "launchpad",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "name",
     "inputs": [],
     "outputs": [
@@ -136,6 +149,52 @@ export const swayCreatorTokenAbi = [
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "openPair",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "pair",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pairOpen",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "setPair",
+    "inputs": [
+      {
+        "name": "pair_",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -351,5 +410,15 @@ export const swayCreatorTokenAbi = [
         "internalType": "address"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "OnlyLaunchpad",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "PairNotOpen",
+    "inputs": []
   }
 ] as const;

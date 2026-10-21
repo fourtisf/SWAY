@@ -206,6 +206,7 @@ function tokenDTO(w: MockWorld, t: MockToken): LaunchTokenDTO {
     tokenReserve: t.curve.tokenReserve.toString(),
     volumeWei: t.volume.toString(),
     graduated: t.graduated,
+    pool: null,
     creatorFeesWei: t.fees.toString(),
     balances: w.user ? [{ address: w.user.wallet, balance: t.balance.toString(), allowance: t.allowance.toString() }] : [],
     isMine: mine,

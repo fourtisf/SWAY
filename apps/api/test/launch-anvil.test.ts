@@ -63,6 +63,7 @@ const ARTIFACTS = [
   artifact('SwayLaunchpad.sol', 'SwayLaunchpad'),
   artifact('SwayStaking.sol', 'SwayStaking'),
   artifact('Deploy.s.sol', 'DevSway'),
+  artifact('DevUniswapV2.sol', 'DevV2Router'),
 ];
 const hasAnvil = spawnSync('anvil', ['--version'], { stdio: 'ignore' }).status === 0;
 const ready = hasAnvil && ARTIFACTS.every((f) => existsSync(f));
@@ -154,7 +155,8 @@ describe.skipIf(!ready)('launch flow on anvil', () => {
       sway,
       [1_000n * E18, 10_000n * E18, 50_000n * E18, 250_000n * E18],
     ]);
-    const pad = await deploy('SwayLaunchpad.sol', 'SwayLaunchpad', [operator, keys, operator]);
+    const router = await deploy('DevUniswapV2.sol', 'DevV2Router', []);
+    const pad = await deploy('SwayLaunchpad.sol', 'SwayLaunchpad', [operator, keys, operator, router]);
     c = { keys, pad, sway, staking };
 
     const config = loadConfig({

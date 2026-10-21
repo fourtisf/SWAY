@@ -55,7 +55,7 @@ export function TokenBox({ t }: { t: LaunchTokenDTO }) {
   const label = !me
     ? 'Connect X to trade'
     : t.graduated
-      ? 'Curve closed: moving to a pool'
+      ? 'Graduated: trades on Uniswap now'
       : amount <= 0n
         ? 'Enter an amount'
         : tooMuch
@@ -185,7 +185,17 @@ export function TokenBox({ t }: { t: LaunchTokenDTO }) {
           <span>Balance</span>
           <span>{F.$(weiToEth(cashWei))}</span>
         </div>
-        {me ? (
+        {t.graduated && t.pool ? (
+          // The curve's liquidity is in the Uniswap V2 pool now; the LP tokens were burned at graduation.
+          <a
+            className="btn btn-lg btn-block btn-white"
+            href={`https://app.uniswap.org/swap?outputCurrency=${t.address}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {`Trade $${t.symbol} on Uniswap`}
+          </a>
+        ) : me ? (
           <button className={`btn btn-lg btn-block ${buy ? 'btn-buy' : 'btn-sell'}`} disabled={bad || !!busy} onClick={exec}>
             {busy === 'trade' ? (
               <>
@@ -225,6 +235,17 @@ export function TokenBox({ t }: { t: LaunchTokenDTO }) {
       {t.explorer && (
         <a className="lnk" href={t.explorer} target="_blank" rel="noreferrer" style={{ display: 'inline-block', fontSize: 13, marginTop: 10 }}>
           View on explorer
+        </a>
+      )}
+      {t.explorer && t.pool && (
+        <a
+          className="lnk"
+          href={t.explorer.replace(/\/token\/[^/]+$/, `/address/${t.pool}`)}
+          target="_blank"
+          rel="noreferrer"
+          style={{ display: 'inline-block', fontSize: 13, marginTop: 10, marginLeft: 14 }}
+        >
+          Uniswap pool
         </a>
       )}
     </div>

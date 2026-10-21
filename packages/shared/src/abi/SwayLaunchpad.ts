@@ -17,6 +17,11 @@ export const swayLaunchpadAbi = [
         "name": "signer_",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "router",
+        "type": "address",
+        "internalType": "contract IUniswapV2RouterLike"
       }
     ],
     "stateMutability": "nonpayable"
@@ -56,6 +61,19 @@ export const swayLaunchpadAbi = [
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "DEAD",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "view"
@@ -327,6 +345,19 @@ export const swayLaunchpadAbi = [
   },
   {
     "type": "function",
+    "name": "factory",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IUniswapV2FactoryLike"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "keys",
     "inputs": [],
     "outputs": [
@@ -457,26 +488,27 @@ export const swayLaunchpadAbi = [
   },
   {
     "type": "function",
-    "name": "migrate",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pairOf",
     "inputs": [
       {
         "name": "token",
         "type": "address",
         "internalType": "address"
-      },
-      {
-        "name": "to",
-        "type": "address",
-        "internalType": "address"
       }
     ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "owner",
-    "inputs": [],
     "outputs": [
       {
         "name": "",
@@ -650,6 +682,19 @@ export const swayLaunchpadAbi = [
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "weth",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "event",
@@ -923,11 +968,6 @@ export const swayLaunchpadAbi = [
   },
   {
     "type": "error",
-    "name": "AlreadyMigrated",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "BadProof",
     "inputs": []
   },
@@ -986,11 +1026,6 @@ export const swayLaunchpadAbi = [
   {
     "type": "error",
     "name": "NoKeyMarket",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "NotGraduated",
     "inputs": []
   },
   {
@@ -1055,6 +1090,11 @@ export const swayLaunchpadAbi = [
   {
     "type": "error",
     "name": "UnknownToken",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ZeroAddress",
     "inputs": []
   },
   {

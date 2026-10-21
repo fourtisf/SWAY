@@ -10,6 +10,7 @@ import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import {SwayCreatorToken} from "./SwayCreatorToken.sol";
+import {IUniswapV2FactoryLike, IUniswapV2PairLike, IUniswapV2RouterLike, IWETHLike} from "./interfaces/IUniswapV2.sol";
 
 interface ISwayKeysMarkets {
     function markets(address subject)
@@ -22,11 +23,15 @@ interface ISwayKeysMarkets {
 /// @notice "Launch your reach as a token with one switch." A creator with a key market launches a
 ///         1B-supply token. 90% trades on a virtual constant-product curve whose starting market cap is
 ///         seeded by their Sway score; 10% is airdropped to their key holders (merkle root of key balances
-///         at launch). 1% of every trade goes to the creator. At the graduation market cap the curve
-///         closes and the owner (multisig) migrates the liquidity to a pool.
+///         at launch). 1% of every trade goes to the creator. The buy that reaches the graduation market cap
+///         closes the curve and moves its liquidity into the token's Uniswap V2 pool in the same transaction.
 /// @dev Launch terms (start cap, graduation cap, holder airdrop root) come from an EIP-712 attestation
 ///      signed by the Sway operator, so a creator can't choose their own airdrop list.
-///      PLACEHOLDER TERMS, UNAUDITED. Pool migration target is to be decided.
+///      Graduation: all of the curve's ETH plus the tokens that match it at the curve's last price go into the
+///      pool, the LP tokens and the curve's leftover tokens are burned. No one, the owner included, can move
+///      the liquidity anywhere else. The pair is created at launch and the token refuses transfers into it
+///      until then, so nobody can seed the pool at another price first.
+///      PLACEHOLDER TERMS, UNAUDITED.
 contract SwayLaunchpad is Ownable2Step, ReentrancyGuard, EIP712 {
     using SafeERC20 for IERC20;
 
@@ -35,6 +40,8 @@ contract SwayLaunchpad is Ownable2Step, ReentrancyGuard, EIP712 {
     uint256 public constant CURVE_SUPPLY = TOTAL_SUPPLY - HOLDER_ALLOCATION;
     uint256 public constant CREATOR_FEE_BPS = 100; // 1%
     uint256 public constant BPS = 10_000;
+    /// @dev Where graduation sends the LP tokens and leftover curve tokens (ERC-20s refuse address(0)).
+    address public constant DEAD = 0x000000000000000000000000000000000000dEaD;
 
     bytes32 public constant LAUNCH_TYPEHASH = keccak256(
         "Launch(address creator,string name,string symbol,uint256 startCapWei,uint256 graduationCapWei,bytes32 airdropRoot,uint256 deadline)"
@@ -55,6 +62,8 @@ contract SwayLaunchpad is Ownable2Step, ReentrancyGuard, EIP712 {
     }
 
     ISwayKeysMarkets public immutable keys;
+    IUniswapV2FactoryLike public immutable factory;
+    address public immutable weth;
     address public signer;
 
     mapping(address token => Curve) public curves;
@@ -64,6 +73,8 @@ contract SwayLaunchpad is Ownable2Step, ReentrancyGuard, EIP712 {
     ///         so a bad root can't reach the curve's tokens.
     mapping(address token => uint256) public airdropped;
     mapping(address creator => uint256) public creatorFees;
+    /// @notice The token's Uniswap V2 pair with WETH, created at launch.
+    mapping(address token => address) public pairOf;
 
     event Launched(address indexed creator, address indexed token, string symbol, uint256 startCapWei, uint256 graduationCapWei, bytes32 airdropRoot);
     event Traded(address indexed token, address indexed trader, bool isBuy, uint256 ethAmount, uint256 tokenAmount, uint256 creatorFee, uint256 ethReserve, uint256 tokenReserve);
@@ -80,8 +91,7 @@ contract SwayLaunchpad is Ownable2Step, ReentrancyGuard, EIP712 {
     error BadTerms();
     error UnknownToken();
     error CurveClosed();
-    error NotGraduated();
-    error AlreadyMigrated();
+    error ZeroAddress();
     error Slippage();
     error ZeroAmount();
     error AlreadyClaimed();
@@ -89,8 +99,14 @@ contract SwayLaunchpad is Ownable2Step, ReentrancyGuard, EIP712 {
     error AirdropExceeded();
     error TransferFailed();
 
-    constructor(address initialOwner, ISwayKeysMarkets keys_, address signer_) Ownable(initialOwner) EIP712("SwayLaunchpad", "1") {
+    constructor(address initialOwner, ISwayKeysMarkets keys_, address signer_, IUniswapV2RouterLike router)
+        Ownable(initialOwner)
+        EIP712("SwayLaunchpad", "1")
+    {
         keys = keys_;
+        factory = IUniswapV2FactoryLike(router.factory());
+        weth = router.WETH();
+        if (address(factory) == address(0) || weth == address(0)) revert ZeroAddress();
         signer = signer_;
         emit SignerSet(signer_);
     }
@@ -146,6 +162,11 @@ contract SwayLaunchpad is Ownable2Step, ReentrancyGuard, EIP712 {
 
         token = address(new SwayCreatorToken(name, symbol, msg.sender, address(this), TOTAL_SUPPLY));
         tokenOf[msg.sender] = token;
+        // Token addresses are predictable, so the pair may exist already: it can't hold any of the token yet.
+        address pair = factory.getPair(token, weth);
+        if (pair == address(0)) pair = factory.createPair(token, weth);
+        pairOf[token] = pair;
+        SwayCreatorToken(token).setPair(pair);
         // market cap = price * TOTAL_SUPPLY and price0 = virtualEth / CURVE_SUPPLY
         curves[token] = Curve({
             creator: msg.sender,
@@ -162,10 +183,12 @@ contract SwayLaunchpad is Ownable2Step, ReentrancyGuard, EIP712 {
 
     /* ------------------------------------------------------------------ curve */
 
-    /// @notice Current spot market cap in wei: (virtualEth + ethReserve) / tokenReserve * TOTAL_SUPPLY.
+    /// @notice Current spot market cap in wei: (virtualEth + ethReserve) / tokenReserve * TOTAL_SUPPLY. Zero once
+    ///         the curve has moved into its Uniswap pool (price it there).
     function marketCap(address token) public view returns (uint256) {
         Curve storage c = curves[token];
         if (c.creator == address(0)) revert UnknownToken();
+        if (c.tokenReserve == 0) return 0;
         return ((c.virtualEth + c.ethReserve) * TOTAL_SUPPLY) / c.tokenReserve;
     }
 
@@ -206,6 +229,7 @@ contract SwayLaunchpad is Ownable2Step, ReentrancyGuard, EIP712 {
         if (marketCap(token) >= c.graduationCapWei) {
             c.graduated = true;
             emit Graduated(token, c.ethReserve, c.tokenReserve);
+            _migrate(token, c);
         }
         IERC20(token).safeTransfer(msg.sender, tokensOut);
     }
@@ -250,19 +274,24 @@ contract SwayLaunchpad is Ownable2Step, ReentrancyGuard, EIP712 {
         _send(msg.sender, amount);
     }
 
-    /// @notice After graduation, moves the curve's ETH and remaining curve tokens to seed a pool.
-    function migrate(address token, address to) external onlyOwner nonReentrant {
-        Curve storage c = curves[token];
-        if (!c.graduated) revert NotGraduated();
-        if (c.migrated) revert AlreadyMigrated();
-        c.migrated = true;
+    /// @dev Seeds the pool at the curve's last price: all of its ETH (as WETH) and the tokens that match it. The
+    ///      LP tokens and the curve's leftover tokens go to DEAD. WETH someone sent to the pair beforehand stays in
+    ///      the pool (a gift to it); tokens can't have been sent there (SwayCreatorToken refuses until openPair).
+    function _migrate(address token, Curve storage c) internal {
         uint256 eth = c.ethReserve;
-        uint256 tokens = c.tokenReserve;
+        uint256 tokens = (eth * c.tokenReserve) / (c.virtualEth + eth);
+        uint256 burned = c.tokenReserve - tokens;
+        address pair = pairOf[token];
+        c.migrated = true;
         c.ethReserve = 0;
         c.tokenReserve = 0;
-        emit Migrated(token, to, eth, tokens);
-        IERC20(token).safeTransfer(to, tokens);
-        _send(to, eth);
+        emit Migrated(token, pair, eth, tokens);
+        IERC20(token).safeTransfer(pair, tokens);
+        IWETHLike(weth).deposit{value: eth}();
+        IERC20(weth).safeTransfer(pair, eth);
+        IUniswapV2PairLike(pair).mint(DEAD);
+        SwayCreatorToken(token).openPair();
+        if (burned != 0) IERC20(token).safeTransfer(DEAD, burned);
     }
 
     function _send(address to, uint256 amount) internal {

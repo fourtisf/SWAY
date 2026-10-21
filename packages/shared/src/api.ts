@@ -1155,6 +1155,8 @@ export interface LaunchTokenDTO {
   tokenReserve: TokenAmount;
   volumeWei: Wei;
   graduated: boolean;
+  /** Uniswap V2 pair the curve's liquidity moved into at graduation (trade it there); null before. */
+  pool: Address | null;
   /** Unclaimed 1% creator fees (SwayLaunchpad.creatorFees). */
   creatorFeesWei: Wei;
   /** The viewer's balance and launchpad allowance per wallet (account wallet first, then linked wallets). */

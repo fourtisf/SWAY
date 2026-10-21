@@ -35,14 +35,14 @@ export function LaunchSheet() {
     </div>
   );
   if (!lp || (!MOCK && !cfg)) return <Loading />;
-  // Mainnet deploys without the launchpad until its migration is fixed and audited (docs/SECURITY_REVIEW.md, L-1).
+  // Mainnet deploys without the launchpad; deploy/setup-launchpad.sh adds it.
   if (!MOCK && !cfg?.contracts.launchpad)
     return (
       <>
         {head}
         <div className="m-b">
           <p className="t2" style={{ margin: '0 0 16px' }}>
-            Token launches aren’t open on this network yet. They open once the launchpad contract has been audited.
+            Token launches aren’t open on this network yet.
           </p>
           <button className="btn btn-white btn-lg btn-block" onClick={closeModal}>
             Got it

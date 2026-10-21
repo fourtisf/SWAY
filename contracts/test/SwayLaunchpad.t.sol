@@ -3,17 +3,22 @@ pragma solidity 0.8.24;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SwayLaunchpad, ISwayKeysMarkets} from "../src/SwayLaunchpad.sol";
+import {SwayCreatorToken} from "../src/SwayCreatorToken.sol";
 import {Base} from "./utils/Base.sol";
+import {IUniswapV2RouterLike} from "../src/interfaces/IUniswapV2.sol";
+import {DevV2Factory, DevV2Pair, DevV2Router, DevWETH} from "../script/DevUniswapV2.sol";
 
 contract SwayLaunchpadTest is Base {
     SwayLaunchpad internal pad;
+    DevV2Router internal router;
     uint256 internal signerKey = 0xA11CE;
     address internal signer;
 
     function setUp() public override {
         super.setUp();
         signer = vm.addr(signerKey);
-        pad = new SwayLaunchpad(admin, ISwayKeysMarkets(address(keys)), signer);
+        router = new DevV2Router();
+        pad = new SwayLaunchpad(admin, ISwayKeysMarkets(address(keys)), signer, IUniswapV2RouterLike(address(router)));
     }
 
     function _sig(address creator, uint256 startCap, uint256 gradCap, bytes32 root, uint256 deadline)
@@ -94,24 +99,84 @@ contract SwayLaunchpadTest is Base {
         assertEq(alice.balance - aBefore, fee + fee2);
     }
 
-    function test_graduationClosesCurve_thenMigrate() public {
+    function test_graduatingBuyMovesTheCurveIntoUniswap_atItsLastPrice() public {
         address token = _launch();
+        address pair = pad.pairOf(token);
+        assertEq(DevV2Factory(router.factory()).getPair(token, router.WETH()), pair, "pair created at launch");
+
+        uint256 padBalance = address(pad).balance;
         vm.prank(bob);
-        pad.buy{value: 30 ether}(token, 0);
-        (,,,,,, bool graduated,) = pad.curves(token);
-        assertTrue(graduated);
+        uint256 got = pad.buy{value: 30 ether}(token, 0);
+        uint256 fee = 0.3 ether;
+        (, uint256 virtualEth,,,,, bool graduated, bool migrated) = pad.curves(token);
+        assertTrue(graduated && migrated);
+        assertEq(IERC20(token).balanceOf(bob), got);
+
+        // All of the curve's ETH is in the pool as WETH; only the creator's fee stays in the launchpad.
+        uint256 eth = 30 ether - fee;
+        assertEq(IERC20(router.WETH()).balanceOf(pair), eth);
+        assertEq(address(pad).balance - padBalance, fee);
+        // Pool price = the curve's last price (virtualEth + eth) / tokens left on the curve, to rounding.
+        uint256 tokensLeft = pad.CURVE_SUPPLY() - got;
+        uint256 poolTokens = IERC20(token).balanceOf(pair);
+        assertEq(poolTokens, (eth * tokensLeft) / (virtualEth + eth));
+        assertEq(IERC20(token).balanceOf(pad.DEAD()), tokensLeft - poolTokens, "leftover curve tokens burned");
+        assertEq(IERC20(token).balanceOf(address(pad)), pad.HOLDER_ALLOCATION(), "only the airdrop stays");
+        // LP tokens are burned: nobody, the owner included, can pull the liquidity.
+        DevV2Pair p = DevV2Pair(pair);
+        assertEq(p.balanceOf(pad.DEAD()) + p.MINIMUM_LIQUIDITY(), p.totalSupply());
+        assertEq(p.balanceOf(admin) + p.balanceOf(address(pad)) + p.balanceOf(alice), 0);
+
+        // The curve is closed; the token now trades freely, the pool included.
         vm.prank(carol);
         vm.expectRevert(SwayLaunchpad.CurveClosed.selector);
         pad.buy{value: 1 ether}(token, 0);
+        vm.prank(bob);
+        IERC20(token).transfer(pair, 1 ether);
+    }
 
-        address pool = makeAddr("pool");
-        vm.prank(admin);
-        pad.migrate(token, pool);
-        assertGt(pool.balance, 0);
-        assertGt(IERC20(token).balanceOf(pool), 0);
-        vm.prank(admin);
-        vm.expectRevert(SwayLaunchpad.AlreadyMigrated.selector);
-        pad.migrate(token, pool);
+    function test_nobodyCanSeedThePoolBeforeGraduation() public {
+        address token = _launch();
+        address pair = pad.pairOf(token);
+        vm.prank(bob);
+        uint256 got = pad.buy{value: 1 ether}(token, 0);
+        vm.prank(bob);
+        vm.expectRevert(SwayCreatorToken.PairNotOpen.selector);
+        IERC20(token).transfer(pair, got);
+        vm.startPrank(bob);
+        IERC20(token).approve(carol, got);
+        vm.stopPrank();
+        vm.prank(carol);
+        vm.expectRevert(SwayCreatorToken.PairNotOpen.selector);
+        IERC20(token).transferFrom(bob, pair, got);
+        vm.expectRevert(SwayCreatorToken.OnlyLaunchpad.selector);
+        SwayCreatorToken(token).openPair();
+        vm.expectRevert(SwayCreatorToken.OnlyLaunchpad.selector);
+        SwayCreatorToken(token).setPair(bob);
+    }
+
+    function test_aPairMadeAheadOfLaunch_withWethInIt_doesntBlockOrSkewGraduation() public {
+        // The next token's address is predictable: someone creates its pair first and sends WETH to it.
+        address predicted = vm.computeCreateAddress(address(pad), vm.getNonce(address(pad)));
+        address weth = router.WETH();
+        address pair = DevV2Factory(router.factory()).createPair(predicted, weth);
+        vm.deal(dave, 1 ether);
+        vm.startPrank(dave);
+        DevWETH(weth).deposit{value: 1 ether}();
+        DevWETH(weth).transfer(pair, 1 ether);
+        vm.stopPrank();
+
+        address token = _launch();
+        assertEq(token, predicted);
+        assertEq(pad.pairOf(token), pair, "launch reuses the existing pair");
+        DevV2Pair(pair).sync(); // the WETH is now in the pair's reserves
+        vm.prank(bob);
+        pad.buy{value: 30 ether}(token, 0);
+        (,,,,,,, bool migrated) = pad.curves(token);
+        assertTrue(migrated);
+        // The stray WETH stays in the pool on top of the curve's ETH: a gift to it, not to the sender.
+        assertEq(IERC20(weth).balanceOf(pair), 1 ether + 30 ether - 0.3 ether);
+        assertEq(DevV2Pair(pair).balanceOf(dave), 0);
     }
 
     function test_holderAirdrop() public {
@@ -161,8 +226,15 @@ contract SwayLaunchpadTest is Base {
         vm.deal(bob, ethIn);
         vm.prank(bob);
         uint256 out = pad.buy{value: ethIn}(token, 0);
-        (,, uint256 ethReserve, uint256 tokenReserve,,,,) = pad.curves(token);
-        assertEq(tokenReserve + out, 900_000_000 ether);
+        (,, uint256 ethReserve, uint256 tokenReserve,,,, bool migrated) = pad.curves(token);
         assertEq(address(pad).balance, ethReserve + pad.creatorFees(alice));
+        if (migrated) {
+            // Graduated: the rest of the curve went into the pool or was burned.
+            address pair = pad.pairOf(token);
+            assertEq(tokenReserve, 0);
+            assertEq(IERC20(token).balanceOf(pair) + IERC20(token).balanceOf(pad.DEAD()) + out, 900_000_000 ether);
+        } else {
+            assertEq(tokenReserve + out, 900_000_000 ether);
+        }
     }
 }

@@ -110,7 +110,7 @@ export async function onGraduated(c: ApplyContext, m: LogMeta, a: { token: strin
   c.out.notifications.push(
     await createNotification(c.tx, {
       userId: lt.userId, type: 'points', link: '/launchpad',
-      body: [{ t: `$${lt.symbol}`, b: true }, { t: ' reached its graduation market cap. The curve is closed while liquidity moves to a pool.' }],
+      body: [{ t: `$${lt.symbol}`, b: true }, { t: ' graduated: its liquidity is now in a Uniswap pool, where it trades from here.' }],
     }),
   );
 }

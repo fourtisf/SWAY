@@ -10,11 +10,29 @@ import {SwayStaking} from "../src/SwayStaking.sol";
 import {GenesisPass} from "../src/GenesisPass.sol";
 import {SwayLaunchpad, ISwayKeysMarkets} from "../src/SwayLaunchpad.sol";
 import {SwayDrops} from "../src/SwayDrops.sol";
+import {IUniswapV2RouterLike} from "../src/interfaces/IUniswapV2.sol";
+import {DevV2Router} from "./DevUniswapV2.sol";
 
 /// @dev Local/testnet stand-in for $SWAY, which doesn't exist yet. Never deployed when SWAY_TOKEN is set.
 contract DevSway is ERC20 {
     constructor(address to) ERC20("Sway (dev)", "SWAY") {
         _mint(to, 1_000_000_000 ether);
+    }
+}
+
+// Robinhood Chain's Uniswap V2 (developers.uniswap.org v2 deployments; the factory is also in Uniswap
+// governance's Robinhood Chain fee proposal). The router is accepted only if it reports this factory.
+address constant ROBINHOOD_V2_ROUTER = 0x89e5DB8B5aA49aA85AC63f691524311AEB649eba;
+address constant ROBINHOOD_V2_FACTORY = 0x8bcEaA40B9AcdfAedF85AdF4FF01F5Ad6517937f;
+
+/// @dev The router a launchpad graduates into: the given one, Uniswap's on mainnet, else a fresh DevV2Router.
+function uniswapV2Router(address given, bool mainnet) returns (IUniswapV2RouterLike router) {
+    if (given == address(0)) given = mainnet ? ROBINHOOD_V2_ROUTER : address(new DevV2Router());
+    router = IUniswapV2RouterLike(given);
+    if (mainnet) {
+        require(given.code.length > 0, "UNISWAP_V2_ROUTER has no code on this chain");
+        require(router.factory() == ROBINHOOD_V2_FACTORY, "UNISWAP_V2_ROUTER isn't Uniswap V2 on Robinhood Chain");
+        require(router.WETH().code.length > 0, "the router's WETH has no code");
     }
 }
 
@@ -28,7 +46,9 @@ contract DevSway is ERC20 {
 ///   LAUNCH_SIGNER  signs launchpad terms. Defaults to OPERATOR.
 ///   SWAY_TOKEN     $SWAY address. If unset a DevSway token is deployed (dev chains only).
 ///   GENESIS_BASE_URI
-///   DEPLOY_LAUNCHPAD  1 to deploy SwayLaunchpad on mainnet (off by default there: migrate() trusts the owner).
+///   DEPLOY_LAUNCHPAD  1 to deploy SwayLaunchpad on mainnet too (otherwise deploy/setup-launchpad.sh adds it).
+///   UNISWAP_V2_ROUTER where graduated launches get their pool. Mainnet defaults to Uniswap's Router02 on Robinhood
+///                  Chain (checked against its factory); elsewhere a DevV2Router is deployed when unset.
 /// Mainnet (chain 4663) requires ALLOW_MAINNET=1 (the contracts have no third-party audit) and an ADMIN that
 /// isn't the deployer (the deployer is the server's operator key), unless the owner opts into one key for both
 /// with ALLOW_SINGLE_KEY=1. Without SWAY_TOKEN, mainnet gets no staking
@@ -43,6 +63,7 @@ contract Deploy is Script {
         address issuer;
         address launchSigner;
         address swayToken;
+        address v2Router;
         string baseURI;
     }
 
@@ -65,6 +86,7 @@ contract Deploy is Script {
         c.issuer = vm.envOr("ISSUER", c.operator);
         c.launchSigner = vm.envOr("LAUNCH_SIGNER", c.operator);
         c.swayToken = vm.envOr("SWAY_TOKEN", address(0));
+        c.v2Router = vm.envOr("UNISWAP_V2_ROUTER", address(0));
         c.baseURI = vm.envOr("GENESIS_BASE_URI", string("https://swayfamily.com/genesis/"));
     }
 
@@ -97,7 +119,9 @@ contract Deploy is Script {
         }
         d.pass = new GenesisPass(c.deployer, c.issuer, c.baseURI);
         if (!mainnet || vm.envOr("DEPLOY_LAUNCHPAD", uint256(0)) == 1) {
-            d.launchpad = new SwayLaunchpad(c.deployer, ISwayKeysMarkets(address(d.keys)), c.launchSigner);
+            d.launchpad = new SwayLaunchpad(
+                c.deployer, ISwayKeysMarkets(address(d.keys)), c.launchSigner, uniswapV2Router(c.v2Router, mainnet)
+            );
         }
         d.drops = new SwayDrops();
     }
