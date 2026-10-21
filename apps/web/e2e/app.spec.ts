@@ -168,6 +168,17 @@ test('direct messages and notifications', async ({ page }) => {
   await expect(page.locator('.toasts')).toContainText('Backed with 100 pts');
 });
 
+test('a new member launches their own key from their profile', async ({ page }) => {
+  await connect(page, 'keylauncher');
+  await nav(page, 'Profile');
+  const bar = page.locator('.price-bar');
+  await expect(page.locator('#launchKeyNote')).toContainText('Your key isn’t onchain yet');
+  await bar.getByRole('button', { name: 'Launch my key' }).click();
+  await expect(page.locator('.toasts')).toContainText('Your key is live');
+  await expect(bar.getByRole('button', { name: 'Launch my key' })).toHaveCount(0);
+  await expect(page.locator('#launchKeyNote')).toHaveCount(0);
+});
+
 test('log out from the account menu', async ({ page }) => {
   await connect(page, 'logouttester');
   await page.locator('.sb .me-chip').getByRole('button', { name: 'Account menu' }).click();

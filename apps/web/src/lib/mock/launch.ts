@@ -284,6 +284,7 @@ function handleWrite(w: MockWorld, st: LaunchState, call: ContractCall): `0x${st
         if (Number(a[5]) < now(st)) fail('Expired');
         // The "signature" covers the airdrop root: holdings that moved since the attestation invalidate it.
         if (plan(w, u.handle, u.wallet).root !== a[4]) fail('BadSignature');
+        w.keyOpen = true;
         return launchToken(w, st, u.handle, u.wallet, u.score, String(a[0]), String(a[1])).launchTx;
       }
       case 'buy': {

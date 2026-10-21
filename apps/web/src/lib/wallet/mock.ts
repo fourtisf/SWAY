@@ -35,7 +35,8 @@ export function mockWallet(address: Address, kind: 'embedded' | 'external' = 'em
       w.execTrade(c.handle, 'sell', units, address);
       return txHash('sell');
     },
-    async register() {
+    async register(p) {
+      if (p.kind === 'open') w.keyOpen = true;
       return txHash('register');
     },
     async claim() {

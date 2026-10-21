@@ -5,7 +5,7 @@ import { hueOf, minutesSince } from '@sway/shared';
 import { useParams, useRouter } from 'next/navigation';
 import { useState, type CSSProperties } from 'react';
 import { Icon } from '@/components/icons';
-import { Avatar, Empty, Loading, Tabs, VB, Voiceprint } from '@/components/ui';
+import { Avatar, Empty, Loading, Spinner, Tabs, VB, Voiceprint } from '@/components/ui';
 import { RoomView } from '@/components/views/Chat';
 import { BlockedNote, ChartCard, ProfileMenu } from '@/components/views/ProfileExtras'; // [B]
 import { CreatorDrops } from '@/components/engage/Drops'; // [D]
@@ -103,6 +103,7 @@ function Profile({ handle }: { handle: string }) {
   const router = useRouter();
   const a = useActions();
   const [tab, setTab] = useState<ProfileTab>('posts');
+  const [launching, setLaunching] = useState(false);
   if (isPending) return <Loading />;
   if (error || !c)
     return (
@@ -117,6 +118,8 @@ function Profile({ handle }: { handle: string }) {
   const hue = hueOf(handle);
   const frame = isMe && me ? tierOf(me.points.total).frame : frameOfScore(c.score);
   const claimable = wallet ? weiToEth(wallet.earnings.totalWei) : 0;
+  // A member's market goes onchain with its first buy; until then they can launch it themselves.
+  const unlaunched = isMe && !!me?.market && !me.market.opened;
   return (
     <>
       <div className="p-banner" style={{ '--hue': hue } as CSSProperties}>
@@ -209,9 +212,24 @@ function Profile({ handle }: { handle: string }) {
         </div>
         <div className="acts">
           {isMe ? (
-            <button className="btn btn-glass" onClick={() => router.push('/wallet')}>
-              Earnings {F.$(claimable)}
-            </button>
+            <>
+              <button className="btn btn-glass" onClick={() => router.push('/wallet')}>
+                Earnings {F.$(claimable)}
+              </button>
+              {unlaunched && (
+                <button
+                  className="btn btn-buy"
+                  disabled={launching}
+                  onClick={async () => {
+                    setLaunching(true);
+                    await a.launchKey();
+                    setLaunching(false);
+                  }}
+                >
+                  {launching ? <Spinner /> : 'Launch my key'}
+                </button>
+              )}
+            </>
           ) : (
             <>
               <button className="btn btn-glass" disabled={!(held > 0)} onClick={() => a.openTrade(handle, 'sell')}>
@@ -224,6 +242,12 @@ function Profile({ handle }: { handle: string }) {
           )}
         </div>
       </div>
+      {unlaunched && (
+        <div className="note" id="launchKeyNote" style={{ margin: '0 16px 16px' }}>
+          Your key isn’t onchain yet. It goes live with its first buy, or launch it now yourself: one transaction, a little
+          gas.
+        </div>
+      )}
       <div className="glass kst">
         <div>
           <small>Supply</small>

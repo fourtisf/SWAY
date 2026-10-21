@@ -91,9 +91,12 @@ export function getMockApi(): SwayApi {
       needUser(w);
       return api.onboarding();
     },
-    async tradePermits() {
-      needUser(w);
-      return { permits: [] }; // mock markets are always open
+    async tradePermits({ subject }) {
+      const u = needUser(w);
+      // Every mock market is open except the member's own until it goes onchain.
+      if (w.keyOpen || subject.toLowerCase() !== w.subjectOf(u.handle).toLowerCase()) return { permits: [] };
+      const permit = { kind: 'open', wallet: u.wallet, xId: '1', referrer: fakeAddress('none'), deadline: Math.floor(Date.now() / 1000) + 1800, signature: '0x' } as const;
+      return { permits: [permit] };
     },
 
     async feed({ tab }) {

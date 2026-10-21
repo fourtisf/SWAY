@@ -25,7 +25,7 @@ import { useEthUsd, useFormat } from './format';
 import { invalidateMoney, qk, useMe } from './queries';
 import { closeModal, openModal, toast, useUI } from './store';
 import { shareCardUrl } from './util';
-import { useMemberWallets, useSwayWallet, type SwayWallet } from './wallet';
+import { SWAY_WALLET_OFF, useMemberWallets, useSwayWallet, type SwayWallet } from './wallet';
 import { openConnectWallet } from './wallet-actions';
 import { weiToEth } from '@sway/curve';
 
@@ -423,6 +423,46 @@ export function useActions() {
         qc.invalidateQueries({ queryKey: qk.messages });
       } catch (e) {
         fail(e);
+      }
+    },
+
+    /**
+     * Puts the member's own key market onchain now instead of at its first buy: SwayKeys.register with the
+     * operator's permit, sent and paid by the active wallet. The market belongs to the account wallet either way.
+     */
+    async launchKey(): Promise<boolean> {
+      if (!needUser() || !me?.market) return false;
+      // Onchain the market is bound to the account wallet for good; one that can't sign here would strand its fees.
+      if (memberWallets.find((x) => x.account)?.status === 'unsupported') {
+        toast(SWAY_WALLET_OFF);
+        return false;
+      }
+      const w = needWallet();
+      if (!w) return false;
+      try {
+        const { permits } = await api().tradePermits({ subject: me.market.subject, trader: w.address });
+        const open = permits.find((p) => p.kind === 'open');
+        if (open) await w.waitForReceipt(await w.register(open));
+        qc.setQueryData<MeDTO>(qk.me, (o) => (o?.market ? { ...o, market: { ...o.market, opened: true } } : o));
+        toast('Your key is live');
+        // The indexer mirrors MarketOpened within seconds.
+        void (async () => {
+          for (let i = 0; i < 20; i++) {
+            await new Promise((r) => setTimeout(r, 1000));
+            const next = await api()
+              .me()
+              .catch(() => null);
+            if (next?.market?.opened) {
+              qc.setQueryData(qk.me, next);
+              qc.invalidateQueries({ queryKey: qk.profile(next.user.handle) });
+              break;
+            }
+          }
+        })();
+        return true;
+      } catch (e) {
+        fail(e);
+        return false;
       }
     },
 

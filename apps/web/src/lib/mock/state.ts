@@ -170,6 +170,8 @@ export class MockWorld {
    * minus what linked wallets hold (`holdings` stays the member's total, which rooms and points read). */
   linked: MockLinkedWallet[] = [];
   account: { connector: string; kind: 'embedded' | 'external'; createdAt: number; label?: string | null } = { connector: 'sway', kind: 'embedded', createdAt: Date.now() };
+  /** The member's own market is onchain (its first buy, "Launch my key" or a token launch opens it). */
+  keyOpen = true;
   /** Average-cost basis per `${address}|${handle}` (ETH paid, fees included) and realized PnL. */
   basis: Record<string, { cost: number; realized: number }> = {};
   /** [D] Last buy per `${address}|${handle}` (anti-dump window) and creators under the activity bond. */
@@ -496,7 +498,7 @@ export class MockWorld {
     return {
       user: { ...this.ref(u.handle), id: 'u-' + u.handle, memberNo: u.memberNo, score: u.score, reachValue: u.value, followers: u.followers },
       wallet: { address: u.wallet, kind: this.account.kind },
-      market: { subject: this.subjectOf(u.handle), opened: true },
+      market: { subject: this.subjectOf(u.handle), opened: this.keyOpen },
       wallets: this.walletInfos(),
       points: this.points(),
       stakingLevel: this.level,
@@ -635,6 +637,7 @@ export class MockWorld {
     this.linked = [];
     this.basis = {};
     this.account = { connector: 'sway', kind: 'embedded', createdAt: Date.now() };
+    this.keyOpen = false;
     const me = mkCreator(u.name, u.handle, u.followers, 'New on Sway. Holders get my room.', u.verified, { isMe: true, memberNo: u.memberNo });
     Object.assign(me, { score: u.score, value: u.value, supply: 1, holders: 1, volume: 0, hist: Array(40).fill(priceAt(1)), change: 0, extraHolders: {} });
     this.C[u.handle] = me;
