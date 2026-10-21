@@ -47,7 +47,20 @@ the Client ID, Client Secret, Bearer Token and your admin handle, saves them and
 If X shows "Something went wrong", run `bash /srv/sway/deploy/check-x.sh` (as root): it checks the keys with X
 and the callback URL, and prints the exact values for the app's User authentication settings.
 
-## 4. Deploy the contracts (as sway, once per chain)
+## 4. Deploy the contracts (turns on buying and selling keys)
+
+```bash
+bash /srv/sway/deploy/setup-chain.sh      # as root; run it again after funding the wallet
+```
+
+It fills in the Robinhood Chain testnet settings, installs Foundry, creates the operator wallet (key saved in
+`.env`, never printed) and shows its address. Send test ETH to that address from the faucet, run the script again:
+it deploys the contracts, writes their addresses into `.env` and redeploys the site. Members who joined before
+the contracts existed open their market with "Open your key market"; fan markets opened earlier are opened onchain
+by submitting the handle again in Admin → Markets.
+
+The same by hand:
+
 
 ```bash
 sudo -iu sway bash -c 'curl -L https://foundry.paradigm.xyz | bash && ~/.foundry/bin/foundryup'

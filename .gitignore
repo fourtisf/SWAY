@@ -39,3 +39,5 @@ dump.rdb
 .idea/
 .vscode/*
 !.vscode/extensions.json
+contracts/broadcast/*/46630/
+contracts/deployments/46630.json
