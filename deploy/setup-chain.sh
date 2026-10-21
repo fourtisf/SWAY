@@ -52,7 +52,8 @@ if [ "$MAINNET" = 1 ]; then
   put CHAIN_ID "$MAIN_ID"
   put CHAIN_NAME "Robinhood Chain"
   case "$(get RPC_URL)" in *mainnet*) ;; *) put RPC_URL https://rpc.mainnet.chain.robinhood.com ;; esac
-  case "$(get EXPLORER_URL)" in *mainnet*|*blockscout*) ;; *) put EXPLORER_URL https://explorer.mainnet.chain.robinhood.com ;; esac
+  # explorer.mainnet.chain.robinhood.com (an earlier default) doesn't answer TLS; the mainnet explorer is Blockscout.
+  case "$(get EXPLORER_URL)" in *blockscout*) ;; *) put EXPLORER_URL https://robinhoodchain.blockscout.com ;; esac
   put FAUCET_URL ""
   put SWAY_ENABLE_MAINNET 1
   if blank ADMIN_ADDRESS && [ "$(get SINGLE_KEY)" != 1 ]; then

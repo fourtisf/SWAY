@@ -16,6 +16,12 @@ EXPLORER="${EXPLORER%/}"
 RUN="$ROOT/contracts/broadcast/Deploy.s.sol/$CHAIN/run-latest.json"
 [ -n "$EXPLORER" ] || { echo "EXPLORER_URL is empty in $ENV" >&2; exit 1; }
 [ -f "$RUN" ] || { echo "no deployment record for chain $CHAIN at $RUN: deploy with setup-chain.sh first" >&2; exit 1; }
+CODE="$(curl -s -m 20 -o /dev/null -w '%{http_code}' "$EXPLORER/api/v2/stats" || true)"
+if [ "$CODE" != 200 ]; then
+  echo "can't reach the explorer at $EXPLORER (HTTP '$CODE'): check EXPLORER_URL in $ENV" >&2
+  [ "$CHAIN" = 4663 ] && echo "Robinhood Chain mainnet's explorer is https://robinhoodchain.blockscout.com" >&2
+  exit 1
+fi
 echo "verifying the contracts of chain $CHAIN on $EXPLORER"
 
 # Constructor arguments come from the deployment record, their types from the compiled artifacts.

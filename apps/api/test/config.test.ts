@@ -61,7 +61,7 @@ describe('config', () => {
     expect(() => loadConfig({ ...TEST_ENV, CHAIN_ID: '4663' })).toThrow(/unaudited/);
     const c = loadConfig({ ...TEST_ENV, CHAIN_ID: '4663', SWAY_ENABLE_MAINNET: '1' });
     expect(c.chain.isMainnet).toBe(true);
-    expect(c.chain.explorerUrl).toBe('https://explorer.mainnet.chain.robinhood.com');
+    expect(c.chain.explorerUrl).toBe('https://robinhoodchain.blockscout.com');
   });
 
   it('turns the in-browser Sway wallet off on mainnet', () => {

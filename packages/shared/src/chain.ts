@@ -2,13 +2,13 @@ import { defineChain, encodePacked, keccak256, getAddress, type Chain } from 'vi
 import type { Address } from './api';
 
 /**
- * Robinhood Chain. influence.family documents chain ID 4663 and the explorer below for mainnet:
- * VERIFY BOTH before any deploy. Development uses a local anvil chain or the testnet (set CHAIN_ID,
+ * Robinhood Chain. Mainnet is chain ID 4663; its explorer is the Blockscout below (the brief's
+ * explorer.mainnet.chain.robinhood.com doesn't answer TLS). Development uses a local anvil chain or the testnet (set CHAIN_ID,
  * RPC_URL and EXPLORER_URL). Contracts are unaudited, so the API refuses mainnet unless
  * SWAY_ENABLE_MAINNET=1.
  */
 export const ROBINHOOD_MAINNET_ID = 4663;
-export const ROBINHOOD_MAINNET_EXPLORER = 'https://explorer.mainnet.chain.robinhood.com';
+export const ROBINHOOD_MAINNET_EXPLORER = 'https://robinhoodchain.blockscout.com';
 export const LOCAL_CHAIN_ID = 31337;
 
 export interface ChainEnv {
