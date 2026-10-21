@@ -86,6 +86,14 @@ export function NavItems() {
 
 export function MeChip({ menuDown = false }: { menuDown?: boolean }) {
   const me = useMe().data;
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    document.addEventListener('click', onDoc);
+    return () => document.removeEventListener('click', onDoc);
+  }, [open]);
   if (!me)
     return (
       <button className="btn btn-glass btn-block" style={{ height: 48, borderRadius: 14 }} onClick={() => openModal({ type: 'connect' })}>
@@ -95,7 +103,21 @@ export function MeChip({ menuDown = false }: { menuDown?: boolean }) {
     );
   const u = me.user;
   return (
-    <Link className="me-chip" href={`/${u.handle}`} onClick={close} style={{ position: 'relative' }}>
+    <Link
+      className="me-chip"
+      ref={ref}
+      href={`/${u.handle}`}
+      style={{ position: 'relative' }}
+      onClick={(e) => {
+        // The icon-only sidebar hides the "···": there the avatar opens the account menu, like on X.
+        if (!menuDown && window.matchMedia(COMPACT_SIDEBAR).matches) {
+          e.preventDefault();
+          setOpen(!open);
+          return;
+        }
+        close();
+      }}
+    >
       <Avatar u={u} size={42} />
       <div className="me-t" style={{ minWidth: 0, flex: 1 }}>
         <div className="nm">
@@ -104,25 +126,32 @@ export function MeChip({ menuDown = false }: { menuDown?: boolean }) {
         </div>
         <div className="hd">@{u.handle}</div>
       </div>
-      <AccountMenu handle={u.handle} down={menuDown} />
+      <span
+        className="dots"
+        role="button"
+        aria-label="Account menu"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen(!open);
+        }}
+      >
+        ···
+      </span>
+      {open && <AccountMenu handle={u.handle} down={menuDown} onDone={() => setOpen(false)} />}
     </Link>
   );
 }
 
-/** X-style account menu behind the "···" of the me-chip: Log out @handle. */
-function AccountMenu({ handle, down }: { handle: string; down: boolean }) {
-  const [open, setOpen] = useState(false);
+/** Widths where the sidebar shows icons only (globals.css: max-width 1280px, above the 700px mobile layout). */
+const COMPACT_SIDEBAR = '(min-width: 701px) and (max-width: 1280px)';
+
+/** X-style account menu of the me-chip: your profile and Log out @handle. */
+function AccountMenu({ handle, down, onDone }: { handle: string; down: boolean; onDone: () => void }) {
   const qc = useQueryClient();
   const router = useRouter();
-  const ref = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
-    document.addEventListener('click', onDoc);
-    return () => document.removeEventListener('click', onDoc);
-  }, [open]);
   const logout = async () => {
-    setOpen(false);
+    onDone();
     try {
       await getApi().logout();
     } catch {
@@ -133,33 +162,28 @@ function AccountMenu({ handle, down }: { handle: string; down: boolean }) {
     if (!MOCK) socket.restart();
     router.push('/');
   };
-  return (
+  const item = (label: string, icon: IconName, fn: () => void) => (
     <span
-      ref={ref}
-      className="dots"
-      role="button"
-      aria-label="Account menu"
+      className="it"
+      role="menuitem"
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        setOpen(!open);
+        fn();
       }}
     >
-      ···
-      {open && (
-        <span className="sres" style={{ ...(down ? { top: 'calc(100% + 8px)' } : { top: 'auto', bottom: 'calc(100% + 8px)' }), left: 'auto', right: 0, minWidth: 220, letterSpacing: 0, fontWeight: 700 }}>
-          <span
-            className="it"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              logout();
-            }}
-          >
-            Log out @{handle}
-          </span>
-        </span>
-      )}
+      <Icon name={icon} size={18} />
+      {label}
+    </span>
+  );
+  return (
+    <span className="sres me-menu" role="menu" style={down ? { top: 'calc(100% + 8px)' } : { top: 'auto', bottom: 'calc(100% + 8px)' }}>
+      {item('Your profile', 'user', () => {
+        onDone();
+        close();
+        router.push(`/${handle}`);
+      })}
+      {item(`Log out @${handle}`, 'logout', logout)}
     </span>
   );
 }

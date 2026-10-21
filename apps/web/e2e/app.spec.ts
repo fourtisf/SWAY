@@ -175,3 +175,14 @@ test('log out from the account menu', async ({ page }) => {
   await expect(page.locator('.sb').getByRole('button', { name: 'Connect X' })).toBeVisible();
   await expect(page.locator('.guest')).toBeVisible();
 });
+
+test('icon-only sidebar: the avatar opens the account menu with Log out', async ({ page }) => {
+  await connect(page, 'compactlogout');
+  await page.setViewportSize({ width: 1000, height: 900 });
+  await page.locator('.sb .me-chip').click();
+  await expect(page.locator('.me-menu')).toBeVisible();
+  await expect(page).toHaveURL(/\/$/);
+  await page.getByRole('menuitem', { name: 'Log out @compactlogout' }).click();
+  await expect(page.locator('.sb .me-chip')).toHaveCount(0);
+  await expect(page.locator('.guest')).toBeVisible();
+});

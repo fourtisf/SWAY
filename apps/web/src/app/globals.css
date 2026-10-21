@@ -53,6 +53,8 @@ h1,h2,h3,h4{margin:0;letter-spacing:-.01em}
 .me-chip{display:flex;align-items:center;gap:12px;padding:12px;border-radius:9999px;transition:background .2s}
 .me-chip:hover{background:var(--hover)}
 .me-chip .dots{margin-left:auto;color:var(--tx);font-weight:800;letter-spacing:1px}
+.me-menu{left:auto;right:0;min-width:240px;font-weight:700;font-size:15px;color:var(--tx)}
+@media (max-width:1280px){.sb .me-menu{left:0;right:auto}}
 .col{min-width:0;border-left:1px solid var(--line);border-right:1px solid var(--line);min-height:100vh;padding-bottom:90px}
 .rail{position:sticky;top:0;height:100vh;overflow-y:auto;padding:0 0 40px 30px;display:flex;flex-direction:column;gap:16px;scrollbar-width:none}
 .rail::-webkit-scrollbar{display:none}
