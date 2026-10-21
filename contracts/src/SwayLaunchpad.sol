@@ -9,6 +9,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SwayCreatorToken} from "./SwayCreatorToken.sol";
 import {IUniswapV2FactoryLike, IUniswapV2PairLike, IUniswapV2RouterLike, IWETHLike} from "./interfaces/IUniswapV2.sol";
 
@@ -162,11 +163,6 @@ contract SwayLaunchpad is Ownable2Step, ReentrancyGuard, EIP712 {
 
         token = address(new SwayCreatorToken(name, symbol, msg.sender, address(this), TOTAL_SUPPLY));
         tokenOf[msg.sender] = token;
-        // Token addresses are predictable, so the pair may exist already: it can't hold any of the token yet.
-        address pair = factory.getPair(token, weth);
-        if (pair == address(0)) pair = factory.createPair(token, weth);
-        pairOf[token] = pair;
-        SwayCreatorToken(token).setPair(pair);
         // market cap = price * TOTAL_SUPPLY and price0 = virtualEth / CURVE_SUPPLY
         curves[token] = Curve({
             creator: msg.sender,
@@ -179,6 +175,11 @@ contract SwayLaunchpad is Ownable2Step, ReentrancyGuard, EIP712 {
             migrated: false
         });
         emit Launched(msg.sender, token, symbol, startCapWei, graduationCapWei, airdropRoot);
+        // Token addresses are predictable, so the pair may exist already: it can't hold any of the token yet.
+        address pair = factory.getPair(token, weth);
+        if (pair == address(0)) pair = factory.createPair(token, weth);
+        pairOf[token] = pair;
+        SwayCreatorToken(token).setPair(pair);
     }
 
     /* ------------------------------------------------------------------ curve */
@@ -192,13 +193,33 @@ contract SwayLaunchpad is Ownable2Step, ReentrancyGuard, EIP712 {
         return ((c.virtualEth + c.ethReserve) * TOTAL_SUPPLY) / c.tokenReserve;
     }
 
-    function quoteBuy(address token, uint256 ethIn) public view returns (uint256 tokensOut, uint256 fee) {
+    /// @notice What a buy of `ethIn` gets: tokens out, the 1% creator fee and the ETH it spends. A buy that would
+    ///         carry the market cap past the graduation cap spends only what reaches it; the rest is refunded, so
+    ///         the pool opens at the graduation price rather than wherever one large buy pushed the curve.
+    function quoteBuy(address token, uint256 ethIn) public view returns (uint256 tokensOut, uint256 fee, uint256 spent) {
         Curve storage c = curves[token];
         if (c.creator == address(0)) revert UnknownToken();
-        fee = (ethIn * CREATOR_FEE_BPS) / BPS;
+        (tokensOut, fee, spent,) = _quoteBuy(c, ethIn);
+    }
+
+    function _quoteBuy(Curve storage c, uint256 ethIn)
+        internal
+        view
+        returns (uint256 tokensOut, uint256 fee, uint256 spent, bool capped)
+    {
         uint256 x = c.virtualEth + c.ethReserve;
         uint256 y = c.tokenReserve;
+        spent = ethIn;
+        fee = (ethIn * CREATOR_FEE_BPS) / BPS;
         uint256 net = ethIn - fee;
+        // The curve's x at which the market cap, x^2 * TOTAL_SUPPLY / (x * y), reaches the graduation cap.
+        uint256 xCap = Math.sqrt((c.graduationCapWei * x * y) / TOTAL_SUPPLY) + 1;
+        if (x + net > xCap) {
+            capped = true;
+            net = xCap - x;
+            spent = _divUp(net * BPS, BPS - CREATOR_FEE_BPS);
+            fee = spent - net;
+        }
         // constant product, rounded against the buyer
         tokensOut = y - _divUp(x * y, x + net);
     }
@@ -219,19 +240,21 @@ contract SwayLaunchpad is Ownable2Step, ReentrancyGuard, EIP712 {
         if (c.creator == address(0)) revert UnknownToken();
         if (c.graduated) revert CurveClosed();
         if (msg.value == 0) revert ZeroAmount();
-        uint256 fee;
-        (tokensOut, fee) = quoteBuy(token, msg.value);
-        if (tokensOut < minTokensOut || tokensOut == 0) revert Slippage();
-        c.ethReserve += msg.value - fee;
+        (uint256 out, uint256 fee, uint256 spent, bool capped) = _quoteBuy(c, msg.value);
+        tokensOut = out;
+        // A capped buy always graduates, even one so close to the cap that it buys no whole token unit.
+        if (tokensOut < minTokensOut || (tokensOut == 0 && !capped)) revert Slippage();
+        c.ethReserve += spent - fee;
         c.tokenReserve -= tokensOut;
         creatorFees[c.creator] += fee;
-        emit Traded(token, msg.sender, true, msg.value, tokensOut, fee, c.ethReserve, c.tokenReserve);
-        if (marketCap(token) >= c.graduationCapWei) {
+        emit Traded(token, msg.sender, true, spent, tokensOut, fee, c.ethReserve, c.tokenReserve);
+        if (capped || marketCap(token) >= c.graduationCapWei) {
             c.graduated = true;
             emit Graduated(token, c.ethReserve, c.tokenReserve);
             _migrate(token, c);
         }
         IERC20(token).safeTransfer(msg.sender, tokensOut);
+        if (spent < msg.value) _send(msg.sender, msg.value - spent);
     }
 
     function sell(address token, uint256 tokensIn, uint256 minEthOut) external nonReentrant returns (uint256 ethOut) {

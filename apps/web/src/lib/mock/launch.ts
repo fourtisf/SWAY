@@ -292,15 +292,16 @@ function handleWrite(w: MockWorld, st: LaunchState, call: ContractCall): `0x${st
         const ethIn = call.value ?? 0n;
         if (ethIn <= 0n) fail('ZeroAmount');
         if (ethIn > ethToWei(w.eth)) fail('Not enough balance');
-        const q = launchQuoteBuy(t.curve, ethIn);
+        // As SwayLaunchpad: a buy past the graduation cap spends only what reaches it and refunds the rest.
+        const q = launchQuoteBuy({ ...t.curve, graduationCapWei: t.graduationCapWei }, ethIn);
         if (q.tokensOut < BigInt(a[1] as bigint)) fail('Slippage');
-        t.curve = { ...t.curve, ethReserve: t.curve.ethReserve + ethIn - q.fee, tokenReserve: t.curve.tokenReserve - q.tokensOut };
+        t.curve = { ...t.curve, ethReserve: t.curve.ethReserve + q.spent - q.fee, tokenReserve: t.curve.tokenReserve - q.tokensOut };
         t.fees += q.fee;
-        t.volume += ethIn;
+        t.volume += q.spent;
         t.balance += q.tokensOut;
-        if (launchMarketCap(t.curve) >= t.graduationCapWei) t.graduated = true;
-        w.eth -= weiToEth(ethIn);
-        w.log(`Bought ${fmtTokens(q.tokensOut)} $${t.symbol}`, -weiToEth(ethIn));
+        if (q.graduates || launchMarketCap(t.curve) >= t.graduationCapWei) t.graduated = true;
+        w.eth -= weiToEth(q.spent);
+        w.log(`Bought ${fmtTokens(q.tokensOut)} $${t.symbol}`, -weiToEth(q.spent));
         return txh('tbuy');
       }
       case 'sell': {

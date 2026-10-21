@@ -64,9 +64,23 @@ export interface LaunchCurveState {
   virtualEth: bigint;
   ethReserve: bigint;
   tokenReserve: bigint;
+  /** When set, a buy stops at this market cap (the rest is refunded), as SwayLaunchpad does. */
+  graduationCapWei?: bigint;
 }
 
 const divUp = (a: bigint, b: bigint): bigint => (a === 0n ? 0n : (a - 1n) / b + 1n);
+
+/** floor(sqrt(n)), as OpenZeppelin's Math.sqrt. */
+function isqrt(n: bigint): bigint {
+  if (n < 2n) return n;
+  let x = n;
+  let y = (x + 1n) / 2n;
+  while (y < x) {
+    x = y;
+    y = (x + n / x) / 2n;
+  }
+  return x;
+}
 
 /** virtualEth set at launch: price0 = virtualEth / CURVE_SUPPLY and market cap = price × TOTAL_SUPPLY. */
 export const launchVirtualEth = (startCapWei: bigint): bigint =>
@@ -86,12 +100,31 @@ export const launchMarketCap = (c: LaunchCurveState): bigint =>
 export const launchPriceWei = (c: LaunchCurveState): bigint =>
   c.tokenReserve === 0n ? 0n : ((c.virtualEth + c.ethReserve) * E18) / c.tokenReserve;
 
-/** SwayLaunchpad.quoteBuy: tokens out (rounded against the buyer) and the 1% creator fee. */
-export function launchQuoteBuy(c: LaunchCurveState, ethIn: bigint): { tokensOut: bigint; fee: bigint } {
-  const fee = (ethIn * LAUNCH_CREATOR_FEE_BPS) / BPS;
+/**
+ * SwayLaunchpad.quoteBuy: tokens out (rounded against the buyer), the 1% creator fee and the ETH spent. With the
+ * curve's graduation cap set, a buy that would pass it spends only what reaches it (`graduates`); the rest of
+ * `ethIn` is refunded.
+ */
+export function launchQuoteBuy(
+  c: LaunchCurveState,
+  ethIn: bigint,
+): { tokensOut: bigint; fee: bigint; spent: bigint; graduates: boolean } {
   const x = c.virtualEth + c.ethReserve;
   const y = c.tokenReserve;
-  return { tokensOut: y - divUp(x * y, x + (ethIn - fee)), fee };
+  let spent = ethIn;
+  let fee = (ethIn * LAUNCH_CREATOR_FEE_BPS) / BPS;
+  let net = ethIn - fee;
+  let graduates = false;
+  if (c.graduationCapWei) {
+    const xCap = isqrt((c.graduationCapWei * x * y) / LAUNCH_TOTAL_SUPPLY) + 1n;
+    if (x + net > xCap) {
+      graduates = true;
+      net = xCap - x;
+      spent = divUp(net * BPS, BPS - LAUNCH_CREATOR_FEE_BPS);
+      fee = spent - net;
+    }
+  }
+  return { tokensOut: y - divUp(x * y, x + net), fee, spent, graduates };
 }
 
 /** SwayLaunchpad.quoteSell: ETH out after the 1% creator fee; never more than the real reserve. */

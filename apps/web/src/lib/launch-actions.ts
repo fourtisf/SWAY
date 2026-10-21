@@ -34,6 +34,7 @@ export const curveOf = (t: LaunchTokenDTO) => ({
   virtualEth: BigInt(t.virtualEthWei),
   ethReserve: BigInt(t.ethReserveWei),
   tokenReserve: BigInt(t.tokenReserve),
+  graduationCapWei: BigInt(t.graduationCapWei),
 });
 
 /** The token view's balance row for this wallet (or the first wallet). */

@@ -133,6 +133,7 @@ const curveOf = (t: LaunchTokenDTO) => ({
   virtualEth: BigInt(t.virtualEthWei),
   ethReserve: BigInt(t.ethReserveWei),
   tokenReserve: BigInt(t.tokenReserve),
+  graduationCapWei: BigInt(t.graduationCapWei),
 });
 
 describe.skipIf(!ready)('launch flow on anvil', () => {
@@ -296,13 +297,18 @@ describe.skipIf(!ready)('launch flow on anvil', () => {
     // Buy: the TS quote equals quoteBuy, minTokensOut with 1% slippage.
     const ethIn = 10n ** 16n;
     const qTs = launchQuoteBuy(curveOf(lp.token!), ethIn);
-    const qChain = (await pub.readContract({
-      address: c.pad,
-      abi: swayLaunchpadAbi,
-      functionName: 'quoteBuy',
-      args: [token, ethIn],
-    })) as readonly [bigint, bigint];
-    expect([qTs.tokensOut, qTs.fee]).toEqual([...qChain]);
+    const quote = async (wei: bigint) =>
+      (await pub.readContract({
+        address: c.pad,
+        abi: swayLaunchpadAbi,
+        functionName: 'quoteBuy',
+        args: [token, wei],
+      })) as readonly [bigint, bigint, bigint];
+    expect([qTs.tokensOut, qTs.fee, qTs.spent]).toEqual([...(await quote(ethIn))]);
+    // A buy past the graduation cap: the TS port stops at the same wei (integer sqrt as OpenZeppelin's).
+    const big = launchQuoteBuy(curveOf(lp.token!), 1_000n * E18);
+    expect(big.graduates).toBe(true);
+    expect([big.tokensOut, big.fee, big.spent]).toEqual([...(await quote(1_000n * E18))]);
     await send(bob, c.pad, swayLaunchpadAbi, 'buy', [token, launchMinOut(qTs.tokensOut)], ethIn);
     let view = await get<LaunchTokenResponse>('/api/launchpad/tokens/alicelaunch', cookies.bob);
     expect(view.token!.balances).toEqual([

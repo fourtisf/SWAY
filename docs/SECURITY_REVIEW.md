@@ -11,7 +11,7 @@ contracts hold significant value.
 | `SwayKeys.sol` | 614 | Key markets, every trade's ETH, all earnings until claimed |
 | `FanEscrow.sol` | 58 | Creator fees of unclaimed fan markets |
 | `SwayStaking.sol` | 177 | Staked $SWAY, stakers' ETH rewards |
-| `SwayLaunchpad.sol` | 305 | Creator tokens' bonding curves (ETH + tokens) until they graduate into Uniswap V2 |
+| `SwayLaunchpad.sol` | 328 | Creator tokens' bonding curves (ETH + tokens) until they graduate into Uniswap V2 |
 | `GenesisPass.sol` | 115 | Soulbound passes (no funds) |
 | `SwayDrops.sol` | 88 | Creator airdrops to holders (ETH) |
 | `SwayCreatorToken.sol` | 18 | Fixed-supply ERC-20 |
@@ -25,9 +25,12 @@ Solidity 0.8.24, OpenZeppelin 5.4. Also reviewed: the server's wallet handling t
    checks-effects-interactions, ETH and token accounting, rounding direction, overflow bounds, signature and
    merkle handling, admin and operator powers, pause behaviour.
 2. Slither 0.11 (97 detectors) over `src/`.
-3. Foundry: the existing suite (unit, fuzz, invariant, curve vectors replayed from the TypeScript quotes) plus
+3. End to end on a local chain through the real web app (burner wallets): a first buy that opens a member's market,
+   a launch with a chosen ticker by a creator whose market wasn't open yet, a buy past the graduation cap, and a
+   fan-market claim taken onchain from the Wallet page. This found L-3.
+4. Foundry: the existing suite (unit, fuzz, invariant, curve vectors replayed from the TypeScript quotes) plus
    a regression test for each fix, each shown to **fail on the old code** before the fix.
-4. Mainnet deploy rehearsed on a local chain with mainnet's chain ID (4663).
+5. Mainnet deploy rehearsed on a local chain with mainnet's chain ID (4663).
 
 ## Findings
 
@@ -36,6 +39,7 @@ Solidity 0.8.24, OpenZeppelin 5.4. Also reviewed: the server's wallet handling t
 | S-1 | Medium | SwayStaking | A stake placed just before the public `harvest()` took the protocol fees earned before it arrived. In the test, a late large stake took 99.9% of them. | **Fixed**: stake, unstake and claim harvest first. Test `test_lateStakerCannotTakeEarlierFees`. |
 | S-2 | Medium | SwayStaking | Requesting an unstake dropped the fees earned while staked but not yet harvested. | **Fixed** by the same change. Test `test_unstakeKeepsFeesEarnedWhileStaked`. |
 | L-1 | High (trust) | SwayLaunchpad | `migrate()` sent a graduated curve's ETH and tokens to any address the owner named; nothing onchain tied it to a pool. | **Fixed**: `migrate()` is gone. The buy that reaches the graduation cap seeds the token's Uniswap V2 pair (created at launch, router fixed at deploy and checked against Uniswap's factory) with all of the curve's ETH and the tokens matching its last price, burns the LP tokens and the leftover curve tokens. The token refuses transfers into its pair until then, so nobody can seed the pool at another price first; a pair made ahead of launch is reused, and WETH sent to it stays in the pool. Tests `test_graduatingBuyMovesTheCurveIntoUniswap_atItsLastPrice`, `test_nobodyCanSeedThePoolBeforeGraduation`, `test_aPairMadeAheadOfLaunch_withWethInIt_doesntBlockOrSkewGraduation`, the fuzz test, and `test/fork/RobinhoodUniswap.t.sol` (the real Uniswap V2 on a mainnet fork, run by `deploy/setup-launchpad.sh` before it deploys). |
+| L-3 | High (economic) | SwayLaunchpad | Found in the end-to-end audit: the buy that crossed the graduation cap was filled in full, so one large buy pushed the curve far past the cap (a 40 ETH buy took a $69K-cap launch to $4.2M) and the Uniswap pool opened at that price with only the curve's ETH behind it. The last buyer overpaid and early holders could drain the pool. | **Fixed**: a buy that would pass the cap spends only what reaches it (`quoteBuy` returns `spent`) and the rest is refunded in the same transaction; a capped buy always graduates. The pool now opens at the graduation market cap however large the last buy. TS port `launchQuoteBuy` matches to the wei (checked against the chain on anvil). Tests `test_poolOpensAtTheGraduationCap_howeverLargeTheLastBuy`, `test_quoteMatchesTheBuy_whenCapped` and the launchpad invariants (`test/invariant/SwayLaunchpad.invariant.t.sol`: ETH solvency, token accounting, nothing in the pool before graduation, pool at the cap after). |
 | L-2 | Low | SwayLaunchpad | Airdrop claims weren't capped at the 10% allocation, so a wrong root could pay out tokens that belong to the curve. | **Fixed**: `airdropped[token]` capped at `HOLDER_ALLOCATION`. Test `test_airdropCappedAtHolderAllocation`. |
 | D-1 | High (ops) | Deploy | Every contract's owner defaulted to the deployer, which is the server's hot operator key. | **Fixed**: mainnet refuses to deploy unless `ADMIN` is a different wallet (two-step transfer), or the owner opts into one key with `ALLOW_SINGLE_KEY=1` (`setup-chain.sh --mainnet`, answer SAME). One key is the owner's choice: a server break-in then controls settings and future fees, though not users' balances or sells. |
 | D-2 | Medium (ops) | Deploy | On mainnet without $SWAY, staking would have been wired to a freshly minted test token. | **Fixed**: no staking (and never DevSway) on mainnet until `SWAY_TOKEN` is set; the stakers' half of the protocol fee goes to the treasury. |

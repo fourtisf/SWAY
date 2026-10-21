@@ -1,7 +1,13 @@
 'use client';
 /** [C] A launched creator token: price, market cap, progress to graduation, buy/sell on the curve, creator fees. */
 import { ethToWei, weiToEth } from '@sway/curve';
-import { LAUNCH_CREATOR_FEE_BPS, launchMinOut, launchQuoteBuy, launchQuoteSell, type LaunchTokenDTO } from '@sway/shared';
+import {
+  LAUNCH_CREATOR_FEE_BPS,
+  launchMinOut,
+  launchQuoteBuy,
+  launchQuoteSell,
+  type LaunchTokenDTO,
+} from '@sway/shared';
 import { useState } from 'react';
 import { useFormat, useEthUsd } from '@/lib/format';
 import { balanceOf, curveOf, fmtTokens, tokensInput, useLaunchActions } from '@/lib/launch-actions';
@@ -95,11 +101,11 @@ export function TokenBox({ t }: { t: LaunchTokenDTO }) {
       </div>
       <div className="grid3" style={{ marginTop: 16 }}>
         <div className="glass stat">
-          <small>Price</small>
+          <small>{t.graduated ? 'Price at graduation' : 'Price'}</small>
           <b style={price.length > 8 ? { fontSize: 15, lineHeight: '24px' } : undefined}>{price}</b>
         </div>
         <div className="glass stat">
-          <small>Market cap</small>
+          <small>{t.graduated ? 'Cap at graduation' : 'Market cap'}</small>
           <b>{F.usd(capUsd)}</b>
         </div>
         <div className="glass stat">
@@ -107,84 +113,116 @@ export function TokenBox({ t }: { t: LaunchTokenDTO }) {
           <b>{F.$(weiToEth(t.volumeWei))}</b>
         </div>
       </div>
-      <div style={{ marginTop: 14 }}>
-        <div className="between" style={{ fontSize: 13.5 }}>
-          <span className="t2" style={{ fontWeight: 600 }}>
-            Progress to graduation
-          </span>
-          <b>
-            {F.usd(capUsd)} of {F.usd(gradUsd).replace('.0K', 'K')}
-          </b>
+      {t.graduated ? (
+        <div className="note" style={{ marginTop: 14 }} id="graduatedNote">
+          {`$${t.symbol} graduated: the curve’s ETH and tokens moved into its Uniswap pool and the pool’s LP tokens were burned, so the liquidity can’t be pulled. It trades on Uniswap from here.`}
         </div>
-        <div className="track" style={{ margin: '8px 0 4px' }} aria-label="Progress to graduation">
-          <i style={{ ['--w' as string]: `${Math.round(t.progress * 1000) / 10}%` }}>
-            <b />
-          </i>
+      ) : (
+        <div style={{ marginTop: 14 }}>
+          <div className="between" style={{ fontSize: 13.5 }}>
+            <span className="t2" style={{ fontWeight: 600 }}>
+              Progress to graduation
+            </span>
+            <b>
+              {F.usd(capUsd)} of {F.usd(gradUsd).replace('.0K', 'K')}
+            </b>
+          </div>
+          <div className="track" style={{ margin: '8px 0 4px' }} aria-label="Progress to graduation">
+            <i style={{ ['--w' as string]: `${Math.round(t.progress * 1000) / 10}%` }}>
+              <b />
+            </i>
+          </div>
+          <div className="t3" style={{ fontSize: 12.5 }}>
+            {`${fmtTokens(t.tokenReserve)} left on the curve, ${F.$(weiToEth(t.ethReserveWei))} in reserve`}
+          </div>
         </div>
-        <div className="t3" style={{ fontSize: 12.5 }}>
-          {`${fmtTokens(t.tokenReserve)} left on the curve, ${F.$(weiToEth(t.ethReserveWei))} in reserve`}
-        </div>
-      </div>
+      )}
 
       <div className="trade" style={{ padding: '18px 0 0' }}>
-        <div className="tside">
-          <button className={`b ${buy ? 'on' : ''}`} onClick={() => pick('buy')}>
-            Buy
-          </button>
-          <button className={`s ${!buy ? 'on' : ''}`} onClick={() => pick('sell')}>
-            Sell
-          </button>
-        </div>
-        <div className="amt-l">
-          <span>{buy ? 'ETH to spend' : `$${t.symbol} to sell`}</span>
-          <span>{buy ? `${F.$(weiToEth(amount))}` : `You hold ${fmtTokens(held)}`}</span>
-        </div>
-        <div className="amt">
-          <input id="tokAmt" inputMode="decimal" aria-label={buy ? 'ETH to spend' : 'Tokens to sell'} value={text} placeholder="0" onChange={(e) => setText(e.target.value)} />
-        </div>
-        <div className="quick">
-          {buy
-            ? ETH_CHIPS.map((v) => (
-                <button key={v} className={`chip ${text === v ? 'on' : ''}`} onClick={() => setText(v)}>
-                  {v} ETH
-                </button>
-              ))
-            : (['25', '50', '100'] as const).map((p) => (
-                <button key={p} className="chip" disabled={held === 0n} onClick={() => setText(tokensInput((held * BigInt(p)) / 100n))}>
-                  {p === '100' ? 'Max' : `${p}%`}
-                </button>
-              ))}
-        </div>
-        <div className="sum">
-          <div className="sum-r tot">
-            <span>{buy ? 'You get' : 'You receive'}</span>
-            <span>
-              {buy ? (
-                <>
-                  <b>{qb ? fmtTokens(qb.tokensOut) : '0'}</b>
-                  <small>${t.symbol}</small>
-                </>
-              ) : (
-                <>
-                  <b>{F.$(qs ? weiToEth(qs.ethOut) : 0)}</b>
-                  <small>{F.eth(qs ? weiToEth(qs.ethOut) : 0)} ETH</small>
-                </>
+        {!t.graduated && (
+          <>
+            <div className="tside">
+              <button className={`b ${buy ? 'on' : ''}`} onClick={() => pick('buy')}>
+                Buy
+              </button>
+              <button className={`s ${!buy ? 'on' : ''}`} onClick={() => pick('sell')}>
+                Sell
+              </button>
+            </div>
+            <div className="amt-l">
+              <span>{buy ? 'ETH to spend' : `$${t.symbol} to sell`}</span>
+              <span>{buy ? `${F.$(weiToEth(amount))}` : `You hold ${fmtTokens(held)}`}</span>
+            </div>
+            <div className="amt">
+              <input
+                id="tokAmt"
+                inputMode="decimal"
+                aria-label={buy ? 'ETH to spend' : 'Tokens to sell'}
+                value={text}
+                placeholder="0"
+                onChange={(e) => setText(e.target.value)}
+              />
+            </div>
+            <div className="quick">
+              {buy
+                ? ETH_CHIPS.map((v) => (
+                    <button key={v} className={`chip ${text === v ? 'on' : ''}`} onClick={() => setText(v)}>
+                      {v} ETH
+                    </button>
+                  ))
+                : (['25', '50', '100'] as const).map((p) => (
+                    <button
+                      key={p}
+                      className="chip"
+                      disabled={held === 0n}
+                      onClick={() => setText(tokensInput((held * BigInt(p)) / 100n))}
+                    >
+                      {p === '100' ? 'Max' : `${p}%`}
+                    </button>
+                  ))}
+            </div>
+            <div className="sum">
+              <div className="sum-r tot">
+                <span>{buy ? 'You get' : 'You receive'}</span>
+                <span>
+                  {buy ? (
+                    <>
+                      <b>{qb ? fmtTokens(qb.tokensOut) : '0'}</b>
+                      <small>${t.symbol}</small>
+                    </>
+                  ) : (
+                    <>
+                      <b>{F.$(qs ? weiToEth(qs.ethOut) : 0)}</b>
+                      <small>{F.eth(qs ? weiToEth(qs.ethOut) : 0)} ETH</small>
+                    </>
+                  )}
+                </span>
+              </div>
+              <div className="sum-r">
+                <span>At least, with 1% slippage</span>
+                <span>
+                  {buy
+                    ? `${qb ? fmtTokens(launchMinOut(qb.tokensOut)) : '0'} $${t.symbol}`
+                    : F.$(qs ? weiToEth(launchMinOut(qs.ethOut)) : 0)}
+                </span>
+              </div>
+              <div className="sum-r">
+                <span>Creator fee {Number(LAUNCH_CREATOR_FEE_BPS) / 100}%</span>
+                <span>{F.$(weiToEth(qb?.fee ?? qs?.fee ?? 0n))}</span>
+              </div>
+              {qb?.graduates && (
+                <div className="sum-r" id="gradNote">
+                  <span>Graduates the curve: spends</span>
+                  <span>{`${F.$(weiToEth(qb.spent))}, refunds ${F.$(weiToEth(amount - qb.spent))}`}</span>
+                </div>
               )}
-            </span>
-          </div>
-          <div className="sum-r">
-            <span>At least, with 1% slippage</span>
-            <span>{buy ? `${qb ? fmtTokens(launchMinOut(qb.tokensOut)) : '0'} $${t.symbol}` : F.$(qs ? weiToEth(launchMinOut(qs.ethOut)) : 0)}</span>
-          </div>
-          <div className="sum-r">
-            <span>Creator fee {Number(LAUNCH_CREATOR_FEE_BPS) / 100}%</span>
-            <span>{F.$(weiToEth(qb?.fee ?? qs?.fee ?? 0n))}</span>
-          </div>
-        </div>
-        <div className="wallet-r">
-          <span>Balance</span>
-          <span>{F.$(weiToEth(cashWei))}</span>
-        </div>
+            </div>
+            <div className="wallet-r">
+              <span>Balance</span>
+              <span>{F.$(weiToEth(cashWei))}</span>
+            </div>
+          </>
+        )}
         {t.graduated && t.pool ? (
           // The curve's liquidity is in the Uniswap V2 pool now; the LP tokens were burned at graduation.
           <a
@@ -196,7 +234,11 @@ export function TokenBox({ t }: { t: LaunchTokenDTO }) {
             {`Trade $${t.symbol} on Uniswap`}
           </a>
         ) : me ? (
-          <button className={`btn btn-lg btn-block ${buy ? 'btn-buy' : 'btn-sell'}`} disabled={bad || !!busy} onClick={exec}>
+          <button
+            className={`btn btn-lg btn-block ${buy ? 'btn-buy' : 'btn-sell'}`}
+            disabled={bad || !!busy}
+            onClick={exec}
+          >
             {busy === 'trade' ? (
               <>
                 <Spinner />
@@ -212,11 +254,17 @@ export function TokenBox({ t }: { t: LaunchTokenDTO }) {
             {label}
           </button>
         )}
-        <div className="disc">Creator tokens are not shares and can lose value. Launch terms are placeholders until the contract is audited.</div>
+        <div className="disc">
+          Creator tokens are not shares and can lose value. Launch terms are placeholders until the contract
+          is audited.
+        </div>
       </div>
 
       {t.isMine && (
-        <div className="earn-r" style={{ marginTop: 14, borderTop: '1px solid var(--line)', alignItems: 'center' }}>
+        <div
+          className="earn-r"
+          style={{ marginTop: 14, borderTop: '1px solid var(--line)', alignItems: 'center' }}
+        >
           <span>
             <b style={{ color: 'var(--tx)' }}>Creator fees to claim</b>
             <br />
@@ -226,14 +274,24 @@ export function TokenBox({ t }: { t: LaunchTokenDTO }) {
           </span>
           <span className="row">
             <b>{F.$(weiToEth(fees))}</b>
-            <button className="btn btn-buy btn-sm" disabled={fees === 0n || !!busy} onClick={() => run('fees', () => act.claimCreatorFees(t))}>
+            <button
+              className="btn btn-buy btn-sm"
+              disabled={fees === 0n || !!busy}
+              onClick={() => run('fees', () => act.claimCreatorFees(t))}
+            >
               {busy === 'fees' ? <Spinner /> : 'Claim creator fees'}
             </button>
           </span>
         </div>
       )}
       {t.explorer && (
-        <a className="lnk" href={t.explorer} target="_blank" rel="noreferrer" style={{ display: 'inline-block', fontSize: 13, marginTop: 10 }}>
+        <a
+          className="lnk"
+          href={t.explorer}
+          target="_blank"
+          rel="noreferrer"
+          style={{ display: 'inline-block', fontSize: 13, marginTop: 10 }}
+        >
           View on explorer
         </a>
       )}

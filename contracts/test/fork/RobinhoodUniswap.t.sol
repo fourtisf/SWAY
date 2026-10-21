@@ -33,8 +33,10 @@ contract RobinhoodUniswapForkTest is Test {
 
         address buyer = makeAddr("buyer");
         vm.deal(buyer, 10 ether);
+        (, uint256 fee, uint256 spent) = pad.quoteBuy(token, 5 ether);
         vm.prank(buyer);
         pad.buy{value: 5 ether}(token, 0);
+        assertEq(buyer.balance, 10 ether - spent, "the buy stops at the graduation cap; the rest is refunded");
         (,,,,,, bool graduated, bool migrated) = pad.curves(token);
         assertTrue(graduated && migrated);
         assertTrue(SwayCreatorToken(token).pairOpen());
@@ -42,8 +44,9 @@ contract RobinhoodUniswapForkTest is Test {
         IPairReserves p = IPairReserves(pair);
         (uint112 r0, uint112 r1,) = p.getReserves();
         (uint256 tokenRes, uint256 wethRes) = p.token0() == token ? (r0, r1) : (r1, r0);
-        assertEq(wethRes, 5 ether - 0.05 ether, "all of the curve's ETH in the pool");
+        assertEq(wethRes, spent - fee, "all of the curve's ETH in the pool");
         assertEq(tokenRes, IERC20(token).balanceOf(pair));
+        assertApproxEqRel((wethRes * pad.TOTAL_SUPPLY()) / tokenRes, 3 ether, 1e15, "pool opens at the graduation cap");
         assertEq(p.balanceOf(pad.DEAD()) + 1_000, p.totalSupply(), "LP burned");
     }
 

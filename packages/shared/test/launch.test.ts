@@ -60,4 +60,18 @@ describe('launch curve (SwayLaunchpad port)', () => {
     expect(s.ethOut).toBeLessThan(ethIn);
     expect(launchMinOut(1000n)).toBe(990n);
   });
+
+  it('a buy past the graduation cap spends only what reaches it, so the curve ends at the cap', () => {
+    const c = { ...launchInitialCurve(E18), graduationCapWei: 20n * E18 };
+    const small = launchQuoteBuy(c, E18 / 10n);
+    expect(small).toMatchObject({ spent: E18 / 10n, graduates: false });
+    const b = launchQuoteBuy(c, 500n * E18);
+    expect(b.graduates).toBe(true);
+    expect(b.spent).toBeLessThan(5n * E18);
+    // The creator still gets 1% of what was spent (to a wei of rounding).
+    expect(b.fee >= b.spent / 100n && b.fee <= b.spent / 100n + 1n).toBe(true);
+    const after = { ...c, ethReserve: b.spent - b.fee, tokenReserve: c.tokenReserve - b.tokensOut };
+    const cap = launchMarketCap(after);
+    expect(Number(cap - 20n * E18) / 1e18).toBeCloseTo(0, 3);
+  });
 });

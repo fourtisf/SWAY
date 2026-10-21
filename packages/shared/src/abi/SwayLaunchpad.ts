@@ -556,6 +556,11 @@ export const swayLaunchpadAbi = [
         "name": "fee",
         "type": "uint256",
         "internalType": "uint256"
+      },
+      {
+        "name": "spent",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
