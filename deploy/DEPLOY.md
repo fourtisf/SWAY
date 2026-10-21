@@ -62,8 +62,10 @@ by submitting the handle again in Admin → Markets.
 
 **Mainnet** (real ETH): `bash /srv/sway/deploy/setup-chain.sh --mainnet`. It asks you to type I UNDERSTAND and for
 your own wallet as the contracts' owner, checks the RPC answers chain 4663, deploys without the launchpad (and
-without staking until $SWAY exists), and turns browser-made wallets off: people trade with wallet apps. Then accept
-ownership on each contract from your wallet. Read `docs/SECURITY_REVIEW.md` first.
+without staking until $SWAY exists), and turns browser-made wallets off: people trade with wallet apps. Then run
+`bash /srv/sway/deploy/verify-contracts.sh` (publishes the source on the explorer, no transaction) and accept
+ownership on each contract from your wallet (explorer → Contract → Write → acceptOwnership). Read
+`docs/SECURITY_REVIEW.md` first.
 
 The same by hand:
 

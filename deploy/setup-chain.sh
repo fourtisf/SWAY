@@ -163,7 +163,8 @@ fi
 if [ "$MAINNET" = 1 ]; then
   echo
   echo "Mainnet trading is on. Two things only you can do:"
-  echo "  1. Accept ownership with your owner wallet ($(get ADMIN_ADDRESS)): on $(get EXPLORER_URL), open each"
+  echo "  1. Publish the contracts' code so the explorer can write to them: bash $ROOT/deploy/verify-contracts.sh"
+  echo "     Then accept ownership with your owner wallet ($(get ADMIN_ADDRESS)): on $(get EXPLORER_URL), open each"
   echo "     contract below → Contract → Write → connect that wallet → acceptOwnership."
   grep -E '^(SWAY_KEYS|FAN_ESCROW|GENESIS_PASS|SWAY_STAKING|LAUNCHPAD)_ADDRESS=0x' "$ENV" | sed 's/^/       /'
   echo "  2. Back up $ENV somewhere safe: it holds the operator key that signs members' permits."
