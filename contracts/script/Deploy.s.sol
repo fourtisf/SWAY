@@ -100,6 +100,8 @@ contract Deploy is Script {
                 "mainnet: set ADMIN to a separate wallet (ideally a Safe), or ALLOW_SINGLE_KEY=1 to keep one key"
             );
         }
+        // On Arbitrum-based chains this is the parent chain's block number; scripts/apply-deployment.sh takes the
+        // indexer's start block from the broadcast receipts instead.
         uint256 startBlock = block.number;
         vm.startBroadcast();
         Deployed memory d = _deploy(c, mainnet);

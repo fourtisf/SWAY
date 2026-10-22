@@ -96,6 +96,9 @@ export class Indexer {
     const head = await pub.getBlockNumber({ cacheTime: 0 });
     const safe = head - BigInt(cfg.indexer.confirmations);
     let cursor = await prisma.indexerCursor.findUnique({ where: { name: CURSOR } });
+    // Nothing of ours lives below INDEXER_START_BLOCK: a cursor under it (the start block was set too low and then
+    // corrected) jumps to it rather than scanning empty blocks.
+    if (cursor && cursor.blockNumber + 1n < cfg.indexer.startBlock) cursor = null;
 
     let reorgedTo: bigint | undefined;
     if (cursor) {

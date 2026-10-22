@@ -16,5 +16,18 @@ set_env SWAY_STAKING_ADDRESS "$(j swayStaking)"
 set_env GENESIS_PASS_ADDRESS "$(j genesisPass)"
 set_env LAUNCHPAD_ADDRESS "$(j launchpad)"
 set_env DROPS_ADDRESS "$(j drops)"
-set_env INDEXER_START_BLOCK "$(j startBlock)"
+# On Arbitrum-based chains (Robinhood Chain) block.number inside the deploy script is the parent chain's, far
+# below the chain's own: start from the deploy transactions' blocks in the broadcast record when there is one.
+start_block() {
+  node -e '
+    const fs = require("fs");
+    const f = process.argv[1];
+    let b = null;
+    if (fs.existsSync(f)) for (const r of JSON.parse(fs.readFileSync(f, "utf8")).receipts ?? []) {
+      const n = BigInt(r.blockNumber);
+      if (b === null || n < b) b = n;
+    }
+    console.log(String(b ?? process.argv[2]));' "$ROOT/contracts/broadcast/Deploy.s.sol/$CHAIN/run-latest.json" "$(j startBlock)"
+}
+set_env INDEXER_START_BLOCK "$(start_block)"
 grep -E "^(SWAY_KEYS|FAN_ESCROW|SWAY_STAKING|GENESIS_PASS|LAUNCHPAD|DROPS)_ADDRESS=|^INDEXER_START_BLOCK=" "$ENV"

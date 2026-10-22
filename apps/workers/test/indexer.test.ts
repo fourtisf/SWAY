@@ -14,7 +14,8 @@ import { prisma, decToBig } from '@sway/db';
 import { startChain, KEYS, type TestChain } from './anvil';
 import { loadConfig } from '../src/config';
 import { makeClients, type Clients } from '../src/clients';
-import { Indexer } from '../src/indexer/indexer';
+import { CURSOR, Indexer } from '../src/indexer/indexer';
+import { syncLaunchHolders } from '../src/indexer/launchpad';
 import { enforceActivityBond } from '../src/jobs/activity-bond';
 import { syncReferrers } from '../src/jobs/referrals';
 
@@ -237,6 +238,14 @@ describe('indexer', () => {
     const bal = (await chain.pub.readContract({ address: token, abi: erc20Abi, functionName: 'balanceOf', args: [bob.address] })) as bigint;
     expect(bal).toBeGreaterThan(0n);
     expect(await prisma.activity.count({ where: { userId: bobUser.id, label: { contains: '$ALICE' } } })).toBe(1);
+    expect(decToBig(lt.volumeWei)).toBe(10n ** 17n);
+
+    // Holders: Bob, not the launchpad (curve and unclaimed airdrop) or the pair.
+    const cursor = await prisma.indexerCursor.findUniqueOrThrow({ where: { name: CURSOR } });
+    await syncLaunchHolders(c, cursor.blockNumber, 2000n);
+    const synced = await prisma.launchToken.findUniqueOrThrow({ where: { id: lt.id } });
+    expect(synced.holders).toBe(1);
+    expect(await prisma.launchHolder.findMany({ where: { launchTokenId: lt.id } })).toMatchObject([{ address: bob.address.toLowerCase() }]);
   });
 
   it('enforces the creator activity bond onchain and mirrors it', async () => {
@@ -324,5 +333,21 @@ describe('indexer', () => {
     expect((await prisma.referral.findUniqueOrThrow({ where: { inviteeId: bob.id } })).onchainTx).toMatch(/^0x/);
     expect(await syncReferrers(c)).toBe(0);
     c.cfg.sponsorOnboarding = false;
+  });
+
+  it('starts at INDEXER_START_BLOCK when the cursor sits below it (start block set too low, then fixed)', async () => {
+    await catchUp();
+    const head = await chain.pub.getBlockNumber();
+    await prisma.indexerCursor.update({ where: { name: CURSOR }, data: { blockNumber: 1n, blockHash: '0xstale' } });
+    const before = c.cfg.indexer.startBlock;
+    c.cfg.indexer.startBlock = head;
+    try {
+      const r = await indexer.tick();
+      expect(r).toMatchObject({ from: head, to: head });
+      expect(r?.reorgedTo).toBeUndefined();
+      expect((await prisma.indexerCursor.findUniqueOrThrow({ where: { name: CURSOR } })).blockNumber).toBe(head);
+    } finally {
+      c.cfg.indexer.startBlock = before;
+    }
   });
 });

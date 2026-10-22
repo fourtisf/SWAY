@@ -35,6 +35,11 @@ const from = process.argv[2] ? BigInt(process.argv[2]) : deployBlock();
 if (from === null) throw new Error('No deployment record for the launchpad: pass its deploy block, backfill:launchpad <fromBlock>');
 const cursor = await c.prisma.indexerCursor.findUnique({ where: { name: CURSOR } });
 const to = cursor?.blockNumber ?? (await c.pub.getBlockNumber());
+if (from > to) {
+  console.log(`The indexer is at block ${to}, before the launchpad (block ${from}): it will index those events itself.`);
+  console.log('If it is far behind, check INDEXER_START_BLOCK in .env (bash scripts/apply-deployment.sh fixes it) and restart the workers.');
+  process.exit(0);
+}
 console.log(`replaying launchpad ${pad} events, blocks ${from}-${to}`);
 
 let span = BigInt(cfg.indexer.batchBlocks);
