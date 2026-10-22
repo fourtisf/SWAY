@@ -805,7 +805,7 @@ export type WalletRouteKey = keyof typeof WALLET_ROUTES;
  * the same name, so the additions stay in this section.
  */
 export interface PostDTO {
-  /** Image URLs (/api/uploads/<name>), at most POST_MEDIA_MAX. Always empty while `locked`. */
+  /** Upload URLs (/api/uploads/<name>): up to POST_MEDIA_MAX images or one video. Always empty while `locked`. */
   media: string[];
   /** Hidden by a moderator: only the author and admins still see it. */
   hidden: boolean;
@@ -840,9 +840,17 @@ export interface MeDTO {
 }
 
 export const POST_MEDIA_MAX = 4;
+/** Per image. */
 export const UPLOAD_MAX_BYTES = 5 * 1024 * 1024;
-export const UPLOAD_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const;
+/** Per video. A video goes in a post on its own. */
+export const UPLOAD_VIDEO_MAX_BYTES = 50 * 1024 * 1024;
+export const IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const;
+export const VIDEO_MIMES = ['video/mp4', 'video/webm'] as const;
+export const UPLOAD_MIMES = [...IMAGE_MIMES, ...VIDEO_MIMES] as const;
 export type UploadMime = (typeof UPLOAD_MIMES)[number];
+export const isVideoMime = (m: string) => (VIDEO_MIMES as readonly string[]).includes(m);
+/** Upload URLs keep the sniffed type's extension, so a post's media list says which entry is a video. */
+export const isVideoUrl = (url: string) => /\.(mp4|webm)$/i.test(url);
 /** Default price of a 24h boost (the API reads BOOST_USD). */
 export const BOOST_USD_DEFAULT = 10;
 export const BOOST_HOURS = 24;

@@ -110,6 +110,25 @@ test('images: pick, preview, remove, post the grid; bad files are refused', asyn
   await expect(postBy(page, 'Two pictures').locator('.pm.pm2 img')).toHaveCount(2);
 });
 
+test('video: one per post, plays inline in the feed', async ({ page }) => {
+  await connect(page, 'vidtester');
+  const MP4 = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from('ftypisom'), Buffer.alloc(64)]);
+  await page.setInputFiles('#img-in', [
+    { name: 'a.png', mimeType: 'image/png', buffer: PNG },
+    { name: 'clip.mp4', mimeType: 'video/mp4', buffer: MP4 },
+  ]);
+  await expect(page.locator('.toasts')).toContainText('A video goes in a post on its own');
+  await expect(page.locator('.cmedia')).toHaveCount(0);
+
+  await page.setInputFiles('#img-in', { name: 'clip.mp4', mimeType: 'video/mp4', buffer: MP4 });
+  await expect(page.locator('.cmedia .cm video')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Add image' }).first()).toBeDisabled();
+  await page.fill('#compose', 'Watch the tour');
+  await page.locator('#postBtn').click();
+  await expect(page.locator('.toasts')).toContainText('Posted');
+  await expect(postBy(page, 'Watch the tour').locator('.pm.pmv video')).toHaveCount(1);
+});
+
 test('post page: thread, replies and the reply composer', async ({ page }) => {
   await connect(page, 'replytester');
   await postBy(page, 'Open model update').locator('[data-act=reply]').click();

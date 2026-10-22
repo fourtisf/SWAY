@@ -1,5 +1,15 @@
 'use client';
-import { POST_MAX, POST_MAX_STAKED, POST_MEDIA_MAX, UPLOAD_MAX_BYTES, UPLOAD_MIMES, type UploadDTO, type Visibility } from '@sway/shared';
+import {
+  POST_MAX,
+  POST_MAX_STAKED,
+  POST_MEDIA_MAX,
+  UPLOAD_MAX_BYTES,
+  UPLOAD_MIMES,
+  UPLOAD_VIDEO_MAX_BYTES,
+  isVideoMime,
+  type UploadDTO,
+  type Visibility,
+} from '@sway/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useActions } from '@/lib/actions';
@@ -11,11 +21,13 @@ import { Icon } from '../icons';
 import { Avatar, Spinner } from '../ui';
 
 const EMOJI = ['🔥', '🚀', '👀', '💎', '🙌', '😂', '📈', '🫡', '✨', '🤝', '🧠', '⚡'];
+// iPhones hand over .mov files; the API stores the ones it can sniff as mp4.
+const ACCEPT = [...UPLOAD_MIMES, 'video/quicktime'].join(',');
 
 /**
  * The prototype's composerHtml(): 500 chars (2,000 at staking level ≥1), visibility select, emoji picker.
- * [B] Image tool (up to 4 uploads with removable previews) and reply mode (`parentId`): replies keep the
- * parent's page open instead of jumping to the feed.
+ * [B] Media tool (up to 4 images or one video, with removable previews) and reply mode (`parentId`): replies
+ * keep the parent's page open instead of jumping to the feed.
  */
 export function Composer({
   inModal = false,
@@ -43,6 +55,7 @@ export function Composer({
   const maxLen = (me?.stakingLevel ?? 0) >= 1 ? POST_MAX_STAKED : POST_MAX;
   const reply = !!parentId;
   const sfx = inModal ? '2' : reply ? 'r' : '';
+  const hasVideo = media.some((m) => isVideoMime(m.mime));
 
   useEffect(() => {
     if (inModal) ta.current?.focus();
@@ -73,11 +86,17 @@ export function Composer({
     const files = Array.from(list ?? []);
     if (file.current) file.current.value = '';
     if (!files.length) return;
+    if (files.some((f) => f.type.startsWith('video/')) && (files.length > 1 || media.length || uploading)) {
+      toast('A video goes in a post on its own');
+      return;
+    }
     const room = POST_MEDIA_MAX - media.length - uploading;
     if (files.length > room) toast(`Up to ${POST_MEDIA_MAX} images per post`);
     const take = files.slice(0, Math.max(0, room)).filter((f) => {
-      if (f.size > UPLOAD_MAX_BYTES) toast(`${f.name} is over 5 MB`);
-      return f.size <= UPLOAD_MAX_BYTES;
+      const image = f.type.startsWith('image/');
+      const ok = f.size <= (image ? UPLOAD_MAX_BYTES : UPLOAD_VIDEO_MAX_BYTES);
+      if (!ok) toast(`${f.name} is over ${image ? 5 : 50} MB`);
+      return ok;
     });
     if (!take.length) return;
     setUploading((n) => n + take.length);
@@ -134,8 +153,12 @@ export function Composer({
           <div className={`cmedia n${Math.min(4, media.length + uploading)}`} aria-label="Attached images">
             {media.map((m, i) => (
               <div key={m.url} className="cm">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={m.url} alt={`Attached image ${i + 1}`} />
+                {isVideoMime(m.mime) ? (
+                  <video src={m.url} aria-label="Attached video" muted playsInline controls preload="metadata" />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={m.url} alt={`Attached image ${i + 1}`} />
+                )}
                 <button className="cm-x" aria-label={`Remove image ${i + 1}`} onClick={() => setMedia((x) => x.filter((y) => y.url !== m.url))}>
                   <Icon name="close" />
                 </button>
@@ -153,14 +176,20 @@ export function Composer({
             <input
               ref={file}
               type="file"
-              accept={UPLOAD_MIMES.join(',')}
+              accept={ACCEPT}
               multiple
               hidden
               id={`img-in${sfx}`}
               aria-label="Choose images"
               onChange={(e) => pick(e.target.files)}
             />
-            <button className="tool" aria-label="Add image" disabled={media.length + uploading >= POST_MEDIA_MAX} onClick={() => file.current?.click()}>
+            <button
+              className="tool"
+              aria-label="Add image"
+              title="Photos or a video"
+              disabled={hasVideo || media.length + uploading >= POST_MEDIA_MAX}
+              onClick={() => file.current?.click()}
+            >
               <Icon name="image" />
             </button>
             <button className="tool" aria-label="Add emoji" onClick={() => !inModal && setEmo(!emo)}>

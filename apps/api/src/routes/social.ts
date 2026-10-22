@@ -2,7 +2,8 @@
  * [B] Reports, blocks, post images, price history, share cards and the account (settings, export, deletion).
  */
 import { randomBytes } from 'node:crypto';
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { mkdir, stat, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import multipart from '@fastify/multipart';
@@ -12,7 +13,9 @@ import {
   POST_MEDIA_MAX,
   REPORT_REASONS,
   UPLOAD_MAX_BYTES,
+  UPLOAD_VIDEO_MAX_BYTES,
   deleteConfirmText,
+  isVideoMime,
   type AccountDTO,
   type CardDTO,
   type HistoryRange,
@@ -27,7 +30,7 @@ import { HttpError, badRequest, notFound } from '../errors';
 import { userRef } from '../services/dto';
 import { canSeePost } from '../services/feed';
 import { deleteAccount, exportAccount } from '../services/account';
-import { EXT, UPLOAD_NAME, sniffImage, uploadUrl } from '../services/social';
+import { EXT, UPLOAD_DAILY_BYTES, UPLOAD_NAME, byteRange, sniffUpload, uploadUrl } from '../services/social';
 
 const RANGE_MS: Record<HistoryRange, number> = { '1h': 3600e3, '1d': 86400e3, '7d': 7 * 86400e3 };
 
@@ -97,8 +100,9 @@ export async function socialRoutes(app: FastifyInstance) {
 
   await app.register(async (scope) => {
     await scope.register(multipart, {
-      // One more than allowed so a fifth file is a clear 400 instead of a silent truncation.
-      limits: { fileSize: UPLOAD_MAX_BYTES, files: POST_MEDIA_MAX + 1, fields: 10, parts: 20 },
+      // One more than allowed so a fifth file is a clear 400 instead of a silent truncation. Images are held
+      // to UPLOAD_MAX_BYTES once their type is known; nginx caps the whole request.
+      limits: { fileSize: UPLOAD_VIDEO_MAX_BYTES, files: POST_MEDIA_MAX + 1, fields: 10, parts: 20 },
     });
 
     scope.post(
@@ -113,20 +117,34 @@ export async function socialRoutes(app: FastifyInstance) {
             if (part.type !== 'file') continue;
             if (files.length >= POST_MEDIA_MAX)
               throw badRequest('too_many_files', `Up to ${POST_MEDIA_MAX} images per post`);
+            if (files.some((f) => isVideoMime(f.mime)))
+              throw badRequest('video_alone', 'A video goes in a post on its own');
             const buf = await part.toBuffer();
-            const mime = sniffImage(buf);
-            if (!mime) throw badRequest('bad_image', 'Only JPEG, PNG, WebP and GIF images');
+            const mime = sniffUpload(buf);
+            if (!mime)
+              throw badRequest('bad_image', 'Only JPEG, PNG, WebP and GIF images, or MP4 and WebM videos');
+            if (isVideoMime(mime) && files.length)
+              throw badRequest('video_alone', 'A video goes in a post on its own');
+            if (!isVideoMime(mime) && buf.length > UPLOAD_MAX_BYTES)
+              throw new HttpError(413, 'too_large', 'Images can be up to 5 MB');
             files.push({ buf, mime });
           }
         } catch (e) {
           const code = (e as { code?: string }).code;
           if (code === 'FST_REQ_FILE_TOO_LARGE')
-            throw new HttpError(413, 'too_large', 'Images can be up to 5 MB');
+            throw new HttpError(413, 'too_large', 'Videos can be up to 50 MB, images up to 5 MB');
           if (code === 'FST_FILES_LIMIT' || code === 'FST_PARTS_LIMIT')
             throw badRequest('too_many_files', `Up to ${POST_MEDIA_MAX} images per post`);
           throw e;
         }
         if (!files.length) throw badRequest('no_file', 'Pick an image first');
+        const bytes = files.reduce((n, f) => n + f.buf.length, 0);
+        const today = await prisma.upload.aggregate({
+          where: { userId: v.user.id, createdAt: { gt: new Date(Date.now() - 86_400_000) } },
+          _sum: { bytes: true },
+        });
+        if ((today._sum.bytes ?? 0) + bytes > UPLOAD_DAILY_BYTES)
+          throw new HttpError(429, 'upload_quota', 'You hit today’s upload limit. Try again tomorrow.');
 
         await mkdir(config.uploadDir, { recursive: true });
         const out: UploadDTO[] = [];
@@ -159,19 +177,32 @@ export async function socialRoutes(app: FastifyInstance) {
         if (!UPLOAD_NAME.test(name)) throw notFound('No such image');
         const row = await prisma.upload.findUnique({ where: { name } });
         if (!row) throw notFound('No such image');
-        let data: Buffer;
+        const file = path.join(config.uploadDir, name);
+        let size: number;
         try {
-          data = await readFile(path.join(config.uploadDir, name));
+          size = (await stat(file)).size;
         } catch {
           throw notFound('No such image');
         }
-        return reply
+        reply
           .header('Content-Type', row.mime)
           .header('Cache-Control', 'public, max-age=31536000, immutable')
           .header('X-Content-Type-Options', 'nosniff')
           .header('Content-Security-Policy', "default-src 'none'; sandbox")
-          .header('Content-Length', data.length)
-          .send(data);
+          .header('Accept-Ranges', 'bytes');
+        // Video players (Safari above all) fetch in ranges and won't play without 206 responses.
+        const range = byteRange(req.headers.range, size);
+        if (range === 'unsatisfiable')
+          return reply.code(416).header('Content-Range', `bytes */${size}`).send();
+        if (range) {
+          const [start, end] = range;
+          return reply
+            .code(206)
+            .header('Content-Range', `bytes ${start}-${end}/${size}`)
+            .header('Content-Length', end - start + 1)
+            .send(createReadStream(file, { start, end }));
+        }
+        return reply.header('Content-Length', size).send(createReadStream(file));
       },
     );
   });

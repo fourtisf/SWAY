@@ -13,8 +13,11 @@ import {
   POST_MAX_STAKED,
   POST_MEDIA_MAX,
   UPLOAD_MAX_BYTES,
+  UPLOAD_VIDEO_MAX_BYTES,
   deleteConfirmText,
   hash,
+  isVideoMime,
+  isVideoUrl,
   normalizeHandle,
   type AccountExport,
   type Address,
@@ -119,14 +122,16 @@ function needAdmin(w: MockWorld) {
 const findPost = (w: MockWorld, pid: string): SeedPost | undefined =>
   pid === w.pinned.id ? w.pinned : w.posts.find((x) => x.id === pid);
 
-/** Magic bytes, like the API (jpeg / png / gif / webp). */
+/** Magic bytes, like the API (jpeg / png / gif / webp, mp4 / webm). */
 async function sniff(f: File): Promise<UploadMime | null> {
-  const b = new Uint8Array(await f.slice(0, 12).arrayBuffer());
+  const b = new Uint8Array(await f.slice(0, 64).arrayBuffer());
   const s = String.fromCharCode(...b);
   if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
   if (b[0] === 0x89 && s.slice(1, 4) === 'PNG') return 'image/png';
   if (/^GIF8[79]a/.test(s)) return 'image/gif';
   if (s.slice(0, 4) === 'RIFF' && s.slice(8, 12) === 'WEBP') return 'image/webp';
+  if (s.slice(4, 8) === 'ftyp' && !/^(heic|heix|mif1|msf1|avif|avis)$/.test(s.slice(8, 12))) return 'video/mp4';
+  if (b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3 && s.includes('webm')) return 'video/webm';
   return null;
 }
 
@@ -259,11 +264,16 @@ export function socialMockApi(w: MockWorld): Pick<SwayApi, SocialKeys> {
       if (files.length > POST_MEDIA_MAX) throw err(400, 'too_many_files', `Up to ${POST_MEDIA_MAX} images per post`);
       const out: UploadDTO[] = [];
       for (const f of files) {
-        if (f.size > UPLOAD_MAX_BYTES) throw err(413, 'too_large', 'Images can be up to 5 MB');
         const mime = await sniff(f);
-        if (!mime) throw err(400, 'bad_image', 'Only JPEG, PNG, WebP and GIF images');
-        const name = `${fakeHash(f.name + f.size + id('u')).slice(2, 34)}.${mime.split('/')[1] === 'jpeg' ? 'jpg' : mime.split('/')[1]}`;
-        const url = typeof URL.createObjectURL === 'function' ? URL.createObjectURL(f) : `blob:mock/${name}`;
+        if (!mime) throw err(400, 'bad_image', 'Only JPEG, PNG, WebP and GIF images, or MP4 and WebM videos');
+        const video = isVideoMime(mime);
+        if (video && files.length > 1) throw err(400, 'video_alone', 'A video goes in a post on its own');
+        if (f.size > (video ? UPLOAD_VIDEO_MAX_BYTES : UPLOAD_MAX_BYTES))
+          throw err(413, 'too_large', 'Videos can be up to 50 MB, images up to 5 MB');
+        const ext = mime.split('/')[1] === 'jpeg' ? 'jpg' : mime.split('/')[1];
+        const name = `${fakeHash(f.name + f.size + id('u')).slice(2, 34)}.${ext}`;
+        // Blob URLs have no extension; the fragment lets MediaGrid tell a video apart, as the API's names do.
+        const url = typeof URL.createObjectURL === 'function' ? `${URL.createObjectURL(f)}#v.${ext}` : `blob:mock/${name}`;
         out.push({ url, name, mime, bytes: f.size });
       }
       for (const u of out) s().uploads.set(u.url, u);
@@ -443,6 +453,7 @@ export function installSocialMock(api: SwayApi, w: MockWorld): void {
     const urls = [...new Set(media ?? [])];
     if (urls.length > POST_MEDIA_MAX) throw err(400, 'too_many_media', `Posts can have up to ${POST_MEDIA_MAX} images`);
     if (urls.some((u) => !stateOf(w).uploads.has(u))) throw err(400, 'bad_media', 'Attach images you uploaded to Sway');
+    if (urls.length > 1 && urls.some(isVideoUrl)) throw err(400, 'video_alone', 'A video goes in a post on its own');
     if (!t && !urls.length) throw err(400, 'empty_post', 'Write something first');
     if (t.length > max) throw err(400, 'too_long', `Posts are limited to ${max} characters`);
     const parent = parentId ? findPost(w, parentId) : undefined;

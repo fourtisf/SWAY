@@ -17,7 +17,7 @@ import {
   type UploadResponse,
 } from '@sway/shared';
 import { accessKey } from '../src/services/access';
-import { sniffImage } from '../src/services/social';
+import { UPLOAD_DAILY_BYTES, byteRange, sniffImage, sniffVideo } from '../src/services/social';
 import {
   fakeHash,
   login,
@@ -482,6 +482,103 @@ describe('images', () => {
   });
 });
 
+describe('videos', () => {
+  const MP4 = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from('ftypmp42'), Buffer.alloc(64, 7)]);
+  const WEBM = Buffer.concat([
+    Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x9f, 0x42, 0x82, 0x84]),
+    Buffer.from('webm'),
+    Buffer.alloc(64),
+  ]);
+
+  it('sniffs mp4/mov and webm, but not HEIF/AVIF images that share the ftyp box', () => {
+    expect(sniffVideo(MP4)).toBe('video/mp4');
+    expect(sniffVideo(Buffer.concat([Buffer.alloc(4), Buffer.from('ftypqt  '), Buffer.alloc(8)]))).toBe(
+      'video/mp4',
+    );
+    expect(sniffVideo(WEBM)).toBe('video/webm');
+    expect(sniffVideo(Buffer.concat([Buffer.alloc(4), Buffer.from('ftypheic'), Buffer.alloc(8)]))).toBeNull();
+    expect(sniffVideo(Buffer.concat([Buffer.alloc(4), Buffer.from('ftypavif'), Buffer.alloc(8)]))).toBeNull();
+    expect(sniffVideo(PNG)).toBeNull();
+  });
+
+  it('parses single byte ranges', () => {
+    expect(byteRange(undefined, 100)).toBeNull();
+    expect(byteRange('bytes=0-', 100)).toEqual([0, 99]);
+    expect(byteRange('bytes=10-19', 100)).toEqual([10, 19]);
+    expect(byteRange('bytes=90-500', 100)).toEqual([90, 99]);
+    expect(byteRange('bytes=-10', 100)).toEqual([90, 99]);
+    expect(byteRange('bytes=100-', 100)).toBe('unsatisfiable');
+    expect(byteRange('bytes=0-1,5-6', 100)).toBeNull();
+  });
+
+  it('stores a video on its own and serves it in ranges', async () => {
+    const a = await login(ctx, 'videomaker');
+    const big = Buffer.concat([MP4, Buffer.alloc(6 * 1024 * 1024)]); // over the image limit, fine for a video
+    const res = await upload(a.cookie, [{ buf: big, name: 'clip.mov', type: 'video/quicktime' }]);
+    expect(res.statusCode).toBe(200);
+    const vid = res.json<UploadResponse>().uploads[0]!;
+    expect(vid).toMatchObject({ mime: 'video/mp4', bytes: big.length });
+    expect(vid.name).toMatch(/^[a-f0-9]{32}\.mp4$/);
+
+    const whole = await inject('GET', vid.url);
+    expect(whole.statusCode).toBe(200);
+    expect(whole.headers['accept-ranges']).toBe('bytes');
+    expect(Number(whole.headers['content-length'])).toBe(big.length);
+    const part = await ctx.app.inject({ method: 'GET', url: vid.url, headers: { range: 'bytes=4-11' } });
+    expect(part.statusCode).toBe(206);
+    expect(part.headers['content-range']).toBe(`bytes 4-11/${big.length}`);
+    expect(part.headers['content-type']).toBe('video/mp4');
+    expect(part.body).toBe('ftypmp42');
+    const past = await ctx.app.inject({
+      method: 'GET',
+      url: vid.url,
+      headers: { range: `bytes=${big.length}-` },
+    });
+    expect(past.statusCode).toBe(416);
+
+    const webm = (
+      await upload(a.cookie, [{ buf: WEBM, name: 'c.webm', type: 'video/webm' }])
+    ).json<UploadResponse>().uploads[0]!;
+    expect(webm.name).toMatch(/\.webm$/);
+    const img = (await upload(a.cookie, [{ buf: PNG }])).json<UploadResponse>().uploads[0]!;
+
+    // One video per upload and per post, never next to images.
+    expect((await upload(a.cookie, [{ buf: PNG }, { buf: MP4, name: 'v.mp4' }])).json().error).toBe(
+      'video_alone',
+    );
+    expect((await upload(a.cookie, [{ buf: MP4, name: 'v.mp4' }, { buf: PNG }])).json().error).toBe(
+      'video_alone',
+    );
+    expect((await post(a.cookie, { text: 'x', media: [vid.url, img.url] })).json().error).toBe('video_alone');
+    expect((await post(a.cookie, { text: 'x', media: [vid.url, webm.url] })).json().error).toBe(
+      'video_alone',
+    );
+    const p = await post(a.cookie, { text: 'watch this', media: [vid.url] });
+    expect(p.statusCode).toBe(200);
+    expect(p.json<PostDTO>().media).toEqual([vid.url]);
+  });
+
+  it('rejects videos over 50 MB and caps uploads per day', async () => {
+    const a = await login(ctx, 'bigvideo');
+    const huge = await upload(a.cookie, [
+      { buf: Buffer.concat([MP4, Buffer.alloc(50 * 1024 * 1024)]), name: 'h.mp4' },
+    ]);
+    expect(huge.statusCode).toBe(413);
+    expect(huge.json().error).toBe('too_large');
+    await prisma.upload.create({
+      data: {
+        userId: a.user.id,
+        name: `${'a'.repeat(32)}.mp4`,
+        mime: 'video/mp4',
+        bytes: UPLOAD_DAILY_BYTES - 10,
+      },
+    });
+    const over = await upload(a.cookie, [{ buf: PNG }]);
+    expect(over.statusCode).toBe(429);
+    expect(over.json().error).toBe('upload_quota');
+  });
+});
+
 describe('admin', () => {
   it('guards every admin route and bootstraps admins from ADMIN_HANDLES', async () => {
     const user = await login(ctx, 'normie');
@@ -649,16 +746,22 @@ describe('admin', () => {
       ).json().error,
     ).toBe('member');
     expect(
-      (await inject('POST', '/api/admin/fan-markets', boss.cookie, { handle: 'lookmeup', category: 'crypto' })).json().error,
+      (
+        await inject('POST', '/api/admin/fan-markets', boss.cookie, {
+          handle: 'lookmeup',
+          category: 'crypto',
+        })
+      ).json().error,
     ).toBe('x_lookup_unavailable');
   });
 
-  it('reads a fan market\'s X id, name, followers and avatar from X when only the handle is given', async () => {
+  it("reads a fan market's X id, name, followers and avatar from X when only the handle is given", async () => {
     const asked: string[] = [];
     const xFetch = (async (input: string | URL | Request, init?: RequestInit) => {
       const url = new URL(String(input));
       asked.push(`${url.pathname} ${new Headers(init?.headers).get('authorization')}`);
-      const ok = (b: unknown) => new Response(JSON.stringify(b), { status: 200, headers: { 'content-type': 'application/json' } });
+      const ok = (b: unknown) =>
+        new Response(JSON.stringify(b), { status: 200, headers: { 'content-type': 'application/json' } });
       // X matches usernames case-insensitively; the API asks with the normalized (lower-case) handle.
       if (url.pathname.toLowerCase() === '/2/users/by/username/coindesk')
         return ok({
@@ -686,7 +789,14 @@ describe('admin', () => {
       expect(r.statusCode).toBe(200);
       expect(asked).toEqual(['/2/users/by/username/coindesk Bearer app-bearer']);
       const u = await prisma.user.findUniqueOrThrow({ where: { xId: '1333467482' } });
-      expect(u).toMatchObject({ handle: 'coindesk', name: 'CoinDesk', followers: 3_400_000, avatarUrl: 'https://pbs.twimg.com/cd_400x400.jpg', verified: true, joinedAt: null });
+      expect(u).toMatchObject({
+        handle: 'coindesk',
+        name: 'CoinDesk',
+        followers: 3_400_000,
+        avatarUrl: 'https://pbs.twimg.com/cd_400x400.jpg',
+        verified: true,
+        joinedAt: null,
+      });
       expect(u.score).toBeGreaterThan(0);
       const miss = await x.app.inject({
         method: 'POST',

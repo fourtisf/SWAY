@@ -1,6 +1,6 @@
 'use client';
 import { weiToEth } from '@sway/curve';
-import { hueOf, minutesSince, type MarketDTO, type PostDTO } from '@sway/shared';
+import { hueOf, isVideoUrl, minutesSince, type MarketDTO, type PostDTO } from '@sway/shared';
 import { frameOfScore } from '@sway/scoring';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -49,9 +49,15 @@ export function Linkify({ text }: { text: string }) {
   return <>{out}</>;
 }
 
-/** X-style image grid: 1 wide, 2 side by side, 3 = one tall + two stacked, 4 = 2×2. */
+/** X-style image grid: 1 wide, 2 side by side, 3 = one tall + two stacked, 4 = 2×2. A video plays inline. */
 export function MediaGrid({ media }: { media: string[] }) {
   if (!media.length) return null;
+  if (isVideoUrl(media[0]!))
+    return (
+      <div className="pm pm1 pmv">
+        <video src={media[0]} controls playsInline preload="metadata" />
+      </div>
+    );
   return (
     <div className={`pm pm${Math.min(4, media.length)}`}>
       {media.slice(0, 4).map((u, i) => (
@@ -65,7 +71,7 @@ export function MediaGrid({ media }: { media: string[] }) {
 }
 
 /** Clicks on these never open the post page. */
-const INTERACTIVE = 'a,button,input,textarea,select,label,.mn,.ht,.lk,.pmenu,.lockbox';
+const INTERACTIVE = 'a,button,input,textarea,select,label,video,.mn,.ht,.lk,.pmenu,.lockbox';
 
 export function PostItem({ p, pinned = false, focus = false, thread = false }: { p: PostDTO; pinned?: boolean; focus?: boolean; thread?: boolean }) {
   const F = useFormat();
