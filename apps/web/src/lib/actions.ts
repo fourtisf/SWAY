@@ -13,6 +13,7 @@ import {
   type NotificationDTO,
   type PostDTO,
   type ProfileDTO,
+  type ThreadPostBody,
   type Visibility,
   type WalletDTO,
 } from '@sway/shared';
@@ -220,11 +221,16 @@ export function useActions() {
       }
     },
 
-    /** [B] media: URLs from POST /api/uploads. */
-    async post(text: string, visibility: Visibility, onDone?: () => void, media?: string[]) {
+    /** [B] media: URLs from POST /api/uploads. thread: more posts chained below this one. */
+    async post(text: string, visibility: Visibility, onDone?: () => void, media?: string[], thread?: ThreadPostBody[]) {
       if (!needUser()) return false;
       try {
-        await api().createPost({ text, visibility, ...(media?.length ? { media } : {}) });
+        await api().createPost({
+          text,
+          visibility,
+          ...(media?.length ? { media } : {}),
+          ...(thread?.length ? { thread: thread.map((t) => ({ text: t.text, ...(t.media?.length ? { media: t.media } : {}) })) } : {}),
+        });
         onDone?.();
         useUI.setState({ feedTab: 'latest' });
         await qc.invalidateQueries({ queryKey: ['feed'] });

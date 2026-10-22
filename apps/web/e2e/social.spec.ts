@@ -129,6 +129,29 @@ test('video: one per post, plays inline in the feed', async ({ page }) => {
   await expect(postBy(page, 'Watch the tour').locator('.pm.pmv video')).toHaveCount(1);
 });
 
+test('threads: + adds posts, Post all creates them together, Show this thread opens them', async ({ page }) => {
+  await connect(page, 'threadtester');
+  await page.fill('#compose', '1/ Sway threads');
+  const add = page.getByRole('button', { name: 'Add post to thread' }).first();
+  await add.click();
+  await page.fill('#compose-2', '2/ Each post replies to the one before');
+  await add.click();
+  await expect(page.locator('#postBtn')).toBeDisabled(); // the third one is still empty
+  await page.getByRole('button', { name: 'Remove post 3' }).click();
+  await add.click();
+  await page.fill('#compose-3', '3/ Done');
+  await expect(page.locator('#postBtn')).toHaveText('Post all');
+  await page.locator('#postBtn').click();
+  await expect(page.locator('.toasts')).toContainText('Posted');
+  await expect(page.locator('#compose-2')).toHaveCount(0);
+
+  await postBy(page, '1/ Sway threads').getByRole('link', { name: 'Show this thread' }).click();
+  await expect(page).toHaveURL(/\/post\//);
+  await expect(page.locator('#main .post.focus')).toContainText('1/ Sway threads');
+  await expect(page.locator('#selfthread .post')).toHaveCount(2);
+  await expect(page.locator('#selfthread .post').last()).toContainText('3/ Done');
+});
+
 test('post page: thread, replies and the reply composer', async ({ page }) => {
   await connect(page, 'replytester');
   await postBy(page, 'Open model update').locator('[data-act=reply]').click();

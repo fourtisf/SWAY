@@ -108,7 +108,7 @@ export async function postDTOs(ctx: Ctx, viewer: Viewer | null, posts: PostRow[]
   const subPosts = posts.filter((p) => p.visibility === 'subs' && p.authorId !== viewerId);
   const accessViewer = viewer ? { userId: viewer.user.id, wallet: viewer.wallet?.address ?? null } : null;
 
-  const [likes, reposts, stats, holderAccess, subs] = await Promise.all([
+  const [likes, reposts, stats, holderAccess, subs, continued] = await Promise.all([
     viewerId
       ? ctx.prisma.like.findMany({
           where: { userId: viewerId, postId: { in: ids } },
@@ -131,6 +131,7 @@ export async function postDTOs(ctx: Ctx, viewer: Viewer | null, posts: PostRow[]
       viewerId,
       subPosts.map((p) => p.authorId),
     ),
+    selfReplied(ctx.prisma, posts),
   ]);
   const liked = new Set(likes.map((l) => l.postId));
   const reposted = new Set(reposts.map((r) => r.postId));
@@ -167,8 +168,25 @@ export async function postDTOs(ctx: Ctx, viewer: Viewer | null, posts: PostRow[]
       liked: liked.has(p.id),
       reposted: reposted.has(p.id),
       mine,
+      continued: continued.has(p.id),
     };
   });
+}
+
+/** Posts their own author replied to: the start (or middle) of a thread. */
+async function selfReplied(prisma: PrismaClient, posts: PostRow[]): Promise<Set<string>> {
+  const asked = posts.filter((p) => p.replyCount > 0);
+  if (!asked.length) return new Set();
+  const rows = await prisma.post.findMany({
+    where: {
+      deletedAt: null,
+      hiddenAt: null,
+      OR: asked.map((p) => ({ parentId: p.id, authorId: p.authorId })),
+    },
+    select: { parentId: true },
+    distinct: ['parentId'],
+  });
+  return new Set(rows.map((r) => r.parentId!));
 }
 
 /* ------------------------------------------------------------------ cursors */

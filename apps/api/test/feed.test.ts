@@ -81,7 +81,9 @@ describe('posting', () => {
     await post(a.cookie, { text: 'second', visibility: 'public', parentId: root.id });
     const t = (await ctx.app.inject(`/api/posts/${root.id}`)).json<PostDetailResponse>();
     expect(t.post.replies).toBe(2);
-    expect(t.replies.map((r) => r.text)).toEqual(['first', 'second']);
+    // The author's own reply continues the post as a thread.
+    expect(t.replies.map((r) => r.text)).toEqual(['first']);
+    expect(t.thread.map((r) => r.text)).toEqual(['second']);
     expect(t.replies[0]!.parentId).toBe(root.id);
     // Replies stay out of the feed; the author is notified of the reply.
     const f = (await feed('latest')).json<FeedResponse>();

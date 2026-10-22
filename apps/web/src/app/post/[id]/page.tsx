@@ -1,5 +1,8 @@
 'use client';
-/** [B] Post page: the chain above the post, the post, a reply composer and threaded replies (oldest first). */
+/**
+ * [B] Post page: the chain above the post, the post, a reply composer, the author's own thread below it and
+ * threaded replies (oldest first).
+ */
 import type { PostDTO } from '@sway/shared';
 import { useParams } from 'next/navigation';
 import { Composer } from '@/components/modals/Composer';
@@ -49,6 +52,13 @@ export default function PostPage() {
         </div>
       )}
       <div id="replies">
+        {d.thread.length > 0 && (
+          <div className="rthread" id="selfthread">
+            {d.thread.map((t, i) => (
+              <PostItem key={t.id} p={t} thread={i < d.thread.length - 1} />
+            ))}
+          </div>
+        )}
         {d.replies.map((r) => {
           const ch = kids.get(r.id) ?? [];
           return (
@@ -60,7 +70,11 @@ export default function PostPage() {
             </div>
           );
         })}
-        {!d.replies.length && <p className="t3 pad" style={{ fontSize: 14, margin: '8px 0' }}>No replies yet.</p>}
+        {!d.replies.length && !d.thread.length && (
+          <p className="t3 pad" style={{ fontSize: 14, margin: '8px 0' }}>
+            No replies yet.
+          </p>
+        )}
       </div>
     </>
   );

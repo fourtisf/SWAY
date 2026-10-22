@@ -178,6 +178,11 @@ export function PostItem({ p, pinned = false, focus = false, thread = false }: {
               </button>
             )}
           </div>
+          {p.continued && !p.parentId && !focus && (
+            <Link className="showthread" href={href}>
+              Show this thread
+            </Link>
+          )}
         </div>
       </div>
     </article>

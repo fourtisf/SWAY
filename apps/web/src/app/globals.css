@@ -149,7 +149,23 @@ h1,h2,h3,h4{margin:0;letter-spacing:-.01em}
 .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 
 /* ---------- composer / guest ---------- */
-.composer{display:flex;gap:12px;padding:12px 16px 8px;border-bottom:1px solid var(--line)}
+.composer{padding:12px 16px 8px;border-bottom:1px solid var(--line)}
+.crow{display:flex;gap:12px}
+.cav{flex:none;position:relative}
+.cbody{flex:1;min-width:0}
+.composer .comp-foot{margin-left:56px}
+.composer.reply .comp-foot{margin-left:52px}
+/* a thread: avatars joined by a line, like on X; the post being edited is the bright one */
+.composer.multi .crow+.crow{margin-top:4px}
+.composer.multi .crow:not(:last-child) .cav::after{content:"";position:absolute;top:50px;bottom:-8px;left:50%;width:2px;margin-left:-1px;background:var(--line2)}
+.composer.multi .crow:not(.on) textarea{color:var(--tx2)}
+.crow-x{flex:none;align-self:flex-start;margin-top:8px;width:30px;height:30px;border-radius:999px;display:grid;place-items:center;color:var(--tx2)}
+.crow-x:hover{background:var(--bg3);color:var(--tx)}
+.crow-x svg{width:16px;height:16px}
+.tool.addpost{border:1.5px solid var(--line2);width:30px;height:30px}
+.tool.addpost svg{width:16px;height:16px}
+.showthread{display:inline-block;margin:2px 0 4px;color:var(--blue);font-size:15px}
+.showthread:hover{text-decoration:underline}
 .composer textarea{width:100%;min-height:52px;resize:none;background:transparent;border:0;outline:none;font-size:20px;padding:10px 0 6px;line-height:1.35}
 .composer textarea::placeholder{color:var(--tx2)}
 .comp-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:8px;border-top:1px solid var(--line);margin-top:6px}

@@ -312,6 +312,7 @@ export class MockWorld {
       liked,
       reposted: rp,
       mine: this.isMine(p.author),
+      continued: this.posts.some((x) => x.parentId === p.id && x.author === p.author && this.visible(x)),
     };
   }
 

@@ -129,7 +129,10 @@ describe('threads', () => {
     const t = (await inject('GET', `/api/posts/${root.id}`)).json<PostDetailResponse>();
     expect(t.parents).toEqual([]);
     expect(t.parentUnavailable).toBe(false);
-    expect(t.replies.map((r) => r.text)).toEqual(['r1', 'r2']);
+    // The author's own reply continues the post as a thread instead of sitting among the replies.
+    expect(t.post.continued).toBe(true);
+    expect(t.thread.map((r) => r.text)).toEqual(['r2']);
+    expect(t.replies.map((r) => r.text)).toEqual(['r1']);
     expect(t.nested.map((r) => [r.text, r.parentId])).toEqual([['n1', r1.id]]);
 
     const d = (await inject('GET', `/api/posts/${deep.id}`)).json<PostDetailResponse>();
@@ -139,6 +142,55 @@ describe('threads', () => {
     const d2 = (await inject('GET', `/api/posts/${deep.id}`)).json<PostDetailResponse>();
     expect(d2.parents.map((p) => p.text)).toEqual(['n1']);
     expect(d2.parentUnavailable).toBe(true);
+  });
+
+  it('creates a whole thread in one request, or nothing', async () => {
+    const a = await login(ctx, 'threader');
+    const fan = await login(ctx, 'threadfan');
+    const img = (await upload(a.cookie, [{ buf: PNG }])).json<UploadResponse>().uploads[0]!;
+    const before = await prisma.post.count();
+
+    const empty = await post(a.cookie, { text: 'one', thread: [{ text: 'two' }, { text: '  ' }] });
+    expect(empty.statusCode).toBe(400);
+    expect(empty.json().error).toBe('empty_post');
+    const long = await post(a.cookie, {
+      text: 'x',
+      thread: Array.from({ length: 25 }, () => ({ text: 'y' })),
+    });
+    expect(long.json().error).toBe('thread_too_long');
+    expect(await prisma.post.count()).toBe(before);
+
+    const res = await post(a.cookie, {
+      text: '1/ How Sway works @threadfan',
+      visibility: 'public',
+      thread: [{ text: '2/ Your score', media: [img.url] }, { text: '3/ Your keys @threadfan' }],
+    });
+    expect(res.statusCode).toBe(200);
+    const head = res.json<PostDTO>();
+    expect(head).toMatchObject({
+      text: '1/ How Sway works @threadfan',
+      continued: true,
+      replies: 1,
+      parentId: null,
+    });
+    expect(await prisma.notification.count({ where: { userId: fan.user.id } })).toBe(1);
+
+    // The feed shows only the first post; its page carries the rest in order.
+    const latest = (await feed('latest')).json<FeedResponse>().posts;
+    expect(latest.filter((p) => p.author.handle === 'threader').map((p) => p.text)).toEqual([head.text]);
+    await post(fan.cookie, { text: 'great thread', parentId: head.id });
+    const d = (await inject('GET', `/api/posts/${head.id}`)).json<PostDetailResponse>();
+    expect(d.thread.map((p) => [p.text, p.media])).toEqual([
+      ['2/ Your score', [img.url]],
+      ['3/ Your keys @threadfan', []],
+    ]);
+    expect(d.thread[1]!.parentId).toBe(d.thread[0]!.id);
+    expect(d.thread.map((p) => p.continued)).toEqual([true, false]);
+    expect(d.replies.map((p) => p.text)).toEqual(['great thread']);
+
+    const mid = (await inject('GET', `/api/posts/${d.thread[0]!.id}`)).json<PostDetailResponse>();
+    expect(mid.parents.map((p) => p.text)).toEqual([head.text]);
+    expect(mid.thread.map((p) => p.text)).toEqual(['3/ Your keys @threadfan']);
   });
 });
 

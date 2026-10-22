@@ -8,6 +8,7 @@ import {
   POST_MAX,
   POST_MAX_STAKED,
   POST_MEDIA_MAX,
+  THREAD_MAX,
   type Address,
   type BoostQuoteDTO,
   type BoostResponse,
@@ -50,6 +51,18 @@ const CreatePost = z.object({
   visibility: z.enum(['public', 'holders', 'subs']).default('public'),
   parentId: z.string().max(64).optional(),
   media: z.array(z.string().max(300)).max(20).optional(),
+  thread: z
+    .array(
+      z.object({
+        text: z
+          .string()
+          .max(POST_MAX_STAKED * 2)
+          .default(''),
+        media: z.array(z.string().max(300)).max(20).optional(),
+      }),
+    )
+    .max(THREAD_MAX * 2)
+    .optional(),
 });
 
 /** Ancestors shown above a post on its page. */
@@ -71,20 +84,32 @@ export async function feedRoutes(app: FastifyInstance) {
     async (req): Promise<PostDTO> => {
       const v = await requireViewer(req);
       const b = body(CreatePost, req);
-      const text = b.text.replace(/\r\n/g, '\n').trim();
-      if ((b.media?.length ?? 0) > POST_MEDIA_MAX)
-        throw badRequest('too_many_media', `Posts can have up to ${POST_MEDIA_MAX} images`);
-      const media = await resolveMedia(prisma, v.user.id, b.media ?? []);
-      if (!text && !media.length) throw badRequest('empty_post', 'Write something first');
+      // The post and any thread below it are checked in full before anything is written.
+      const drafts = [{ text: b.text, media: b.media }, ...(b.thread ?? [])];
+      if (drafts.length > THREAD_MAX)
+        throw badRequest('thread_too_long', `A thread can have up to ${THREAD_MAX} posts`);
       const level = await stakingLevelOf(prisma, v.user.id, v.user.stakingLevel);
       const max = level >= 1 ? POST_MAX_STAKED : POST_MAX;
-      if (text.length > max) {
-        throw badRequest(
-          'too_long',
-          level >= 1
-            ? `Posts can be up to ${max} characters`
-            : `Posts can be up to ${max} characters (${POST_MAX_STAKED} with a staking level)`,
-        );
+      const ready: Array<{ text: string; media: string[]; tags: string[] }> = [];
+      for (const d of drafts) {
+        const text = d.text.replace(/\r\n/g, '\n').trim();
+        if ((d.media?.length ?? 0) > POST_MEDIA_MAX)
+          throw badRequest('too_many_media', `Posts can have up to ${POST_MEDIA_MAX} images`);
+        const media = await resolveMedia(prisma, v.user.id, d.media ?? []);
+        if (!text && !media.length)
+          throw badRequest(
+            'empty_post',
+            drafts.length > 1 ? 'Every post in the thread needs text or media' : 'Write something first',
+          );
+        if (text.length > max) {
+          throw badRequest(
+            'too_long',
+            level >= 1
+              ? `Posts can be up to ${max} characters`
+              : `Posts can be up to ${max} characters (${POST_MAX_STAKED} with a staking level)`,
+          );
+        }
+        ready.push({ text, media, tags: parseTags(text) });
       }
 
       let parent = null;
@@ -102,70 +127,92 @@ export async function feedRoutes(app: FastifyInstance) {
         if (pd!.locked) throw forbidden('locked', 'You need access to this post to reply');
       }
 
-      const tags = parseTags(text);
-      const post = await prisma.$transaction(async (tx) => {
-        const p = await tx.post.create({
-          data: { authorId: v.user.id, text, media, visibility: b.visibility, parentId: parent?.id ?? null },
-        });
-        if (tags.length)
-          await tx.postTag.createMany({
-            data: tags.map((tag) => ({ postId: p.id, tag })),
-            skipDuplicates: true,
+      // Each thread post replies to the one before. Explicit timestamps keep their order (now() is one value
+      // for the whole transaction).
+      const at = Date.now();
+      const ids = await prisma.$transaction(async (tx) => {
+        const out: string[] = [];
+        let above = parent?.id ?? null;
+        for (const [i, d] of ready.entries()) {
+          const p = await tx.post.create({
+            data: {
+              authorId: v.user.id,
+              text: d.text,
+              media: d.media,
+              visibility: b.visibility,
+              parentId: above,
+              createdAt: new Date(at + i),
+            },
           });
-        if (parent)
-          await tx.post.update({ where: { id: parent.id }, data: { replyCount: { increment: 1 } } });
-        return tx.post.findUniqueOrThrow({ where: { id: p.id }, include: POST_INCLUDE });
+          if (d.tags.length)
+            await tx.postTag.createMany({
+              data: d.tags.map((tag) => ({ postId: p.id, tag })),
+              skipDuplicates: true,
+            });
+          if (above) await tx.post.update({ where: { id: above }, data: { replyCount: { increment: 1 } } });
+          out.push(p.id);
+          above = p.id;
+        }
+        return out;
       });
 
-      // Mentions → 'mention' notifications (not for accounts that blocked the author). Gated posts don't
-      // quote their text.
-      const handles = parseMentions(text).filter((h) => h !== v.user.handle);
-      const mentioned = handles.length
-        ? await prisma.user.findMany({
-            where: {
-              handle: { in: handles },
-              joinedAt: { not: null },
-              blocks: { none: { blockedId: v.user.id } },
-            },
-            select: { id: true },
-          })
-        : [];
-      const quote =
-        b.visibility === 'public'
-          ? `: “${snippet(text || 'an image')}”`
-          : b.visibility === 'holders'
-            ? ' in a post for key holders'
-            : ' in a post for subscribers';
-      const link = `/post/${post.id}`;
+      // Mentions → 'mention' notifications (not for accounts that blocked the author), once per account for the
+      // whole thread. Gated posts don't quote their text.
       const notified = new Set<string>();
-      for (const m of mentioned) {
-        notified.add(m.id);
-        const bodyText: RichText = [{ t: v.user.name, b: true }, { t: ` mentioned you${quote}` }];
-        await notify(prisma, redis, {
-          userId: m.id,
-          type: 'mention',
-          fromUserId: v.user.id,
-          body: bodyText,
-          link,
-        });
-      }
-      if (parent && parent.authorId !== v.user.id && !notified.has(parent.authorId)) {
-        const r: RichText = [{ t: v.user.name, b: true }, { t: ` replied to your post${quote}` }];
-        await notify(prisma, redis, {
-          userId: parent.authorId,
-          type: 'mention',
-          fromUserId: v.user.id,
-          body: r,
-          link,
-        });
+      for (const [i, d] of ready.entries()) {
+        const quote =
+          b.visibility === 'public'
+            ? `: “${snippet(d.text || 'an image')}”`
+            : b.visibility === 'holders'
+              ? ' in a post for key holders'
+              : ' in a post for subscribers';
+        const link = `/post/${ids[i]}`;
+        const handles = parseMentions(d.text).filter((h) => h !== v.user.handle);
+        const mentioned = handles.length
+          ? await prisma.user.findMany({
+              where: {
+                handle: { in: handles },
+                joinedAt: { not: null },
+                blocks: { none: { blockedId: v.user.id } },
+              },
+              select: { id: true },
+            })
+          : [];
+        for (const m of mentioned) {
+          if (notified.has(m.id)) continue;
+          notified.add(m.id);
+          const bodyText: RichText = [{ t: v.user.name, b: true }, { t: ` mentioned you${quote}` }];
+          await notify(prisma, redis, {
+            userId: m.id,
+            type: 'mention',
+            fromUserId: v.user.id,
+            body: bodyText,
+            link,
+          });
+        }
+        if (i === 0 && parent && parent.authorId !== v.user.id && !notified.has(parent.authorId)) {
+          notified.add(parent.authorId);
+          const r: RichText = [{ t: v.user.name, b: true }, { t: ` replied to your post${quote}` }];
+          await notify(prisma, redis, {
+            userId: parent.authorId,
+            type: 'mention',
+            fromUserId: v.user.id,
+            body: r,
+            link,
+          });
+        }
       }
 
+      const post = await prisma.post.findUniqueOrThrow({ where: { id: ids[0]! }, include: POST_INCLUDE });
       const [dto] = await postDTOs(ctx, v, [post]);
       return dto!;
     },
   );
 
-  /** The post, the chain above it (root first) and two levels of replies, oldest first. */
+  /**
+   * The post, the chain above it (root first), the author's thread below it and two levels of replies, oldest
+   * first.
+   */
   app.get('/posts/:id', async (req): Promise<PostDetailResponse> => {
     const { id } = params(IdParams, req);
     const v = await getViewer(req);
@@ -187,8 +234,19 @@ export async function feedRoutes(app: FastifyInstance) {
 
     const vis = await visiblePosts(prisma, v);
     const order = [{ createdAt: 'asc' as const }, { id: 'asc' as const }];
+    const thread: PostRow[] = [];
+    for (let at = post; thread.length < THREAD_MAX - 1;) {
+      const next = await prisma.post.findFirst({
+        where: { AND: [vis, { parentId: at.id, authorId: post.authorId }] },
+        orderBy: order,
+        include: POST_INCLUDE,
+      });
+      if (!next) break;
+      thread.push(next);
+      at = next;
+    }
     const replies = await prisma.post.findMany({
-      where: { AND: [vis, { parentId: id }] },
+      where: { AND: [vis, { parentId: id }, ...(thread.length ? [{ id: { not: thread[0]!.id } }] : [])] },
       orderBy: order,
       take: 200,
       include: POST_INCLUDE,
@@ -201,7 +259,7 @@ export async function feedRoutes(app: FastifyInstance) {
           include: POST_INCLUDE,
         })
       : [];
-    const dtos = await postDTOs(ctx, v, [post, ...parents, ...replies, ...nested]);
+    const dtos = await postDTOs(ctx, v, [post, ...parents, ...replies, ...nested, ...thread]);
     let i = 1;
     const take = (n: number) => dtos.slice(i, (i += n));
     return {
@@ -210,6 +268,7 @@ export async function feedRoutes(app: FastifyInstance) {
       parentUnavailable,
       replies: take(replies.length),
       nested: take(nested.length),
+      thread: take(thread.length),
     };
   });
 
@@ -238,7 +297,10 @@ export async function feedRoutes(app: FastifyInstance) {
     const v = await requireViewer(req);
     const { id } = params(IdParams, req);
     const { pinned } = body(z.object({ pinned: z.boolean() }), req);
-    const p = await prisma.post.findUnique({ where: { id }, include: { author: { select: { handle: true, official: true } } } });
+    const p = await prisma.post.findUnique({
+      where: { id },
+      include: { author: { select: { handle: true, official: true } } },
+    });
     if (!p || p.deletedAt) throw notFound('That post no longer exists', 'post_not_found');
     if (!p.author.official || p.author.handle !== OFFICIAL_HANDLE || p.parentId)
       throw badRequest('not_pinnable', `Only top-level posts by @${OFFICIAL_HANDLE} can be pinned`);
@@ -246,7 +308,12 @@ export async function feedRoutes(app: FastifyInstance) {
     if (!mine && !v.user.isAdmin) throw forbidden('not_yours', 'You can only pin your own posts');
     await prisma.$transaction([
       ...(pinned
-        ? [prisma.post.updateMany({ where: { authorId: p.authorId, pinned: true, id: { not: id } }, data: { pinned: false } })]
+        ? [
+            prisma.post.updateMany({
+              where: { authorId: p.authorId, pinned: true, id: { not: id } },
+              data: { pinned: false },
+            }),
+          ]
         : []),
       prisma.post.update({ where: { id }, data: { pinned } }),
     ]);

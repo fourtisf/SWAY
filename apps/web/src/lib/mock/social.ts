@@ -12,6 +12,7 @@ import {
   POST_MAX,
   POST_MAX_STAKED,
   POST_MEDIA_MAX,
+  THREAD_MAX,
   UPLOAD_MAX_BYTES,
   UPLOAD_VIDEO_MAX_BYTES,
   deleteConfirmText,
@@ -446,26 +447,39 @@ export function socialMockApi(w: MockWorld): Pick<SwayApi, SocialKeys> {
 
 /** Overrides of shared mock routes for images, replies, threads, blocks and hidden posts. */
 export function installSocialMock(api: SwayApi, w: MockWorld): void {
-  api.createPost = async ({ text, visibility, parentId, media }) => {
+  api.createPost = async ({ text, visibility, parentId, media, thread }) => {
     needUser(w);
     const max = w.level >= 1 ? POST_MAX_STAKED : POST_MAX;
-    const t = text.trim();
-    const urls = [...new Set(media ?? [])];
-    if (urls.length > POST_MEDIA_MAX) throw err(400, 'too_many_media', `Posts can have up to ${POST_MEDIA_MAX} images`);
-    if (urls.some((u) => !stateOf(w).uploads.has(u))) throw err(400, 'bad_media', 'Attach images you uploaded to Sway');
-    if (urls.length > 1 && urls.some(isVideoUrl)) throw err(400, 'video_alone', 'A video goes in a post on its own');
-    if (!t && !urls.length) throw err(400, 'empty_post', 'Write something first');
-    if (t.length > max) throw err(400, 'too_long', `Posts are limited to ${max} characters`);
+    const drafts = [{ text, media }, ...(thread ?? [])];
+    if (drafts.length > THREAD_MAX) throw err(400, 'thread_too_long', `A thread can have up to ${THREAD_MAX} posts`);
+    const ready = drafts.map((d) => {
+      const t = d.text.trim();
+      const urls = [...new Set(d.media ?? [])];
+      if (urls.length > POST_MEDIA_MAX) throw err(400, 'too_many_media', `Posts can have up to ${POST_MEDIA_MAX} images`);
+      if (urls.some((u) => !stateOf(w).uploads.has(u))) throw err(400, 'bad_media', 'Attach images you uploaded to Sway');
+      if (urls.length > 1 && urls.some(isVideoUrl)) throw err(400, 'video_alone', 'A video goes in a post on its own');
+      if (!t && !urls.length)
+        throw err(400, 'empty_post', drafts.length > 1 ? 'Every post in the thread needs text or media' : 'Write something first');
+      if (t.length > max) throw err(400, 'too_long', `Posts are limited to ${max} characters`);
+      return { t, urls };
+    });
     const parent = parentId ? findPost(w, parentId) : undefined;
     if (parentId && (!parent || !w.visible(parent))) throw err(404, 'post_not_found', 'That post no longer exists');
     if (parent && w.locked(parent)) throw err(403, 'locked', 'You need access to this post to reply');
-    const p = w.addPost(t, visibility);
-    p.media = urls;
-    if (parent) {
-      p.parentId = parent.id;
-      parent.rep += 1;
-    }
-    return w.post(p);
+    const at = Date.now();
+    let above = parent;
+    const made = ready.map((d, i) => {
+      const p = w.addPost(d.t, visibility);
+      p.media = d.urls;
+      p.at = at + i;
+      if (above) {
+        p.parentId = above.id;
+        above.rep += 1;
+      }
+      above = p;
+      return p;
+    });
+    return w.post(made[0]!);
   };
 
   api.post = async (pid) => {
@@ -484,7 +498,13 @@ export function installSocialMock(api: SwayApi, w: MockWorld): void {
       q = findPost(w, q.parentId);
     }
     const kids = (id0: string) => w.posts.filter((x) => x.parentId === id0 && w.visible(x)).sort((a, b) => a.at - b.at);
-    const replies = kids(p.id);
+    const thread: SeedPost[] = [];
+    for (let at: SeedPost | undefined = p; thread.length < THREAD_MAX - 1; ) {
+      at = kids(at.id).find((x) => x.author === p.author);
+      if (!at) break;
+      thread.push(at);
+    }
+    const replies = kids(p.id).filter((x) => x !== thread[0]);
     const nested = replies.flatMap((r) => kids(r.id)).sort((a, b) => a.at - b.at);
     return {
       post: w.post(p, p === w.pinned && w.pinnedOn),
@@ -492,6 +512,7 @@ export function installSocialMock(api: SwayApi, w: MockWorld): void {
       parentUnavailable,
       replies: replies.map((x) => w.post(x)),
       nested: nested.map((x) => w.post(x)),
+      thread: thread.map((x) => w.post(x)),
     };
   };
 

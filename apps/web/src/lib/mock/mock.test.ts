@@ -104,8 +104,13 @@ describe('[B] mock social routes', () => {
     const reply = await api.createPost({ text: 'reply', visibility: 'public', parentId: root.id });
     const nested = await api.createPost({ text: 'nested', visibility: 'public', parentId: reply.id });
     const t = await api.post(root.id);
-    expect(t.replies.map((r) => r.text)).toEqual(['reply']);
-    expect(t.nested.map((r) => r.text)).toEqual(['nested']);
+    // Your own replies chain into a thread; they don't sit among the replies.
+    expect(t.thread.map((r) => r.text)).toEqual(['reply', 'nested']);
+    expect(t.replies).toEqual([]);
+    expect(t.post.continued).toBe(true);
+    const other = await api.createPost({ text: 'thread', visibility: 'public', thread: [{ text: 'two' }, { text: 'three' }] });
+    expect((await api.post(other.id)).thread.map((r) => r.text)).toEqual(['two', 'three']);
+    await expect(api.createPost({ text: 'a', visibility: 'public', thread: [{ text: ' ' }] })).rejects.toMatchObject({ code: 'empty_post' });
     expect((await api.post(nested.id)).parents.map((p) => p.text)).toEqual(['root', 'reply']);
     expect((await api.feed({ tab: 'latest' })).posts.some((p) => p.id === reply.id)).toBe(false);
 

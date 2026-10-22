@@ -811,11 +811,26 @@ export interface PostDTO {
   hidden: boolean;
   /** End of the paid boost window; `boosted` is true while it runs (and always for promoted posts). */
   boostedUntil: ISODate | null;
+  /** The author replied to this post themselves, so it opens a thread ("Show this thread"). */
+  continued: boolean;
+}
+
+/** Posts in one thread, the first one included (as on X). */
+export const THREAD_MAX = 25;
+
+export interface ThreadPostBody {
+  text: string;
+  media?: string[];
 }
 
 export interface CreatePostBody {
   /** URLs returned by POST /api/uploads; only the author's own uploads. */
   media?: string[];
+  /**
+   * More posts chained below this one, each replying to the one before, all with this post's visibility
+   * (THREAD_MAX posts in all). They're created together or not at all; the response is the first post.
+   */
+  thread?: ThreadPostBody[];
 }
 
 export interface PostDetailResponse {
@@ -825,6 +840,11 @@ export interface PostDetailResponse {
   parentUnavailable: boolean;
   /** Replies to `replies` (one level of nesting), oldest first; group them by parentId. */
   nested: PostDTO[];
+  /**
+   * The author's own continuation below `post` (each the first self-reply to the one before), in order.
+   * Its first post isn't repeated in `replies`.
+   */
+  thread: PostDTO[];
 }
 
 export interface ProfileDTO {
