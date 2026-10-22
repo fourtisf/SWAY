@@ -34,6 +34,19 @@ async function menu(page: Page, text: string) {
   return page.locator('.pmenu');
 }
 
+test('the wallet can wait: skip it during onboarding', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('.sb').getByRole('button', { name: 'Connect X' }).click();
+  await expect(page.locator('.modal')).toContainText('you only need one to buy keys or launch yours');
+  await page.fill('#cx-h', 'nowallet');
+  await page.locator('.modal').getByRole('button', { name: 'Authorize and continue' }).click();
+  await page.locator('.modal').getByRole('button', { name: 'Skip for now' }).click({ timeout: 20_000 });
+  await expect(page.locator('.modal')).toContainText('Your Sway card is live');
+  await expect(page.locator('.modal')).toContainText('Add a wallet when you want to buy keys or launch your own key market.');
+  await page.getByRole('button', { name: 'Enter Sway' }).click();
+  await expect(page.locator('.sb .me-chip')).toContainText('@nowallet');
+});
+
 test('post menu: delete your post, report and block others', async ({ page }) => {
   await connect(page, 'menutester');
   await expect(page.locator('.sb-nav')).toContainText('Settings');

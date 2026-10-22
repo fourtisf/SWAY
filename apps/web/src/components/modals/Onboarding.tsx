@@ -4,6 +4,8 @@
  * Real mode: X OAuth (or dev login), GET /api/onboarding for steps 1-3; step 4 asks "Create a Sway wallet" or
  * "Connect a wallet" (the picker), then nonce/sign/link makes it the account wallet; POST /api/onboarding/market
  * + polling for step 5. Mock mode keeps the prototype's 460ms animation and the same step-4 choice.
+ * The wallet can wait ("Skip for now"): posting, following and points need none, and buying keys or launching
+ * your key reopens this modal at step 4 (needWallet). Mock accounts keep their demo wallet either way.
  */
 import { priceWei, weiToEth } from '@sway/curve';
 import { tierOf } from '@sway/scoring';
@@ -97,7 +99,7 @@ export function ConnectModal() {
           </div>
         )}
         <p className="t3" style={{ fontSize: 12, textAlign: 'center', margin: '12px 0 0' }}>
-          Next, create a Sway wallet on Robinhood Chain or connect your own.
+          Add a wallet now or later: you only need one to buy keys or launch yours.
         </p>
         {/* [B] */}
         <p className="t3 legal-note">
@@ -116,7 +118,7 @@ export function ConnectModal() {
   );
 }
 
-type WalletDecision = { kind: 'create' } | { kind: 'linked'; me: MeDTO; name: string };
+type WalletDecision = { kind: 'create' } | { kind: 'linked'; me: MeDTO; name: string } | { kind: 'skip' };
 
 export function OnboardingModal({ handle, followers }: { handle?: string; followers?: number }) {
   const qc = useQueryClient();
@@ -139,20 +141,22 @@ export function OnboardingModal({ handle, followers }: { handle?: string; follow
       if (dead) throw CANCEL;
     };
     const api = getApi();
-    const finish = async () => {
+    const finish = async (walletLater = false) => {
       await invalidateAll(qc);
       if (!MOCK) socket.restart();
-      if (!dead) openModal({ type: 'card' });
+      if (!dead) openModal({ type: 'card', walletLater });
     };
     const ask = () =>
       new Promise<WalletDecision>((resolve) => {
         decide.current = resolve;
         setChoice('ask');
       });
-    const wallet = async (who: MeDTO): Promise<MeDTO> => {
+    /** The account wallet, or null when the member chose to add one later. */
+    const wallet = async (who: MeDTO): Promise<MeDTO | null> => {
       const d = await ask();
       chk();
       setChoice(null);
+      if (d.kind === 'skip') return null;
       if (d.kind === 'linked') {
         setWalletStep(`Linking ${d.name}`);
         return d.me;
@@ -177,9 +181,10 @@ export function OnboardingModal({ handle, followers }: { handle?: string; follow
       chk();
       qc.setQueryData(qk.me, who);
       setCur(3);
-      who = await wallet(who);
+      const linked = await wallet(who);
       chk();
-      qc.setQueryData(qk.me, who);
+      if (!linked) return finish(true);
+      qc.setQueryData(qk.me, linked);
       for (let i = 4; i <= STEPS.length; i++) {
         if (dead) return;
         setCur(i);
@@ -212,9 +217,11 @@ export function OnboardingModal({ handle, followers }: { handle?: string; follow
       // Step 4: the account wallet, made here or connected.
       setCur(3);
       if (!st.wallet) {
-        who = await wallet(who);
+        const linked = await wallet(who);
         chk();
-        qc.setQueryData(qk.me, who);
+        // No wallet yet: the member is in; the market opens once they add one.
+        if (!linked) return finish(true);
+        qc.setQueryData(qk.me, linked);
       }
       // Step 5: open the key market onchain, then wait for the indexer.
       setCur(4);
@@ -304,6 +311,10 @@ export function OnboardingModal({ handle, followers }: { handle?: string; follow
               </span>
               <Icon name="chev" className="wopt-go" />
             </button>
+            <button className="ob-skip" onClick={() => decide.current?.({ kind: 'skip' })}>
+              Skip for now
+            </button>
+            <p className="t3 ob-skip-note">You can post, follow and earn points without one. You’ll need a wallet to buy keys or launch your key.</p>
           </div>
         )}
         {err && (
@@ -382,11 +393,12 @@ export function UserCard({ me, live = false }: { me: MeDTO; live?: boolean }) {
   );
 }
 
-export function CardModal() {
+export function CardModal({ walletLater = false }: { walletLater?: boolean }) {
   const me = useMe().data;
   const F = useFormat();
   const { shareCard } = useActions();
   if (!me) return null;
+  const later = walletLater || !me.wallet;
   return (
     <>
       <div className="m-h">
@@ -398,7 +410,9 @@ export function CardModal() {
       <div className="m-b">
         <UserCard me={me} live />
         <p className="t2" style={{ fontSize: 13.5, margin: '16px 0 18px' }}>
-          Your key market is open at {F.$(weiToEth(priceWei(100n)))} a key. The first key is yours and can’t be sold, so your room always has an owner.
+          {later
+            ? 'You’re in. Post, follow and earn points now. Add a wallet when you want to buy keys or launch your own key market.'
+            : `Your key market is open at ${F.$(weiToEth(priceWei(100n)))} a key. The first key is yours and can’t be sold, so your room always has an owner.`}
         </p>
         <div className="row">
           <button className="btn btn-glass btn-block" onClick={shareCard}>

@@ -158,7 +158,7 @@ function Body({ m }: { m: Modal }) {
     case 'onboard':
       return <OnboardingModal handle={m.handle ? normalizeHandle(m.handle) || 'you' : undefined} followers={m.followers} />;
     case 'card':
-      return <CardModal />;
+      return <CardModal walletLater={m.walletLater} />;
     case 'compose':
       return <ComposeModal />;
     case 'withdraw':

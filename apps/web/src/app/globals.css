@@ -599,6 +599,9 @@ input[type=range]{width:100%;accent-color:var(--blue);height:4px}
 .wstack .wlogo{border-radius:5px!important}
 .ob-choice{display:flex;flex-direction:column;gap:6px;margin:16px -10px 0;padding-top:12px;border-top:1px solid var(--line)}
 .ob-choice .wopt{border:1px solid var(--line2);padding:11px 12px}
+.ob-skip{align-self:center;margin-top:4px;padding:8px 14px;border-radius:999px;font-weight:650;font-size:14.5px;color:var(--tx2)}
+.ob-skip:hover{background:var(--bg3);color:var(--tx)}
+.ob-skip-note{font-size:12.5px;text-align:center;margin:0 10px}
 .ob-choice .wopt:hover{background:var(--rowh)}
 .wphase{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding:10px 0 6px}
 .wphase h4{font-size:19px;font-weight:800;margin:6px 0 0}

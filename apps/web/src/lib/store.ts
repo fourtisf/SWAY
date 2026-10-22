@@ -7,7 +7,7 @@ export type Modal =
   | { type: 'trade'; handle: string; side: 'buy' | 'sell' }
   | { type: 'connect' }
   | { type: 'onboard'; handle?: string; followers?: number }
-  | { type: 'card' }
+  | { type: 'card'; walletLater?: boolean }
   | { type: 'compose' }
   | { type: 'withdraw' }
   | { type: 'deposit' }
