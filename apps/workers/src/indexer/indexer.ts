@@ -66,7 +66,11 @@ export class Indexer {
       try {
         const r = await this.tick();
         await this.holders().catch((e) => console.error('[indexer] token holder sync failed', e));
-        if (r && r.to - r.from >= BigInt(this.batchBlocks) - 1n) continue; // catching up
+        if (r && r.to - r.from >= BigInt(this.batchBlocks) - 1n) {
+          // Catching up.
+          if (this.c.cfg.indexer.catchupMs) await new Promise((res) => setTimeout(res, this.c.cfg.indexer.catchupMs));
+          continue;
+        }
       } catch (e) {
         console.error('[indexer] tick failed', e);
         if (e instanceof LogsRangeError) continue; // retry at once with the smaller range

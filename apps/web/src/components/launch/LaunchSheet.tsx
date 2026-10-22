@@ -7,6 +7,7 @@ import { weiToEth } from '@sway/curve';
 import { LAUNCH_NAME_MAX, symbolProblem, tokenNameProblem } from '@sway/shared';
 import Link from 'next/link';
 import { useState } from 'react';
+import { errorMessage } from '@/lib/api';
 import { MOCK } from '@/lib/env';
 import { useFormat } from '@/lib/format';
 import { fmtTokens, useLaunchActions } from '@/lib/launch-actions';
@@ -19,7 +20,8 @@ import { Avatar, Loading, Spinner } from '../ui';
 const STEP = { attest: 'Signing the launch terms…', sign: 'Confirm in your wallet…', mine: 'Launching onchain…', index: 'Opening the curve…' } as const;
 
 export function LaunchSheet() {
-  const lp = useLaunchpad().data;
+  const lpQ = useLaunchpad();
+  const lp = lpQ.data;
   const cfg = useConfig().data;
   const official = !!useMe().data?.user.official;
   const F = useFormat();
@@ -37,6 +39,20 @@ export function LaunchSheet() {
       </button>
     </div>
   );
+  if (lpQ.isError && !lp)
+    return (
+      <>
+        {head}
+        <div className="m-b">
+          <p className="t2" style={{ margin: '0 0 16px' }}>
+            {errorMessage(lpQ.error)}
+          </p>
+          <button className="btn btn-white btn-lg btn-block" onClick={() => void lpQ.refetch()}>
+            Try again
+          </button>
+        </div>
+      </>
+    );
   if (!lp || (!MOCK && !cfg)) return <Loading />;
   // Mainnet deploys without the launchpad; deploy/setup-launchpad.sh adds it.
   if (!MOCK && !cfg?.contracts.launchpad)

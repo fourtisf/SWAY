@@ -32,7 +32,7 @@ export interface WorkerConfig {
   issuerKey: Hex | null;
   /** SPONSOR_ONBOARDING=1: the operator sends members' referrers (otherwise their first buy carries a permit). */
   sponsorOnboarding: boolean;
-  indexer: { startBlock: bigint; confirmations: number; pollMs: number; batchBlocks: number };
+  indexer: { startBlock: bigint; confirmations: number; pollMs: number; batchBlocks: number; catchupMs: number };
   ethUsdFeedUrl: string;
   ethUsdFallback: number;
   snapshotAt: Date;
@@ -76,6 +76,8 @@ export function loadConfig(): WorkerConfig {
       confirmations: num('INDEXER_CONFIRMATIONS', chainId === 31337 ? 0 : 2),
       pollMs: num('INDEXER_POLL_MS', chainId === 31337 ? 1000 : 4000),
       batchBlocks: num('INDEXER_BATCH_BLOCKS', 2000),
+      // Pause between catch-up batches, leaving the RPC room for the API's reads.
+      catchupMs: num('INDEXER_CATCHUP_MS', chainId === 31337 ? 0 : 250),
     },
     ethUsdFeedUrl: str('ETH_USD_FEED_URL'),
     ethUsdFallback: num('ETH_USD_FALLBACK', 3420),

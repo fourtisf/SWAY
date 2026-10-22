@@ -342,10 +342,12 @@ describe('indexer', () => {
     const before = c.cfg.indexer.startBlock;
     c.cfg.indexer.startBlock = head;
     try {
+      // Anvil may mine another block meanwhile: the batch starts at the start block and runs to the head.
       const r = await indexer.tick();
-      expect(r).toMatchObject({ from: head, to: head });
+      expect(r?.from).toBe(head);
+      expect(r!.to).toBeGreaterThanOrEqual(head);
       expect(r?.reorgedTo).toBeUndefined();
-      expect((await prisma.indexerCursor.findUniqueOrThrow({ where: { name: CURSOR } })).blockNumber).toBe(head);
+      expect((await prisma.indexerCursor.findUniqueOrThrow({ where: { name: CURSOR } })).blockNumber).toBe(r!.to);
     } finally {
       c.cfg.indexer.startBlock = before;
     }

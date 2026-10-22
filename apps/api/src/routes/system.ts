@@ -19,7 +19,8 @@ export async function systemRoutes(app: FastifyInstance) {
     const user = official
       ? await prisma.user.findUnique({ where: { id: official }, select: { launchToken: true, wallet: { select: { address: true } } } })
       : null;
-    const token = user ? await tokenAddressOf(launchChainOf(app), user.launchToken, user.wallet?.address ?? null) : null;
+    const token = user ? await tokenAddressOf(launchChainOf(app), user.launchToken, user.wallet?.address ?? null).catch(() => undefined) : null;
+    if (token === undefined) return null; // the chain can't say right now: ask again next time
     swayCache = { token, at: Date.now() };
     return token;
   };

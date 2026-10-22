@@ -108,8 +108,8 @@ export async function launchRoutes(app: FastifyInstance) {
     const out: AirdropAllocationDTO[] = [];
     for (const r of rows) {
       const lt = r.launchToken;
-      const token = await tokenAddressOf(chain, lt, lt.user.wallet?.address ?? null);
-      if (!token) continue; // attested but not launched yet
+      const token = await tokenAddressOf(chain, lt, lt.user.wallet?.address ?? null).catch(() => null);
+      if (!token) continue; // attested but not launched yet (or the chain can't say right now)
       if (chain.launchEnabled) {
         // Hide what is already claimed onchain (before the indexer mirrors it) and leaves of a stale attestation.
         const [claimed, curve] = await Promise.all([

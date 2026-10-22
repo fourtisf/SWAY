@@ -180,7 +180,10 @@ export async function tokenAddressOf(
 ): Promise<Address | null> {
   if (lt?.tokenAddress) return lt.tokenAddress as Address;
   if (!creatorWallet || !lc.launchEnabled) return null;
-  return lc.tokenOf(creatorWallet as Address).catch(() => null);
+  // A failed read is not "not launched": that would offer a second launch.
+  return lc.tokenOf(creatorWallet as Address).catch(() => {
+    throw unavailable('chain_unavailable', 'Can’t reach Robinhood Chain right now. Try again in a minute.');
+  });
 }
 
 /**
@@ -206,8 +209,7 @@ export async function attest(deps: AppDeps, lc: LaunchChain, v: Viewer, choice: 
   return withRedisLock(redis, `lock:launch:${v.user.id}`, async () => {
     const lt = await prisma.launchToken.findUnique({ where: { userId: v.user.id } });
     if (lt?.tokenAddress || lt?.launchedAt) throw conflict('already_launched', 'Your token is already live');
-    if (await lc.tokenOf(creator).catch(() => null))
-      throw conflict('already_launched', 'Your token is already live');
+    if (await tokenAddressOf(lc, null, creator)) throw conflict('already_launched', 'Your token is already live');
     const taken = await prisma.launchToken.findFirst({
       where: { symbol: { equals: symbol, mode: 'insensitive' }, tokenAddress: { not: null }, userId: { not: v.user.id } },
       select: { id: true },
