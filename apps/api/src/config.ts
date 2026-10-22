@@ -115,6 +115,11 @@ const EnvSchema = z.object({
    * Default 0: the operator only signs permits and the first buyer's transaction carries them.
    */
   SPONSOR_ONBOARDING: flag,
+  /**
+   * 1 = show the token @swaydotfamily launched as $SWAY: its CA on the site, its token page and its airdrop.
+   * Default 0 keeps it off the site until the team announces it (the owner still sees it on /launchpad).
+   */
+  SWAY_TOKEN_PUBLIC: flag,
 });
 
 export type Env = z.infer<typeof EnvSchema>;
@@ -175,6 +180,7 @@ export interface Config {
   gasDripWei: bigint;
   faucetUrl: string | null;
   sponsorOnboarding: boolean;
+  swayTokenPublic: boolean;
 }
 
 export class ConfigError extends Error {}
@@ -283,5 +289,6 @@ export function loadConfig(
     gasDripWei: BigInt(e.GAS_DRIP_WEI),
     faucetUrl: e.FAUCET_URL ?? null,
     sponsorOnboarding: e.SPONSOR_ONBOARDING,
+    swayTokenPublic: e.SWAY_TOKEN_PUBLIC,
   };
 }

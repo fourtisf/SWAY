@@ -18,6 +18,7 @@ import {
 import { HandleParams, body, params, userByHandle } from './_util';
 import { getViewer, requireViewer } from '../plugins/auth';
 import { userRef } from '../services/dto';
+import { officialUserId } from '../services/notify';
 import { permitsEnabled } from '../services/onboarding';
 import {
   attest,
@@ -34,6 +35,9 @@ import type { OnchainStaking } from '../services/launch-chain';
 export async function launchRoutes(app: FastifyInstance) {
   const { prisma } = app.deps;
   const lc = () => launchChainOf(app);
+  /** @swaydotfamily's token stays off the public pages until SWAY_TOKEN_PUBLIC=1 (see system.ts). */
+  const unannounced = async (userId: string) =>
+    !app.deps.config.swayTokenPublic && userId === (await officialUserId(prisma));
 
   app.get('/launchpad', async (req): Promise<LaunchpadResponse> => {
     const v = await getViewer(req);
@@ -69,8 +73,9 @@ export async function launchRoutes(app: FastifyInstance) {
     const u = await userByHandle(req, handle, { market: true, wallet: true, launchToken: true });
     const lt = u.launchToken;
     const owner = u.wallet?.address ?? null;
-    const token = await tokenAddressOf(lc(), lt, owner);
     const v = await getViewer(req);
+    const hidden = (await unannounced(u.id)) && v?.user.id !== u.id;
+    const token = hidden ? null : await tokenAddressOf(lc(), lt, owner);
     const out: LaunchTokenResponse = {
       creator: { ...userRef(u, u.market), score: u.score },
       symbol: '$' + (lt?.symbol ?? suggestedSymbol(u)),
@@ -108,6 +113,7 @@ export async function launchRoutes(app: FastifyInstance) {
     const out: AirdropAllocationDTO[] = [];
     for (const r of rows) {
       const lt = r.launchToken;
+      if (await unannounced(lt.userId)) continue;
       const token = await tokenAddressOf(chain, lt, lt.user.wallet?.address ?? null).catch(() => null);
       if (!token) continue; // attested but not launched yet (or the chain can't say right now)
       if (chain.launchEnabled) {

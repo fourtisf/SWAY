@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { OFFICIAL_HANDLE, ROUTES, type ConfigDTO } from '@sway/shared';
+import { OFFICIAL_HANDLE, ROUTES, type ConfigDTO, type LaunchTokenResponse } from '@sway/shared';
 import { ConfigError, loadConfig } from '../src/config';
 import { jsonReplacer } from '../src/app';
 import { resetSwayTokenCache } from '../src/routes/system';
@@ -47,17 +47,27 @@ describe('config', () => {
     expect(c.swayToken).toBeNull();
   });
 
-  it('shows the token @swaydotfamily launched as swayToken', async () => {
+  it('shows the token @swaydotfamily launched as swayToken once SWAY_TOKEN_PUBLIC=1', async () => {
     const u = await prisma.user.create({ data: { xId: '9100', handle: OFFICIAL_HANDLE, name: 'Sway', official: true } });
     const token = '0x00000000000000000000000000000000005a1a7e';
     await prisma.launchToken.create({ data: { userId: u.id, symbol: 'SWAY', name: 'Sway', tokenAddress: token } });
     resetOfficialCache();
     resetSwayTokenCache();
-    const c = (await ctx.app.inject('/api/config')).json<ConfigDTO>();
-    expect(c.swayToken).toBe(token);
-    await prisma.user.delete({ where: { id: u.id } });
-    resetOfficialCache();
-    resetSwayTokenCache();
+    // Not announced yet: no CA on the site and no public token page.
+    expect((await ctx.app.inject('/api/config')).json<ConfigDTO>().swayToken).toBeNull();
+    const page = (await ctx.app.inject(`/api/launchpad/tokens/${OFFICIAL_HANDLE}`)).json<LaunchTokenResponse>();
+    expect(page).toMatchObject({ launched: false, token: null });
+
+    ctx.app.deps.config.swayTokenPublic = true;
+    try {
+      expect((await ctx.app.inject('/api/config')).json<ConfigDTO>().swayToken).toBe(token);
+      expect((await ctx.app.inject(`/api/launchpad/tokens/${OFFICIAL_HANDLE}`)).json<LaunchTokenResponse>().launched).toBe(true);
+    } finally {
+      ctx.app.deps.config.swayTokenPublic = false;
+      await prisma.user.delete({ where: { id: u.id } });
+      resetOfficialCache();
+      resetSwayTokenCache();
+    }
   });
 
   it('GET /api/price falls back, then reads the workers’ Redis price', async () => {

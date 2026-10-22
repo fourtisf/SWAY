@@ -12,8 +12,12 @@ export const resetSwayTokenCache = () => {
 export async function systemRoutes(app: FastifyInstance) {
   const { config, redis, prisma } = app.deps;
 
-  /** The official account's launched token: the mirror's, else the launchpad's tokenOf (the mirror can lag). */
+  /**
+   * The official account's launched token: the mirror's, else the launchpad's tokenOf (the mirror can lag).
+   * Null until SWAY_TOKEN_PUBLIC=1, so the site says "Coming soon" before the launch is announced.
+   */
   const swayToken = async (): Promise<Address | null> => {
+    if (!config.swayTokenPublic) return null;
     if (swayCache && (swayCache.token || Date.now() - swayCache.at < 30_000)) return swayCache.token;
     const official = await officialUserId(prisma);
     const user = official
