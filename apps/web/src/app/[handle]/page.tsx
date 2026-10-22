@@ -4,6 +4,7 @@ import { frameOfScore, tierOf } from '@sway/scoring';
 import { hueOf, minutesSince } from '@sway/shared';
 import { useParams, useRouter } from 'next/navigation';
 import { useState, type CSSProperties } from 'react';
+import { zeroAddress } from 'viem';
 import { Icon } from '@/components/icons';
 import { Avatar, Empty, Loading, Spinner, Tabs, VB, Voiceprint } from '@/components/ui';
 import { RoomView } from '@/components/views/Chat';
@@ -122,6 +123,8 @@ function Profile({ handle }: { handle: string }) {
   const claimable = wallet ? weiToEth(wallet.earnings.totalWei) : 0;
   // A member's market goes onchain with its first buy; until then they can launch it themselves.
   const unlaunched = isMe && launchKey.show;
+  // No market at all: the member skipped the wallet at sign-up, so there is no key to trade yet.
+  const noMarket = c.claimed && c.subject === zeroAddress;
   return (
     <>
       <div className="p-banner" style={{ '--hue': hue } as CSSProperties}>
@@ -213,7 +216,17 @@ function Profile({ handle }: { handle: string }) {
           </div>
         </div>
         <div className="acts">
-          {isMe ? (
+          {noMarket ? (
+            isMe ? (
+              <button className="btn btn-buy" onClick={() => openModal({ type: 'onboard' })}>
+                Add a wallet
+              </button>
+            ) : (
+              <button className="btn btn-buy" disabled>
+                Key not live yet
+              </button>
+            )
+          ) : isMe ? (
             <>
               <button className="btn btn-glass" onClick={() => router.push('/wallet')}>
                 Earnings {F.$(claimable)}
@@ -254,6 +267,13 @@ function Profile({ handle }: { handle: string }) {
           )}
         </div>
       </div>
+      {noMarket && (
+        <div className="note" id="noKeyNote" style={{ margin: '0 16px 16px' }}>
+          {isMe
+            ? 'Add a wallet to open your key market. Until then fans can’t buy your key; posting and points work without one.'
+            : `@${handle} hasn’t added a wallet yet, so their key isn’t live. It opens once they do.`}
+        </div>
+      )}
       {unlaunched && (
         <div className="note" id="launchKeyNote" style={{ margin: '0 16px 16px' }}>
           Your key isn’t onchain yet. It goes live with its first buy, or launch it now yourself: one transaction, a little

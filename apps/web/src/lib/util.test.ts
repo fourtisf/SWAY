@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { routeOf, stepAmount } from './util';
+import { routeOf, samples, stepAmount } from './util';
 
 describe('stepAmount (prototype tstep rules)', () => {
   it('steps by 0.1 below one key and by whole keys above', () => {
@@ -11,6 +11,15 @@ describe('stepAmount (prototype tstep rules)', () => {
     expect(stepAmount(1, -1)).toBe(0.9);
     expect(stepAmount(0.1, -1)).toBe(0.01);
     expect(stepAmount(0.01, -1)).toBe(0.01);
+  });
+});
+
+describe('samples', () => {
+  it('spaces points evenly and ends when the range is empty', () => {
+    expect(samples(10, 4)).toEqual([0, 2.5, 5, 7.5, 10]);
+    // A member with no keys yet: the curve chart used to loop forever here (supply 0).
+    expect(samples(0, 60)).toHaveLength(61);
+    expect(samples(0, 60).every((s) => s === 0)).toBe(true);
   });
 });
 

@@ -56,3 +56,6 @@ export function stepAmount(v: number, dir: 1 | -1): number {
   const n = dir > 0 ? (v < 1 ? r2(v + 0.1) : Math.floor(v) + 1) : v <= 1 ? Math.max(0.01, r2(v - 0.1)) : Math.ceil(v) - 1;
   return Math.max(0.01, n);
 }
+
+/** n + 1 evenly spaced points from 0 to max, for drawing curves. Counted, so max = 0 still ends. */
+export const samples = (max: number, n: number): number[] => Array.from({ length: n + 1 }, (_, i) => (max * i) / n);

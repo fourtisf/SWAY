@@ -3,6 +3,7 @@ import { priceAt } from '@sway/curve';
 import type { Format } from '@sway/shared';
 import { useEffect, useRef } from 'react';
 import { THEME_EVENT, chartColors } from '@/lib/chart-colors';
+import { samples } from '@/lib/util';
 
 /** Bonding-curve canvas (prototype drawCurve()); float priceAt is fine for a chart. */
 export function CurveChart({ supply, F }: { supply: number; F: Format }) {
@@ -55,14 +56,15 @@ export function CurveChart({ supply, F }: { supply: number; F: Format }) {
       g.addColorStop(1, 'rgba(29,155,240,0)');
       x.beginPath();
       x.moveTo(X(0), Y(0));
-      for (let s = 0; s <= supply; s += supply / 60) x.lineTo(X(s), Y(priceAt(s)));
+      // Counted steps: stepping by supply / 60 never ended for a member with no keys yet (supply 0).
+      for (const s of samples(supply, 60)) x.lineTo(X(s), Y(priceAt(s)));
       x.lineTo(X(supply), Y(priceAt(supply)));
       x.lineTo(X(supply), Y(0));
       x.closePath();
       x.fillStyle = g;
       x.fill();
       x.beginPath();
-      for (let s = 0; s <= maxS; s += maxS / 140) {
+      for (const s of samples(maxS, 140)) {
         const px = X(s),
           py = Y(priceAt(s));
         if (s) x.lineTo(px, py);
