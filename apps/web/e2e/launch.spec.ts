@@ -59,6 +59,10 @@ test('launch my token, trade it and claim creator fees', async ({ page }) => {
 
   const box = page.locator('#tokenBox');
   await expect(box).toContainText('Progress to graduation');
+  // Max fills the wallet's ETH less a little for gas, and is a valid buy.
+  await box.getByRole('button', { name: 'Max' }).click();
+  expect(Number(await box.locator('#tokAmt').inputValue())).toBeGreaterThan(0);
+  await expect(box.getByRole('button', { name: /^Buy \$LTEST for \$/ })).toBeEnabled();
   await box.getByRole('button', { name: '0.05 ETH' }).click();
   await box.getByRole('button', { name: /^Buy \$LTEST for \$/ }).click();
   await expect(page.locator('.toasts')).toContainText(/Bought .* \$LTEST/);

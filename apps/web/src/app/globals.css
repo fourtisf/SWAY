@@ -343,7 +343,8 @@ h1,h2,h3,h4{margin:0;letter-spacing:-.01em}
 .amt button:hover{background:var(--line2)}
 .amt button svg{width:16px;height:16px}
 .quick{display:flex;gap:6px;margin:10px 0 16px}
-.quick .chip{flex:1;padding:0 6px}
+.quick .chip{flex:1;min-width:0;padding:0 6px;white-space:nowrap}
+@media (max-width:700px){.quick .unit{display:none}}
 .sum{border-radius:16px;background:var(--bg2);padding:14px 16px;margin-bottom:14px}
 .sum-r{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;padding:3px 0}
 .sum-r span:first-child{color:var(--tx2)}

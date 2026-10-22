@@ -9,6 +9,7 @@ import {
   type LaunchTokenDTO,
 } from '@sway/shared';
 import { useState } from 'react';
+import { formatEther } from 'viem';
 import { useFormat, useEthUsd } from '@/lib/format';
 import { balanceOf, curveOf, fmtTokens, tokensInput, useLaunchActions } from '@/lib/launch-actions';
 import { useMe, useWallet } from '@/lib/queries';
@@ -26,6 +27,10 @@ export function tokenUsd(priceWei: string, ethUsd: number): string {
 }
 
 const ETH_CHIPS = ['0.01', '0.05', '0.1', '0.5'];
+// Max leaves this much ETH for the buy's gas (a few cents on Robinhood Chain).
+const GAS_RESERVE_WEI = 2n * 10n ** 14n;
+/** Wei as an ETH amount for the input, rounded down to 6 decimals. */
+const ethInput = (wei: bigint) => formatEther(wei - (wei % 10n ** 12n));
 
 export function TokenBox({ t }: { t: LaunchTokenDTO }) {
   const F = useFormat();
@@ -50,7 +55,10 @@ export function TokenBox({ t }: { t: LaunchTokenDTO }) {
   const curve = curveOf(t);
   const qb = buy && amount > 0n ? launchQuoteBuy(curve, amount) : null;
   const qs = !buy && amount > 0n && amount <= held ? launchQuoteSell(curve, amount) : null;
-  const cashWei = cash ? BigInt(cash.cashWei) : 0n;
+  // The buy is paid by the active wallet: its own cash, not every wallet's.
+  const own = cash?.wallets?.find((x) => x.address.toLowerCase() === wallet?.address.toLowerCase());
+  const cashWei = own ? BigInt(own.cashWei) : cash ? BigInt(cash.cashWei) : 0n;
+  const maxBuy = cashWei > GAS_RESERVE_WEI ? cashWei - GAS_RESERVE_WEI : 0n;
   const tooMuch = buy ? amount > cashWei : amount > held;
   const bad = amount <= 0n || tooMuch || t.graduated;
   const capUsd = weiToEth(t.marketCapWei) * ethUsd;
@@ -169,11 +177,17 @@ export function TokenBox({ t }: { t: LaunchTokenDTO }) {
             </div>
             <div className="quick">
               {buy
-                ? ETH_CHIPS.map((v) => (
-                    <button key={v} className={`chip ${text === v ? 'on' : ''}`} onClick={() => setText(v)}>
-                      {v} ETH
-                    </button>
-                  ))
+                ? [
+                    ...ETH_CHIPS.map((v) => (
+                      <button key={v} className={`chip ${text === v ? 'on' : ''}`} onClick={() => setText(v)}>
+                        {v}
+                        <span className="unit"> ETH</span>
+                      </button>
+                    )),
+                    <button key="max" className={`chip ${maxBuy > 0n && text === ethInput(maxBuy) ? 'on' : ''}`} disabled={maxBuy === 0n} onClick={() => setText(ethInput(maxBuy))}>
+                      Max
+                    </button>,
+                  ]
                 : (['25', '50', '100'] as const).map((p) => (
                     <button
                       key={p}
