@@ -1,16 +1,31 @@
 import type { FastifyInstance } from 'fastify';
-import type { ConfigDTO, PriceResponse } from '@sway/shared';
-import type { Address } from '@sway/shared';
+import type { Address, ConfigDTO, PriceResponse } from '@sway/shared';
+import { launchChainOf, tokenAddressOf } from '../services/launch';
 import { officialUserId } from '../services/notify';
 import { getEthUsd } from '../services/price';
+
+let swayCache: { token: Address | null; at: number } | null = null;
+export const resetSwayTokenCache = () => {
+  swayCache = null;
+};
 
 export async function systemRoutes(app: FastifyInstance) {
   const { config, redis, prisma } = app.deps;
 
+  /** The official account's launched token: the mirror's, else the launchpad's tokenOf (the mirror can lag). */
+  const swayToken = async (): Promise<Address | null> => {
+    if (swayCache && (swayCache.token || Date.now() - swayCache.at < 30_000)) return swayCache.token;
+    const official = await officialUserId(prisma);
+    const user = official
+      ? await prisma.user.findUnique({ where: { id: official }, select: { launchToken: true, wallet: { select: { address: true } } } })
+      : null;
+    const token = user ? await tokenAddressOf(launchChainOf(app), user.launchToken, user.wallet?.address ?? null) : null;
+    swayCache = { token, at: Date.now() };
+    return token;
+  };
+
   app.get('/config', async (): Promise<ConfigDTO> => {
     const { ethUsd } = await getEthUsd(redis, config.ethUsdFallback);
-    const official = await officialUserId(prisma);
-    const sway = official ? await prisma.launchToken.findUnique({ where: { userId: official }, select: { tokenAddress: true } }) : null;
     return {
       chainId: config.chain.id,
       chainName: config.chain.name,
@@ -22,7 +37,7 @@ export async function systemRoutes(app: FastifyInstance) {
       auth: { x: config.x.enabled, dev: config.devAuth },
       wallets: config.wallets,
       mainnet: config.chain.isMainnet,
-      swayToken: (sway?.tokenAddress as Address | null | undefined) ?? null,
+      swayToken: await swayToken(),
       /* [A] */
       faucetUrl: config.faucetUrl,
     };

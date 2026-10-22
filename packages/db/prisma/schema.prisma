@@ -657,9 +657,26 @@ model LaunchToken {
   volumeWei        Decimal         @default(0) @db.Decimal(78, 0)
   creatorFeesWei   Decimal         @default(0) @db.Decimal(78, 0)
   graduated        Boolean         @default(false)
+  /// Wallets holding the token outside the launchpad, its pool and the burn address (see LaunchHolder).
+  holders          Int             @default(0)
+  /// Last block whose Transfer logs the holder count has seen; null until the workers pick the token up.
+  holdersBlock     BigInt?
   createdAt        DateTime        @default(now())
   user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   airdrops         LaunchAirdrop[]
+  holderRows       LaunchHolder[]
+}
+
+/// A wallet holding a launched token. Transfer logs say who to look at; the balance is read from the chain, so
+/// a reorged or missed log heals the next time that wallet moves tokens.
+model LaunchHolder {
+  launchTokenId String
+  /// Lowercase hex.
+  address       String
+  balance       Decimal     @db.Decimal(78, 0)
+  launchToken   LaunchToken @relation(fields: [launchTokenId], references: [id], onDelete: Cascade)
+
+  @@id([launchTokenId, address])
 }
 
 /// One leaf of a launch's key-holder airdrop (10% of supply, pro rata to keys held at launch).

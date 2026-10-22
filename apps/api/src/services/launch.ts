@@ -346,6 +346,7 @@ export async function tokenDTO(
     ethReserveWei: curve.ethReserve.toString(),
     tokenReserve: curve.tokenReserve.toString(),
     volumeWei: lt ? lt.volumeWei.toFixed(0) : '0',
+    holders: lt?.holders ?? 0,
     graduated: curve.graduated,
     pool,
     creatorFeesWei: creatorFees.toString(),

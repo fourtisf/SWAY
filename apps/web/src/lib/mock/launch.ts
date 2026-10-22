@@ -205,6 +205,8 @@ function tokenDTO(w: MockWorld, t: MockToken): LaunchTokenDTO {
     ethReserveWei: t.curve.ethReserve.toString(),
     tokenReserve: t.curve.tokenReserve.toString(),
     volumeWei: t.volume.toString(),
+    // Mock mode only knows the viewer's own balance.
+    holders: t.balance > 0n ? 1 : 0,
     graduated: t.graduated,
     pool: null,
     creatorFeesWei: t.fees.toString(),

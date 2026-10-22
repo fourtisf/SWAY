@@ -145,6 +145,7 @@ h1,h2,h3,h4{margin:0;letter-spacing:-.01em}
 .stat b{font-size:20px;font-weight:800;display:block;line-height:1.2}
 .stat span{color:var(--tx2);font-size:13px}
 .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
 .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 
 /* ---------- composer / guest ---------- */
@@ -544,6 +545,7 @@ input[type=range]{width:100%;accent-color:var(--blue);height:4px}
   .podium{gap:8px}.pod-v{font-size:15px}.pod .hd{display:none}.pod .nm b{font-size:13px}
   .vs{grid-template-columns:minmax(0,1fr);gap:6px}.vs-mid{height:20px}.vs-mid span{width:34px;height:34px;font-size:11.5px}
   .grid3{gap:8px}.grid3 .stat{padding:12px}.grid3 .stat b{font-size:16px}
+  .grid4{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.grid4 .stat{padding:12px}.grid4 .stat b{font-size:16px}
   .hm{display:none!important}
   /* Not in the prototype: hiding the Followers cell left its grid track, squeezing names to ~40px. */
   .tr.mk{grid-template-columns:24px minmax(0,1fr) 92px 64px!important}

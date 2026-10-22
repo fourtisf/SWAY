@@ -2,6 +2,7 @@
  * SwayLaunchpad mirror: launches, curve trades (events carry the absolute reserves after each trade, so
  * re-processing is idempotent), graduation, airdrop and creator-fee claims.
  */
+import { erc20Abi, parseAbiItem, type Address, type Hex } from 'viem';
 import { swayLaunchpadAbi } from '@sway/shared/abi';
 import { addr, dec, decToBig, type Prisma } from '@sway/db';
 import type { Clients } from '../clients';
@@ -56,6 +57,8 @@ export async function onLaunched(
     tokenReserve: dec(CURVE_SUPPLY),
     ethReserveWei: dec(0),
     previewOn: true,
+    // The token was created in this block: holder counts start from it.
+    holdersBlock: m.blockNumber - 1n,
   };
   const row = existing
     ? await tx.launchToken.update({ where: { id: existing.id }, data })
@@ -126,6 +129,48 @@ export async function onAirdropClaimed(c: ApplyContext, m: LogMeta, a: { token: 
 export async function onCreatorFeesClaimed(c: ApplyContext, m: LogMeta, a: { creator: string; amount: bigint }) {
   const member = await memberByAddress(c.tx, a.creator);
   if (member) await activity(c.tx, member.id, `launchfees:${m.txHash}:${m.logIndex}`, 'Claimed token creator fees', a.amount, m);
+}
+
+const TRANSFER = parseAbiItem('event Transfer(address indexed from, address indexed to, uint256 value)');
+const NOT_HOLDERS = ['0x0000000000000000000000000000000000000000', '0x000000000000000000000000000000000000dead'];
+
+/**
+ * Holder counts of launched tokens, up to `head` (the indexed block). Transfer logs say which wallets moved
+ * tokens; their balances are read from the chain. The launchpad (curve and unclaimed airdrop), the Uniswap pair
+ * and the burn addresses hold tokens without being holders.
+ */
+export async function syncLaunchHolders(c: Clients, head: bigint, span: bigint): Promise<void> {
+  const pad = c.cfg.contracts.launchpad;
+  if (!pad) return;
+  const tokens = await c.prisma.launchToken.findMany({ where: { tokenAddress: { not: null } } });
+  for (const lt of tokens) {
+    let last = lt.holdersBlock;
+    if (last === null) {
+      // Launched before holder counts existed: start from the launch transaction's block.
+      if (!lt.launchTx) continue;
+      last = (await c.pub.getTransactionReceipt({ hash: lt.launchTx as Hex })).blockNumber - 1n;
+    }
+    if (last >= head) continue;
+    const token = lt.tokenAddress as Address;
+    const to = head < last + span ? head : last + span;
+    const logs = await c.pub.getLogs({ address: token, event: TRANSFER, fromBlock: last + 1n, toBlock: to });
+    const touched = new Set<string>();
+    for (const l of logs) for (const a of [l.args.from, l.args.to]) if (a) touched.add(addr(a));
+    if (touched.size) {
+      const pair = (await c.pub.readContract({ address: pad, abi: swayLaunchpadAbi, functionName: 'pairOf', args: [token] })) as string;
+      const skip = new Set([addr(pad), addr(pair), ...NOT_HOLDERS]);
+      for (const a of touched) {
+        if (skip.has(a)) continue;
+        const balance = await c.pub.readContract({ address: token, abi: erc20Abi, functionName: 'balanceOf', args: [a as Address] });
+        const key = { launchTokenId_address: { launchTokenId: lt.id, address: a } };
+        if (balance > 0n)
+          await c.prisma.launchHolder.upsert({ where: key, update: { balance: dec(balance) }, create: { launchTokenId: lt.id, address: a, balance: dec(balance) } });
+        else await c.prisma.launchHolder.deleteMany({ where: { launchTokenId: lt.id, address: a } });
+      }
+    }
+    const holders = await c.prisma.launchHolder.count({ where: { launchTokenId: lt.id } });
+    await c.prisma.launchToken.update({ where: { id: lt.id }, data: { holdersBlock: to, holders } });
+  }
 }
 
 /** After a reorg: re-read every launched token's curve from the chain (and drop launches that vanished). */

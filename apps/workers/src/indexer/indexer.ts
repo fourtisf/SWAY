@@ -24,11 +24,18 @@ import {
   type LogMeta,
 } from './apply';
 import { rebuildMarket } from './rebuild';
-import { onAirdropClaimed, onCreatorFeesClaimed, onGraduated, onLaunched, onLaunchTraded, resyncLaunches } from './launchpad';
+import { onAirdropClaimed, onCreatorFeesClaimed, onGraduated, onLaunched, onLaunchTraded, resyncLaunches, syncLaunchHolders } from './launchpad';
 import { onDropClaimed, onDropCreated, onDropReclaimed, resyncDrops, rollbackDrops } from './drops';
 
 export const CURSOR = 'sway';
 const KEEP_BLOCKS = 2_000n;
+const MIN_BATCH = 10;
+
+class LogsRangeError extends Error {
+  constructor(message: string, cause: unknown) {
+    super(message, { cause });
+  }
+}
 
 export interface TickResult {
   from: bigint;
@@ -39,6 +46,8 @@ export interface TickResult {
 
 export class Indexer {
   private stopped = false;
+  /** Blocks per getLogs: shrinks when the RPC refuses a range (public RPCs cap it), grows back after successes. */
+  private batch = 0;
 
   constructor(private readonly c: Clients) {}
 
@@ -56,9 +65,11 @@ export class Indexer {
     while (!this.stopped) {
       try {
         const r = await this.tick();
-        if (r && r.to - r.from >= BigInt(this.c.cfg.indexer.batchBlocks) - 1n) continue; // catching up
+        await this.holders().catch((e) => console.error('[indexer] token holder sync failed', e));
+        if (r && r.to - r.from >= BigInt(this.batchBlocks) - 1n) continue; // catching up
       } catch (e) {
         console.error('[indexer] tick failed', e);
+        if (e instanceof LogsRangeError) continue; // retry at once with the smaller range
       }
       await new Promise((res) => setTimeout(res, this.c.cfg.indexer.pollMs));
     }
@@ -66,6 +77,17 @@ export class Indexer {
 
   stop(): void {
     this.stopped = true;
+  }
+
+  /** Token holder counts follow the indexed head, never ahead of it. */
+  private async holders(): Promise<void> {
+    if (!this.c.cfg.contracts.launchpad) return;
+    const cursor = await this.c.prisma.indexerCursor.findUnique({ where: { name: CURSOR } });
+    if (cursor) await syncLaunchHolders(this.c, cursor.blockNumber, BigInt(this.batchBlocks));
+  }
+
+  private get batchBlocks(): number {
+    return this.batch || this.c.cfg.indexer.batchBlocks;
   }
 
   /** Processes the next batch of confirmed blocks. Returns null when there is nothing new. */
@@ -86,9 +108,19 @@ export class Indexer {
 
     const from = cursor ? cursor.blockNumber + 1n : cfg.indexer.startBlock;
     if (from > safe) return reorgedTo !== undefined ? { from, to: from - 1n, logs: 0, reorgedTo } : null;
-    const to = safe < from + BigInt(cfg.indexer.batchBlocks) - 1n ? safe : from + BigInt(cfg.indexer.batchBlocks) - 1n;
+    const span = BigInt(this.batchBlocks);
+    const to = safe < from + span - 1n ? safe : from + span - 1n;
 
-    const raw = await pub.getLogs({ address: this.addresses, fromBlock: from, toBlock: to });
+    let raw;
+    try {
+      raw = await pub.getLogs({ address: this.addresses, fromBlock: from, toBlock: to });
+    } catch (e) {
+      if (this.batchBlocks <= MIN_BATCH) throw e;
+      this.batch = Math.max(MIN_BATCH, Math.floor(this.batchBlocks / 2));
+      throw new LogsRangeError(`getLogs ${from}-${to} failed; retrying ${this.batch} blocks at a time`, e);
+    }
+    if (to - from + 1n === span && this.batch && this.batch < cfg.indexer.batchBlocks)
+      this.batch = Math.min(cfg.indexer.batchBlocks, Math.ceil(this.batch * 1.25));
     const blockNumbers = new Set<bigint>([to, ...raw.map((l) => l.blockNumber!)]);
     const blocks = new Map<bigint, { hash: string; parentHash: string; ts: Date }>();
     for (const n of blockNumbers) {

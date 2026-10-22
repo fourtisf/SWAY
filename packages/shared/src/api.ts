@@ -1161,6 +1161,8 @@ export interface LaunchTokenDTO {
   /** Tokens still on the curve. */
   tokenReserve: TokenAmount;
   volumeWei: Wei;
+  /** Wallets holding the token (not the launchpad, its pool or burn addresses), from the indexer. */
+  holders: number;
   graduated: boolean;
   /** Uniswap V2 pair the curve's liquidity moved into at graduation (trade it there); null before. */
   pool: Address | null;

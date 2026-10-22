@@ -99,7 +99,7 @@ export function TokenBox({ t }: { t: LaunchTokenDTO }) {
         </div>
         <span className={`tag ${t.graduated ? 'warn' : 'aqua'}`}>{t.graduated ? 'Graduated' : 'Live'}</span>
       </div>
-      <div className="grid3" style={{ marginTop: 16 }}>
+      <div className="grid4" style={{ marginTop: 16 }}>
         <div className="glass stat">
           <small>{t.graduated ? 'Price at graduation' : 'Price'}</small>
           <b style={price.length > 8 ? { fontSize: 15, lineHeight: '24px' } : undefined}>{price}</b>
@@ -111,6 +111,10 @@ export function TokenBox({ t }: { t: LaunchTokenDTO }) {
         <div className="glass stat">
           <small>Volume</small>
           <b>{F.$(weiToEth(t.volumeWei))}</b>
+        </div>
+        <div className="glass stat">
+          <small>Holders</small>
+          <b>{F.int(t.holders)}</b>
         </div>
       </div>
       {t.graduated ? (

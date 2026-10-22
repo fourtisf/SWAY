@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { OFFICIAL_HANDLE, ROUTES, type ConfigDTO } from '@sway/shared';
 import { ConfigError, loadConfig } from '../src/config';
 import { jsonReplacer } from '../src/app';
+import { resetSwayTokenCache } from '../src/routes/system';
 import { resetOfficialCache } from '../src/services/notify';
 import { PRICE_KEY, resetPriceMemo } from '../src/services/price';
 import { makeApp, prisma, resetState, TEST_ENV, type TestCtx } from './helpers';
@@ -51,10 +52,12 @@ describe('config', () => {
     const token = '0x00000000000000000000000000000000005a1a7e';
     await prisma.launchToken.create({ data: { userId: u.id, symbol: 'SWAY', name: 'Sway', tokenAddress: token } });
     resetOfficialCache();
+    resetSwayTokenCache();
     const c = (await ctx.app.inject('/api/config')).json<ConfigDTO>();
     expect(c.swayToken).toBe(token);
     await prisma.user.delete({ where: { id: u.id } });
     resetOfficialCache();
+    resetSwayTokenCache();
   });
 
   it('GET /api/price falls back, then reads the workers’ Redis price', async () => {

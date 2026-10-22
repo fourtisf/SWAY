@@ -61,7 +61,7 @@ export const useWallet = (enabled: boolean) => useQuery({ queryKey: qk.wallet, q
 export const useLeaderboard = (tab: LeaderboardTab) => useQuery({ queryKey: qk.leaderboard(tab), queryFn: () => api().leaderboard({ tab }) });
 export const useBattles = () => useQuery({ queryKey: qk.battles, queryFn: () => api().battles() });
 export const useGenesis = () => useQuery({ queryKey: qk.genesis, queryFn: () => api().genesis() });
-export const useLaunchpad = () => useQuery({ queryKey: qk.launchpad, queryFn: () => api().launchpad() });
+export const useLaunchpad = (enabled = true) => useQuery({ queryKey: qk.launchpad, queryFn: () => api().launchpad(), enabled });
 
 /* [A] wallets & funding */
 export const qkWallets = ['wallets'] as const;

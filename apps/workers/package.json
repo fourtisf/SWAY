@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "seed:chain": "tsx --env-file-if-exists=../../.env src/scripts/seed-chain.ts",
     "open-fan-market": "tsx --env-file-if-exists=../../.env src/scripts/open-fan-market.ts",
-    "e2e:stack": "tsx --env-file-if-exists=../../.env src/scripts/e2e-stack.ts"
+    "e2e:stack": "tsx --env-file-if-exists=../../.env src/scripts/e2e-stack.ts",
+    "backfill:launchpad": "tsx --env-file-if-exists=../../.env src/scripts/backfill-launchpad.ts"
   },
   "dependencies": {
     "@sway/curve": "workspace:*",

@@ -5,8 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { tradeKey } from '@/lib/live';
-import { useFormat } from '@/lib/format';
-import { useBattles, useConfig, useMe, useSearch, useTrades } from '@/lib/queries';
+import { useEthUsd, useFormat } from '@/lib/format';
+import { useBattles, useConfig, useLaunchpad, useMe, useProfile, useSearch, useTrades } from '@/lib/queries';
 import { openModal, useClock, useUI } from '@/lib/store';
 import { Icon } from '../icons';
 import { Avatar, Countdown, CountdownBoxes, VB, Voiceprint } from '../ui';
@@ -125,6 +125,11 @@ function LaunchCard() {
   const cfg = useConfig().data;
   const F = useFormat();
   const router = useRouter();
+  // Once the member's key is live the card shows its price, and once their token is live, the token.
+  const keyLive = !!me?.market?.opened;
+  const keyPrice = useProfile(keyLive && me ? me.user.handle : '').data?.priceWei;
+  const token = useLaunchpad(!!me).data?.token ?? null;
+  const ethUsd = useEthUsd();
   if (slide === 1)
     return (
       <div className="lc">
@@ -157,14 +162,25 @@ function LaunchCard() {
           Sway launchpad
         </div>
         <div className="lc-k" style={{ marginTop: 14, color: 'var(--tx3)', fontWeight: 600 }}>
-          {me ? 'Your reach value' : 'What is your reach worth?'}
+          {keyPrice ? 'Your key price' : me ? 'Your reach value' : 'What is your reach worth?'}
         </div>
-        <div className="lc-v">{me ? F.usd(me.user.reachValue) : '$?'}</div>
-        <p className="lc-p">{me ? 'Launch it as a token with one switch.' : 'Connect X to see your number, then launch it as a token.'}</p>
-        <button className={`switch ${launch ? 'on' : ''}`} role="switch" aria-checked={launch} aria-label="Launch your reach as a token" onClick={toggle}>
-          <i />
-        </button>
-        <span className="switch-l">{launch ? 'ON' : 'OFF'}</span>
+        <div className="lc-v">{keyPrice ? F.$(weiToEth(keyPrice)) : me ? F.usd(me.user.reachValue) : '$?'}</div>
+        {token ? (
+          <>
+            <p className="lc-p">{`$${token.symbol} is live: ${F.usd(weiToEth(token.marketCapWei) * ethUsd)} market cap.`}</p>
+            <Link className="btn btn-white btn-sm" href="/launchpad" style={{ position: 'absolute', right: 16, top: 58 }}>
+              Trade ${token.symbol}
+            </Link>
+          </>
+        ) : (
+          <>
+            <p className="lc-p">{me ? 'Launch it as a token with one switch.' : 'Connect X to see your number, then launch it as a token.'}</p>
+            <button className={`switch ${launch ? 'on' : ''}`} role="switch" aria-checked={launch} aria-label="Launch your reach as a token" onClick={toggle}>
+              <i />
+            </button>
+            <span className="switch-l">{launch ? 'ON' : 'OFF'}</span>
+          </>
+        )}
         <div className="lc-vp">
           <Voiceprint seed={me ? me.user.handle : 'lcard'} score={me ? me.user.score : 70} bars={22} id="lcv" />
         </div>
