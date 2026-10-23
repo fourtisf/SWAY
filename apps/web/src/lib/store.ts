@@ -6,7 +6,8 @@ import { create } from 'zustand';
 export type Modal =
   | { type: 'trade'; handle: string; side: 'buy' | 'sell' }
   | { type: 'connect' }
-  | { type: 'onboard'; handle?: string; followers?: number }
+  /** pick: go straight to making a Sway wallet or to the wallet picker at the wallet step. */
+  | { type: 'onboard'; handle?: string; followers?: number; pick?: 'create' | 'connect' }
   | { type: 'card'; walletLater?: boolean }
   | { type: 'compose' }
   | { type: 'withdraw' }

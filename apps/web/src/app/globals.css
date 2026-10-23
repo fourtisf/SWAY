@@ -599,6 +599,8 @@ input[type=range]{width:100%;accent-color:var(--blue);height:4px}
 .wstack .wlogo{border-radius:5px!important}
 .ob-choice{display:flex;flex-direction:column;gap:6px;margin:16px -10px 0;padding-top:12px;border-top:1px solid var(--line)}
 .ob-choice .wopt{border:1px solid var(--line2);padding:11px 12px}
+.wl-copy{display:inline-grid;place-items:center;width:24px;height:24px;margin:0 2px 0 4px;border-radius:7px;color:var(--tx2);vertical-align:middle}
+.wl-copy:hover{background:var(--hover);color:var(--tx)}
 .ob-skip{align-self:center;margin-top:4px;padding:8px 14px;border-radius:999px;font-weight:650;font-size:14.5px;color:var(--tx2)}
 .ob-skip:hover{background:var(--bg3);color:var(--tx)}
 .ob-skip-note{font-size:12.5px;text-align:center;margin:0 10px}

@@ -57,6 +57,9 @@ test('connect two wallets with their logos, switch in the trade sheet and buy fr
   await nav(page, 'Wallet');
   await expect(page.locator('.wl-list .tr.wl')).toHaveCount(1);
   await expect(row(page, 'sway')).toContainText('Account');
+  // Each wallet's address can be copied straight from the list.
+  await row(page, 'sway').getByRole('button', { name: /^Copy the address of/ }).click();
+  await expect(page.locator('.toasts')).toContainText('Address copied');
 
   // The picker lists the Sway wallet, detected browser wallets and the curated apps, each with a logo.
   await page.getByRole('button', { name: 'Add wallet' }).click();

@@ -266,11 +266,32 @@ export function TradeSheet({ handle, side: side0 }: { handle: string; side: 'buy
               }}
             />
           )}
-          <div className="wallet-r">
-            <span>Balance</span>
-            <span>{F.$(weiToEth(cash))}</span>
-          </div>
-          {needConnect ? (
+          {me && !me.wallet ? (
+            // No wallet yet (skipped at sign-up): make one or connect one, not "Not enough balance".
+            <>
+              <div className="wallet-r">
+                <span>Wallet</span>
+                <span>None yet</span>
+              </div>
+              <div className="row" style={{ gap: 8 }}>
+                {(MOCK || cfg?.wallets.embedded === 'burner') && (
+                  <button className="btn btn-lg btn-block btn-white" onClick={() => openModal({ type: 'onboard', pick: 'create' })}>
+                    Create a Sway wallet
+                  </button>
+                )}
+                <button className="btn btn-lg btn-block btn-glass" onClick={() => openModal({ type: 'onboard', pick: 'connect' })}>
+                  <Icon name="wallet" />
+                  Connect a wallet
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="wallet-r">
+              <span>Balance</span>
+              <span>{F.$(weiToEth(cash))}</span>
+            </div>
+          )}
+          {me && !me.wallet ? null : needConnect ? (
             <button className="btn btn-lg btn-block btn-white" onClick={() => openConnectWallet(active!.address)}>
               <Icon name="wallet" />
               Connect a wallet

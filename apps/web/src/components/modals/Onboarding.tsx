@@ -120,7 +120,7 @@ export function ConnectModal() {
 
 type WalletDecision = { kind: 'create' } | { kind: 'linked'; me: MeDTO; name: string } | { kind: 'skip' };
 
-export function OnboardingModal({ handle, followers }: { handle?: string; followers?: number }) {
+export function OnboardingModal({ handle, followers, pick }: { handle?: string; followers?: number; pick?: 'create' | 'connect' }) {
   const qc = useQueryClient();
   const cfg = useConfig().data;
   const me = useMe().data;
@@ -146,10 +146,13 @@ export function OnboardingModal({ handle, followers }: { handle?: string; follow
       if (!MOCK) socket.restart();
       if (!dead) openModal({ type: 'card', walletLater });
     };
+    // From "Create a Sway wallet" / "Connect a wallet" elsewhere (the trade sheet): skip the question.
+    const canCreate = MOCK || cfg?.wallets.embedded === 'burner';
     const ask = () =>
       new Promise<WalletDecision>((resolve) => {
         decide.current = resolve;
-        setChoice('ask');
+        if (pick === 'create' && canCreate) resolve({ kind: 'create' });
+        else setChoice(pick === 'connect' ? 'picker' : 'ask');
       });
     /** The account wallet, or null when the member chose to add one later. */
     const wallet = async (who: MeDTO): Promise<MeDTO | null> => {

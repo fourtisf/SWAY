@@ -105,6 +105,17 @@ function WalletRow({ mw, bal, active, ready }: { mw: MemberWallet; bal: WalletBa
         </div>
         <div className="hd wl-sub">
           {shortAddress(mw.address)}
+          <button
+            className="wl-copy"
+            aria-label={`Copy the address of ${mw.name}`}
+            title="Copy address"
+            onClick={(e) => {
+              e.stopPropagation();
+              copyAddress(mw.address);
+            }}
+          >
+            <Icon name="copy" size={13} />
+          </button>
           {!mw.usable && ready && STATUS[mw.status] ? ` · ${STATUS[mw.status]}` : ''}
         </div>
       </div>
