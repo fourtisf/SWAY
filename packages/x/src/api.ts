@@ -177,7 +177,8 @@ export async function getRecentPosts(
       {
         max_results: Math.min(100, Math.max(5, n - out.length)),
         'tweet.fields': TWEET_FIELDS,
-        start_time: opts.since ? new Date(opts.since).toISOString() : undefined,
+        // Second granularity, as in X's examples (no milliseconds).
+        start_time: opts.since ? new Date(opts.since).toISOString().replace(/\.\d{3}Z$/, 'Z') : undefined,
         exclude: opts.exclude?.length ? opts.exclude.join(',') : undefined,
         pagination_token: token,
       },

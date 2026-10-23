@@ -260,7 +260,7 @@ describe('reads', () => {
     expect(hit?.id).toBe('8');
     const daily = calls.find((c) => c.url.searchParams.get('exclude'))!;
     expect(daily.url.searchParams.get('exclude')).toBe('replies,retweets');
-    expect(daily.url.searchParams.get('start_time')).toBe('2026-10-18T00:00:00.000Z');
+    expect(daily.url.searchParams.get('start_time')).toBe('2026-10-18T00:00:00Z');
     expect(await x.getPostMetrics('5')).toMatchObject({
       likes: 3,
       reposts: 1,

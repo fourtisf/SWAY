@@ -116,7 +116,7 @@ test('connect, trade, room, post, task, claim', async ({ page }) => {
   await xTab.waitForLoadState();
   expect(xTab.url()).toContain('x.com/intent/follow?screen_name=swaydotfamily');
   await xTab.close();
-  await expect(follow).toContainText('Done on X? Tap Verify.');
+  await expect(follow).toContainText('Done on X as @e2etester? Tap Verify.');
   await follow.getByRole('button', { name: 'Verify' }).click();
   await expect(follow.locator('.tag.aqua')).toHaveText('Verified', { timeout: 15_000 });
   await expect(page.locator('.toasts')).toContainText('Verified on X. +1,000 pts');

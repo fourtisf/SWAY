@@ -45,7 +45,7 @@ const DONE = new Set(['verified', 'trusted', 'skipped']);
  * One button at a time: the task's action first (Follow opens @swaydotfamily on X, Post opens a #SwayDaily
  * draft…), then Verify. The action stays as a small button in case X didn't open.
  */
-function TaskRow({ t }: { t: TaskDTO }) {
+function TaskRow({ t, handle }: { t: TaskDTO; handle: string }) {
   const F = useFormat();
   const { verifyTask, skipTask, shareCard } = useActions();
   const [went, setWent] = useState(false);
@@ -66,7 +66,7 @@ function TaskRow({ t }: { t: TaskDTO }) {
           {t.group} {' '}+{F.int(t.pts)} pts
         </div>
         {went && !done && t.status !== 'pending' && (
-          <div style={{ fontSize: 12.5, color: 'var(--blue)', fontWeight: 600 }}>Done on X? Tap Verify.</div>
+          <div style={{ fontSize: 12.5, color: 'var(--blue)', fontWeight: 600 }}>Done on X as @{handle}? Tap Verify.</div>
         )}
       </div>
       <div>
@@ -137,6 +137,7 @@ export default function TasksPage() {
       </>
     );
   if (!data) return <Loading />;
+  const handle = me.data.user.handle;
   const pts = data.points;
   const ref = data.inviteLink.replace(/^https?:\/\//, '');
   return (
@@ -180,12 +181,12 @@ export default function TasksPage() {
       <div className="sec-h" style={{ paddingTop: 6 }}>
         <h2>Tasks</h2>
         <span className="t3" style={{ fontSize: 12.5 }}>
-          Checked by reading your X account
+          Checked on your X account <b>@{handle}</b>
         </span>
       </div>
       <div style={{ borderTop: '1px solid var(--stroke)' }}>
         {data.tasks.map((t) => (
-          <TaskRow key={t.id} t={t} />
+          <TaskRow key={t.id} t={t} handle={handle} />
         ))}
       </div>
       <div className="glass" style={{ margin: '16px 18px 0', padding: 18 }}>

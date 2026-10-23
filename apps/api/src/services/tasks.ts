@@ -237,9 +237,10 @@ export async function verifyTask(
       await markPending(deps, user, def, day);
       return done('pending');
     }
+    // The usual cause: it was done from another X account than the one signed in to Sway.
     throw unprocessable(
       'not_verified',
-      `We couldn’t find that on your X account yet. Try again in a minute.`,
+      `We couldn’t find that on @${user.handle} yet. Do it with that X account, then try again in a minute.`,
     );
   } catch (e) {
     if (isXBudgetExceeded(e) || e instanceof XApiError) {

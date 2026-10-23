@@ -53,7 +53,12 @@ export async function completeTask(c: Clients, job: VerifyTaskJob, status: 'veri
  * Hands a 'pending' task back to the member (the row goes, so it reads Verify again) with a note saying why.
  * Verified, trusted and skipped rows are never touched.
  */
-export async function reopenTask(c: Clients, job: VerifyTaskJob, why: 'not_found' | 'unavailable'): Promise<void> {
+export async function reopenTask(
+  c: Clients,
+  job: VerifyTaskJob,
+  why: 'not_found' | 'unavailable',
+  handle?: string,
+): Promise<void> {
   const def = taskById(job.taskId);
   if (!def) return;
   const r = await c.prisma.taskCompletion.deleteMany({
@@ -63,7 +68,7 @@ export async function reopenTask(c: Clients, job: VerifyTaskJob, why: 'not_found
   await notify(c, {
     userId: job.userId, type: 'points', link: '/tasks',
     body: why === 'not_found'
-      ? [{ t: 'We couldn’t find ' }, { t: def.title, b: true }, { t: ' on your X account yet. Check it’s public, then press Verify again.' }]
+      ? [{ t: 'We couldn’t find ' }, { t: def.title, b: true }, { t: ` on ${handle ? '@' + handle : 'your X account'} yet. Do it with that X account (and keep it public), then press Verify again.` }]
       : [{ t: 'We couldn’t check ' }, { t: def.title, b: true }, { t: ' on X right now. Press Verify again later.' }],
   });
 }
@@ -113,7 +118,7 @@ export async function runVerifyTask(c: Clients, job: VerifyTaskJob): Promise<'ve
       launchPostId: c.cfg.launchPostId || null, cardHosts: [new URL(c.cfg.webUrl).host, 'swayfamily.com'],
     });
     if (r === 'verified') await completeTask(c, job, 'verified');
-    else if (r === 'not_found') await reopenTask(c, job, 'not_found');
+    else if (r === 'not_found') await reopenTask(c, job, 'not_found', user.handle);
     else return cannotCheck(c, job, def.pts); // e.g. 'repost' without X_LAUNCH_POST_ID
     return r;
   } catch (e) {
