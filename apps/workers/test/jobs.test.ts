@@ -8,7 +8,7 @@ import { makeClients, type Clients } from '../src/clients';
 import { recountPoints } from '../src/jobs/points';
 import { simulatedBattleReader, tickBattles } from '../src/jobs/battles';
 import { creditReferrals } from '../src/jobs/referrals';
-import { completeTask, runVerifyTask } from '../src/jobs/xjobs';
+import { completeTask, reopenStalePending, runVerifyTask } from '../src/jobs/xjobs';
 import { takeSnapshot } from '../src/jobs/genesis';
 
 let c: Clients;
@@ -140,6 +140,16 @@ describe('tasks', () => {
     expect(await sumLedger(u.id)).toBe(1000);
     const notes = await prisma.notification.findMany({ where: { userId: u.id }, select: { body: true } });
     expect(JSON.stringify(notes)).toContain('Press Verify again later');
+  });
+
+  it('hands back tasks stuck in pending from before (no job left to finish them)', async () => {
+    const u = await member();
+    const old = new Date(Date.now() - 2 * 3600e3);
+    await prisma.taskCompletion.create({ data: { userId: u.id, taskId: 'follow', day: ONE_OFF_DAY, status: 'pending', attempts: 1, checkedAt: old } });
+    await prisma.taskCompletion.create({ data: { userId: u.id, taskId: 'repost', day: ONE_OFF_DAY, status: 'pending', attempts: 1, checkedAt: new Date() } });
+    expect(await reopenStalePending(c)).toBeGreaterThanOrEqual(1);
+    const rows = await prisma.taskCompletion.findMany({ where: { userId: u.id }, select: { taskId: true } });
+    expect(rows).toEqual([{ taskId: 'repost' }]); // the fresh one is still being checked
   });
 });
 

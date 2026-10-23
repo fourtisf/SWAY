@@ -21,7 +21,7 @@ import { checkPriceAlerts } from './jobs/alerts';
 import { deliverPushes } from './jobs/push';
 import { recordJob, startHealthServer } from './health';
 import { genesisTick } from './jobs/genesis';
-import { X_QUEUE, recheckTrusted, refreshScore, reopenTask, runVerifyTask, sweepScores, type VerifyTaskJob } from './jobs/xjobs';
+import { X_QUEUE, recheckTrusted, refreshScore, reopenStalePending, reopenTask, runVerifyTask, sweepScores, type VerifyTaskJob } from './jobs/xjobs';
 
 const CRON_QUEUE = 'sway-cron';
 const LOCK_KEY = 'lock:indexer';
@@ -44,6 +44,7 @@ async function main() {
   await cron.upsertJobScheduler('weekly-prizes', { pattern: '0 0 * * 1', tz: 'UTC' });
   await cron.upsertJobScheduler('scores', every(15 * 60_000));
   await cron.upsertJobScheduler('trusted-recheck', every(30 * 60_000));
+  await cron.upsertJobScheduler('stale-tasks', every(10 * 60_000));
   await cron.upsertJobScheduler('genesis', every(60_000));
   await cron.upsertJobScheduler('live-battles', every(10 * 60_000));
   await cron.upsertJobScheduler('bot-flags', every(10 * 60_000));
@@ -59,6 +60,7 @@ async function main() {
     'weekly-prizes': () => payWeeklyPrizes(c),
     scores: () => sweepScores(c),
     'trusted-recheck': () => recheckTrusted(c),
+    'stale-tasks': () => reopenStalePending(c),
     genesis: () => genesisTick(c),
     'live-battles': () => refreshLiveBattles(c, battleReader),
     'bot-flags': () => flagBots(c),

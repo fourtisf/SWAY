@@ -68,6 +68,22 @@ export async function reopenTask(c: Clients, job: VerifyTaskJob, why: 'not_found
   });
 }
 
+/**
+ * Pending tasks whose check never came back (a job lost in a restart, or left by an older release): hand
+ * them back. A verify job finishes its retries within ~15 minutes, so 30 minutes means it's gone.
+ */
+export async function reopenStalePending(c: Clients, olderThanMs = 30 * 60_000): Promise<number> {
+  const before = new Date(Date.now() - olderThanMs);
+  const rows = await c.prisma.taskCompletion.findMany({
+    where: { status: 'pending', OR: [{ checkedAt: { lt: before } }, { checkedAt: null, createdAt: { lt: before } }] },
+    select: { userId: true, taskId: true, day: true },
+    take: 500,
+  });
+  for (const r of rows)
+    await reopenTask(c, { userId: r.userId, taskId: r.taskId as TaskId, day: r.day.toISOString().slice(0, 10) }, 'unavailable');
+  return rows.length;
+}
+
 /** X can't tell us: trust a low-value task (re-checked later), hand the rest back. */
 async function cannotCheck(c: Clients, job: VerifyTaskJob, pts: number): Promise<'trusted' | 'unsupported'> {
   if (pts <= TRUST_MAX_POINTS) {
