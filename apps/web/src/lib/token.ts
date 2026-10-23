@@ -7,3 +7,6 @@ const TICKER = (process.env.NEXT_PUBLIC_SWAY_TICKER ?? '').trim().replace(/^\$/,
 export const TOKEN = TICKER
   ? { name: `$${TICKER}`, the: `$${TICKER}`, The: `$${TICKER}`, unit: `$${TICKER}` }
   : { name: 'Sway token', the: 'the Sway token', The: 'The Sway token', unit: 'tokens' };
+
+/** The $SWAY contract on Robinhood Chain (launched on Pons). NEXT_PUBLIC_SWAY_CA overrides it at build time. */
+export const SWAY_CA = (process.env.NEXT_PUBLIC_SWAY_CA ?? '').trim() || '0x14bb48d197bf0c139580da26f456f9f7a8d13675';
