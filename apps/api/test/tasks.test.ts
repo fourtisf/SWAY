@@ -110,7 +110,7 @@ describe('tasks', () => {
     );
   });
 
-  it('without an X token (or with the budget spent) the task goes pending and a verify-task job is queued', async () => {
+  it('without any X token to check with, a small task is trusted at once (never left pending)', async () => {
     const { user } = await login(ctx, 'realuser');
     // A non-dev session with no X token (like a member whose token expired), written the way createSession does.
     const sid = randomBytes(16).toString('base64url');
@@ -118,11 +118,11 @@ describe('tasks', () => {
     const cookie = `sway_sid=${ctx.app.signCookie(sid)}`;
     const r = await verify(cookie, 'follow');
     expect(r.statusCode).toBe(200);
-    expect(r.json<TaskDTO>().status).toBe('pending');
-    expect(ctx.jobs.jobs).toEqual([{ userId: user.id, taskId: 'follow', day: '1970-01-01' }]);
+    expect(r.json<TaskDTO>().status).toBe('trusted');
+    expect(ctx.jobs.jobs).toEqual([]);
     const t = (await tasks(cookie)).json<TasksResponse>();
-    expect(status(t)).toMatchObject({ follow: 'pending', repost: 'locked' });
-    expect(await prisma.pointsLedger.count({ where: { userId: user.id } })).toBe(0);
+    expect(status(t)).toMatchObject({ follow: 'trusted', repost: 'open' });
+    expect(await prisma.pointsLedger.count({ where: { userId: user.id } })).toBe(1);
   });
 
   it('completes the auto task when the member holds a key they did not mint', async () => {
@@ -217,7 +217,7 @@ describe('X-backed verification', () => {
     }
   });
 
-  it('queues the job when the X budget is exhausted', async () => {
+  it('trusts a small task when the X budget is spent, instead of queueing it', async () => {
     const xFetch = (async () =>
       ok({}, 429, { 'x-rate-limit-reset': String(Math.floor(Date.now() / 1000) + 900) })) as typeof fetch;
     const x = await makeApp({ xFetch });
@@ -226,8 +226,40 @@ describe('X-backed verification', () => {
       const cookie = await xSession(x, user.id);
       const r = await verify2(x, cookie, 'follow');
       expect(r.statusCode).toBe(200);
-      expect(r.json<TaskDTO>().status).toBe('pending');
-      expect(x.jobs.jobs).toEqual([{ userId: user.id, taskId: 'follow', day: '1970-01-01' }]);
+      expect(r.json<TaskDTO>().status).toBe('trusted');
+      expect(x.jobs.jobs).toEqual([]);
+    } finally {
+      await x.close();
+    }
+  });
+
+  it('falls back to the app token when the member token is refused, and says when X is down', async () => {
+    const auth: string[] = [];
+    let down = false;
+    const xFetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      const who = new Headers(init?.headers).get('authorization') ?? '';
+      auth.push(who);
+      if (down) return ok({ title: 'Service Unavailable' }, 503);
+      if (who === 'Bearer user-token') return ok({ title: 'Unauthorized' }, 401);
+      const u = new URL(String(input));
+      if (u.pathname === '/2/users/by/username/swaydotfamily')
+        return ok({ data: { id: '4663', username: 'swaydotfamily', name: 'Sway' } });
+      if (u.pathname.endsWith('/following')) return ok({ data: [{ id: '4663' }] });
+      return ok({ data: [] });
+    }) as typeof fetch;
+    const x = await makeApp({ xFetch, env: { X_BEARER_TOKEN: 'app-token' } });
+    try {
+      const { user } = await login(x, 'xfallback');
+      const cookie = await xSession(x, user.id);
+      const r = await verify2(x, cookie, 'follow');
+      expect(r.json<TaskDTO>().status).toBe('verified');
+      expect(auth[0]).toBe('Bearer user-token');
+      expect(auth).toContain('Bearer app-token');
+      // X down for both tokens: a clear 503, nothing awarded, the task stays open.
+      down = true;
+      const d = await verify2(x, cookie, 'daily');
+      expect(d.statusCode).toBe(503);
+      expect(d.json().error).toBe('x_down');
     } finally {
       await x.close();
     }

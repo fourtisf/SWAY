@@ -49,6 +49,12 @@ function TaskRow({ t, handle }: { t: TaskDTO; handle: string }) {
   const F = useFormat();
   const { verifyTask, skipTask, shareCard } = useActions();
   const [went, setWent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const verify = async () => {
+    setBusy(true);
+    await verifyTask(t.id);
+    setBusy(false);
+  };
   const done = DONE.has(t.status);
   const lock = t.status === 'locked';
   const canGo = !!t.action && (!!t.actionUrl || t.id === 'card');
@@ -80,11 +86,6 @@ function TaskRow({ t, handle }: { t: TaskDTO; handle: string }) {
           <span className="t3" style={{ fontSize: 12.5, fontWeight: 600 }}>
             Unlocks next
           </span>
-        ) : t.status === 'pending' ? (
-          <span className="row t3" style={{ gap: 8, fontSize: 12.5, fontWeight: 600 }}>
-            Checking on X
-            <Spinner color="var(--vio2)" />
-          </span>
         ) : t.auto ? (
           <Link className="btn btn-glass btn-sm" href="/explore">
             Find a key
@@ -101,9 +102,10 @@ function TaskRow({ t, handle }: { t: TaskDTO; handle: string }) {
                 {t.action}
               </button>
             )}
-            {(went || !canGo) && (
-              <button className="btn btn-white btn-sm" onClick={() => verifyTask(t.id)}>
-                Verify
+            {/* A task left 'pending' by an older release can be checked again right away. */}
+            {(went || !canGo || t.status === 'pending') && (
+              <button className="btn btn-white btn-sm" disabled={busy} onClick={verify} style={{ minWidth: 72 }}>
+                {busy ? <Spinner size={14} /> : 'Verify'}
               </button>
             )}
           </div>

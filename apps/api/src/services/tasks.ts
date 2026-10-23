@@ -6,7 +6,7 @@
 import type { FastifyRequest } from 'fastify';
 import type { PrismaClient, TaskCompletion, User } from '@sway/db';
 import { ONE_OFF_DAY, utcDay } from '@sway/db';
-import { isXBudgetExceeded, XApiError, checkTaskOnX } from '@sway/x';
+import { isXBudgetExceeded, XApiError, checkTaskOnX, type TaskCheckResult } from '@sway/x';
 import {
   TASKS,
   TASK_TRUST_MAX_POINTS,
@@ -20,7 +20,7 @@ import {
   type TaskStatus,
 } from '@sway/shared';
 import type { AppDeps } from '../deps';
-import { notFound, conflict, unprocessable, badRequest } from '../errors';
+import { notFound, conflict, unprocessable, badRequest, unavailable } from '../errors';
 import { notify, officialUserId } from './notify';
 import { appendLedger } from './points';
 import { sessionXToken, xClient } from './xauth';
@@ -136,16 +136,6 @@ async function award(
   });
 }
 
-async function markPending(deps: AppDeps, user: User, def: TaskDef, day: Date): Promise<void> {
-  const now = new Date();
-  await deps.prisma.taskCompletion.upsert({
-    where: { userId_taskId_day: { userId: user.id, taskId: def.id, day } },
-    create: { userId: user.id, taskId: def.id, day, status: 'pending', attempts: 1, checkedAt: now },
-    update: { status: 'pending', attempts: { increment: 1 }, checkedAt: now },
-  });
-  await deps.jobs.enqueueVerifyTask({ userId: user.id, taskId: def.id, day: dayKey(day) });
-}
-
 /** Holds ≥ 1 key of a market that isn't theirs (Holding mirror), summed across all of their wallets. */
 export async function holdsOthersKey(
   prisma: PrismaClient,
@@ -216,51 +206,56 @@ export async function verifyTask(
     return done('verified');
   }
 
-  const token = await sessionXToken(req);
-  if (!token) {
-    await markPending(deps, user, def, day);
-    return done('pending');
-  }
-  try {
-    const r = await checkTaskOnX(xClient(deps, token, `u:${user.id}`).ctx, {
-      taskId: def.id as TaskId,
-      xUserId: user.xId,
-      day,
-      joinedAt: user.joinedAt,
-      launchPostId: deps.config.x.launchPostId,
-      cardHosts: [new URL(deps.config.webUrl).host],
-    });
+  // The member's own token first, then the app's bearer token (its own quota, and it still works when the
+  // session's token can't be refreshed). Settled here, never left pending: X either answers, or the task is
+  // trusted (small ones) or refused with a reason.
+  const input = {
+    taskId: def.id as TaskId,
+    xUserId: user.xId,
+    day,
+    joinedAt: user.joinedAt,
+    launchPostId: deps.config.x.launchPostId,
+    cardHosts: [new URL(deps.config.webUrl).host],
+  };
+  const tries: Array<{ token: string; scope: string }> = [];
+  const own = await sessionXToken(req);
+  if (own) tries.push({ token: own, scope: `u:${user.id}` });
+  if (deps.config.x.bearerToken) tries.push({ token: deps.config.x.bearerToken, scope: 'app' });
+  let failure: unknown = null;
+  for (const t of tries) {
+    let r: TaskCheckResult;
+    try {
+      r = await checkTaskOnX(xClient(deps, t.token, t.scope).ctx, input);
+    } catch (e) {
+      if (!isXBudgetExceeded(e) && !(e instanceof XApiError)) throw e;
+      req.log.warn(
+        { err: e, task: def.id, via: t.scope === 'app' ? 'app' : 'member', body: (e as XApiError).body },
+        'X task check failed',
+      );
+      failure = e;
+      continue;
+    }
     if (r === 'verified') {
       await award(deps, user, def, day, 'verified', 'x');
       return done('verified');
     }
-    if (r === 'unsupported') {
-      await markPending(deps, user, def, day);
-      return done('pending');
-    }
     // The usual cause: it was done from another X account than the one signed in to Sway.
-    throw unprocessable(
-      'not_verified',
-      `We couldn’t find that on @${user.handle} yet. Do it with that X account, then try again in a minute.`,
-    );
-  } catch (e) {
-    // 403/453: the endpoint isn't on the app's X API plan, so the worker (same app) can't read it either.
-    if (e instanceof XApiError && (e.status === 403 || e.status === 453)) {
-      req.log.warn({ err: e, task: def.id, body: e.body }, 'X task check refused by the API plan');
-      if (def.pts <= TASK_TRUST_MAX_POINTS) {
-        await award(deps, user, def, day, 'trusted', 'trusted');
-        return done('trusted');
-      }
-      throw unprocessable('x_unavailable', 'X can’t confirm this task right now. Try again later.');
-    }
-    if (isXBudgetExceeded(e) || e instanceof XApiError) {
-      // Budget spent, token rejected, endpoint off our API plan or X down: the worker checks it next.
-      req.log.warn({ err: e, task: def.id, body: (e as XApiError).body }, 'X task check failed');
-      await markPending(deps, user, def, day);
-      return done('pending');
-    }
-    throw e;
+    if (r === 'not_found')
+      throw unprocessable(
+        'not_verified',
+        `We couldn’t find that on @${user.handle} yet. Do it with that X account, then try again in a minute.`,
+      );
+    failure = null; // 'unsupported': X has no way to check it (e.g. no launch post id)
+    break;
   }
+  if (failure instanceof XApiError && (failure.status === 0 || failure.status >= 500))
+    throw unavailable('x_down', 'X isn’t answering right now. Try again in a minute.');
+  // X won't tell us (API plan, quota, no token): trust small tasks, re-checked later by the workers.
+  if (def.pts <= TASK_TRUST_MAX_POINTS) {
+    await award(deps, user, def, day, 'trusted', 'trusted');
+    return done('trusted');
+  }
+  throw unprocessable('x_unavailable', 'X can’t confirm this task right now. Try again later.');
 }
 
 export async function skipTask(
