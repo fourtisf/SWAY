@@ -194,6 +194,29 @@ describe('X-backed verification', () => {
     }
   });
 
+  it('trusts small tasks at once when the X API plan refuses the read, and says so for bigger ones', async () => {
+    const xFetch = (async () =>
+      ok({ title: 'Client Forbidden', reason: 'client-not-enrolled' }, 403)) as typeof fetch;
+    const x = await makeApp({ xFetch });
+    try {
+      const { user } = await login(x, 'xplan');
+      const cookie = await xSession(x, user.id);
+      const r = await verify2(x, cookie, 'follow');
+      expect(r.json<TaskDTO>().status).toBe('trusted');
+      expect(x.jobs.jobs).toEqual([]); // nothing left for the worker
+      const sum = await prisma.pointsLedger.aggregate({ where: { userId: user.id, kind: 'task' }, _sum: { amount: true } });
+      expect(sum._sum.amount).toBe(1000);
+      // Unlock the card task, worth more than the trust limit: a clear error, no spinner.
+      for (const taskId of ['repost', 'tg'])
+        await prisma.taskCompletion.create({ data: { userId: user.id, taskId, day: new Date(0), status: 'verified', points: 0 } });
+      const card = await verify2(x, cookie, 'card');
+      expect(card.statusCode).toBe(422);
+      expect(card.json().error).toBe('x_unavailable');
+    } finally {
+      await x.close();
+    }
+  });
+
   it('queues the job when the X budget is exhausted', async () => {
     const xFetch = (async () =>
       ok({}, 429, { 'x-rate-limit-reset': String(Math.floor(Date.now() / 1000) + 900) })) as typeof fetch;

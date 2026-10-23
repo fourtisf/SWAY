@@ -23,6 +23,8 @@ export interface TaskDef {
 }
 
 export const OFFICIAL_HANDLE = 'swaydotfamily';
+/** Tasks worth up to this many points are trusted when X can't be read, and re-checked later (brief §12). */
+export const TASK_TRUST_MAX_POINTS = 1000;
 export const DAILY_TAG = 'SwayDaily';
 
 export const TASKS: readonly TaskDef[] = [

@@ -7,14 +7,14 @@
  * marked 'trusted' and re-checked later (brief §12); the rest go back to Verify with a note. A check that finds
  * nothing also hands the task back, so a task never sits in 'pending' for good.
  */
-import { taskById, type TaskId } from '@sway/shared';
+import { TASK_TRUST_MAX_POINTS, taskById, type TaskId } from '@sway/shared';
 import { checkTaskOnX, getRecentPosts, getUserById, isXBudgetExceeded, isXUnavailable, scoreXAccount } from '@sway/x';
 import type { Clients } from '../clients';
 import { notify } from '../notify';
 import { appXContext } from '../xctx';
 
 export const X_QUEUE = 'x-jobs';
-export const TRUST_MAX_POINTS = 1000;
+export const TRUST_MAX_POINTS = TASK_TRUST_MAX_POINTS;
 
 export interface VerifyTaskJob {
   userId: string;

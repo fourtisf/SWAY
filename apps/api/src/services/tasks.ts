@@ -9,6 +9,7 @@ import { ONE_OFF_DAY, utcDay } from '@sway/db';
 import { isXBudgetExceeded, XApiError, checkTaskOnX } from '@sway/x';
 import {
   TASKS,
+  TASK_TRUST_MAX_POINTS,
   taskActionUrl,
   taskById,
   type TaskLinks,
@@ -243,6 +244,15 @@ export async function verifyTask(
       `We couldn’t find that on @${user.handle} yet. Do it with that X account, then try again in a minute.`,
     );
   } catch (e) {
+    // 403/453: the endpoint isn't on the app's X API plan, so the worker (same app) can't read it either.
+    if (e instanceof XApiError && (e.status === 403 || e.status === 453)) {
+      req.log.warn({ err: e, task: def.id, body: e.body }, 'X task check refused by the API plan');
+      if (def.pts <= TASK_TRUST_MAX_POINTS) {
+        await award(deps, user, def, day, 'trusted', 'trusted');
+        return done('trusted');
+      }
+      throw unprocessable('x_unavailable', 'X can’t confirm this task right now. Try again later.');
+    }
     if (isXBudgetExceeded(e) || e instanceof XApiError) {
       // Budget spent, token rejected, endpoint off our API plan or X down: the worker checks it next.
       req.log.warn({ err: e, task: def.id, body: (e as XApiError).body }, 'X task check failed');
