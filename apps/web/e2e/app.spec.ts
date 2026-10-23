@@ -122,7 +122,7 @@ test('connect, trade, room, post, task, claim', async ({ page }) => {
   await expect(page.locator('.toasts')).toContainText('Verified on X. +1,000 pts');
   // The next checklist task unlocked; the key task completed itself.
   await expect(page.locator('.task').filter({ hasText: 'Repost the launch post' }).getByRole('button', { name: 'Repost' })).toBeVisible();
-  await expect(page.locator('.task').filter({ hasText: 'Hold a key you didn’t mint' }).locator('.tag.aqua')).toHaveText('Verified');
+  await expect(page.locator('.task').filter({ hasText: 'Hold a key of another creator' }).locator('.tag.aqua')).toHaveText('Verified');
 
   // Earnings: run the live simulation until something is claimable, then claim it.
   await page.evaluate(() => {

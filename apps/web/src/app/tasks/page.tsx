@@ -88,7 +88,7 @@ function TaskRow({ t, handle }: { t: TaskDTO; handle: string }) {
           </span>
         ) : t.auto ? (
           <Link className="btn btn-glass btn-sm" href="/explore">
-            Find a key
+            Buy a key
           </Link>
         ) : (
           <div className="row" style={{ gap: 6 }}>

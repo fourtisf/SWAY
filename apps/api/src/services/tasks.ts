@@ -71,7 +71,8 @@ export async function taskList(
   links: TaskLinks = {},
   now = new Date(),
 ): Promise<TaskDTO[]> {
-  const defs = await activeDefs(prisma);
+  // The repost task waits for a launch post to repost (X_LAUNCH_POST_ID).
+  const defs = (await activeDefs(prisma)).filter((d) => d.id !== 'repost' || !!links.launchPostId);
   const rows: TaskCompletion[] = userId
     ? await prisma.taskCompletion.findMany({ where: { userId, day: { in: [ONE_OFF_DAY, utcDay(now)] } } })
     : [];

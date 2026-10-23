@@ -316,6 +316,18 @@ describe('profiles, markets, explore, search', () => {
     expect(await ex('tab=new')).toEqual(['bravo', 'alpha']);
     expect(await ex('tab=creators&q=brav')).toEqual(['bravo']);
 
+    // The official account is listed like any creator; New members also shows members without a key yet.
+    const off = await member(ctx, 'swaydotfamily');
+    await prisma.user.update({ where: { id: off.user.id }, data: { official: true } });
+    await openMarketRow(off, 100n);
+    expect(await ex('tab=creators&sort=volume')).toContain('swaydotfamily');
+    expect((await get('/api/markets?tab=creators')).json<MarketsResponse>().markets.map((x) => x.handle)).toContain(
+      'swaydotfamily',
+    );
+    await login(ctx, 'walletless');
+    const fresh = (await get('/api/explore?tab=new')).json<ExploreResponse>().creators;
+    expect(fresh[0]).toMatchObject({ handle: 'walletless', subject: '0x0000000000000000000000000000000000000000' });
+
     const s = (await get('/api/search?q=orbit')).json<SearchResponse>();
     expect(s.members.map((x) => [x.handle, x.claimed])).toEqual([['orbitlabs', false]]);
     const t = (await get('/api/search?q=%23genesis')).json<SearchResponse>();

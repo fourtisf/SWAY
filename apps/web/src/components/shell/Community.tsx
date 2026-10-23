@@ -1,5 +1,5 @@
 'use client';
-import { OFFICIAL_HANDLE } from '@sway/shared';
+import { OFFICIAL_HANDLE, SWAY_TELEGRAM_URL } from '@sway/shared';
 import { useConfig } from '@/lib/queries';
 import { toast } from '@/lib/store';
 import { Icon } from '../icons';
@@ -42,6 +42,10 @@ export function CommunityCard() {
       <a className="btn btn-white btn-block" href={OFFICIAL_X_URL} target="_blank" rel="noopener noreferrer">
         <Icon name="x" />
         Follow @{OFFICIAL_HANDLE}
+      </a>
+      <a className="btn btn-glass btn-block" style={{ marginTop: 8 }} href={SWAY_TELEGRAM_URL} target="_blank" rel="noopener noreferrer">
+        <Icon name="telegram" />
+        Join the Telegram
       </a>
     </div>
   );

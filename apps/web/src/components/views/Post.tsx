@@ -228,16 +228,23 @@ export function HoloCard({ c }: { c: MarketDTO }) {
             <b>{c.holders}</b>
           </div>
         </div>
-        <button
-          className="btn btn-glass btn-sm btn-block"
-          onClick={(e) => {
-            e.stopPropagation();
-            openTrade(c.handle, 'buy');
-          }}
-        >
-          <Icon name="key" size={15} />
-          Buy key
-        </button>
+        {/^0x0{40}$/.test(c.subject) ? (
+          // Joined without a wallet yet: no market to trade.
+          <button className="btn btn-glass btn-sm btn-block" disabled>
+            Key not live yet
+          </button>
+        ) : (
+          <button
+            className="btn btn-glass btn-sm btn-block"
+            onClick={(e) => {
+              e.stopPropagation();
+              openTrade(c.handle, 'buy');
+            }}
+          >
+            <Icon name="key" size={15} />
+            Buy key
+          </button>
+        )}
       </div>
       <div className="hc-sheen" />
     </div>

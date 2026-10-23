@@ -139,6 +139,20 @@ describe('tasks', () => {
     ).toBe(1);
   });
 
+  it('hides the repost task until there is a launch post to repost', async () => {
+    const x = await makeApp({ env: { X_LAUNCH_POST_ID: '' } });
+    try {
+      const { cookie } = await login(x, 'norepost');
+      const t = (await x.app.inject({ url: '/api/tasks', headers: { cookie } })).json<TasksResponse>();
+      expect(t.tasks.map((k) => k.id)).toEqual(['follow', 'tg', 'card', 'daily', 'buykey']);
+      // The checklist runs follow → tg → card; Telegram opens Sway's group.
+      expect(status(t)).toMatchObject({ follow: 'open', tg: 'locked' });
+      expect(t.tasks.find((k) => k.id === 'tg')!.actionUrl).toBe('https://t.me/swayfams');
+    } finally {
+      await x.close();
+    }
+  });
+
   it('guests get the task list without points', async () => {
     const t = (await tasks()).json<TasksResponse>();
     expect(t.points.total).toBe(0);

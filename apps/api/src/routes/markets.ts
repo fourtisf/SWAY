@@ -75,16 +75,17 @@ export async function marketRoutes(app: FastifyInstance) {
     const tags = await tagList(prisma, q, 20);
     if (p.tab === 'tags') return { creators: [], tags };
 
-    const where: Prisma.KeyMarketWhereInput = { ...live, claimed: true, user: { ...nameFilter(q), official: false } };
+    const where: Prisma.KeyMarketWhereInput = { ...live, claimed: true, user: nameFilter(q) };
     let creators: MarketDTO[];
     if (p.tab === 'new') {
-      const ms = await prisma.keyMarket.findMany({
-        where,
-        include: { user: true },
-        orderBy: { user: { joinedAt: { sort: 'desc', nulls: 'last' } } },
+      // Every member, newest first: one who skipped the wallet has no market yet but still joined.
+      const users = await prisma.user.findMany({
+        where: { AND: [nameFilter(q), { joinedAt: { not: null }, deletedAt: null }] },
+        include: { market: true },
+        orderBy: { joinedAt: 'desc' },
         take: 60,
       });
-      creators = await marketDTOs(prisma, ms);
+      creators = await marketDtosForUsers(prisma, users);
     } else if (p.sort === 'trending') {
       const ms = await prisma.keyMarket.findMany({
         where,
@@ -113,7 +114,7 @@ export async function marketRoutes(app: FastifyInstance) {
   app.get('/markets', async (req): Promise<MarketsResponse> => {
     const { tab } = query(z.object({ tab: z.enum(MARKET_CATEGORIES).default('creators') }), req);
     const where: Prisma.KeyMarketWhereInput =
-      tab === 'creators' ? { ...live, claimed: true, user: { official: false } } : { ...live, category: tab, claimed: false };
+      tab === 'creators' ? { ...live, claimed: true } : { ...live, category: tab, claimed: false };
     const [ms, agg] = await Promise.all([
       prisma.keyMarket.findMany({
         where,

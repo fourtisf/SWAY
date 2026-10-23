@@ -23,6 +23,8 @@ export interface TaskDef {
 }
 
 export const OFFICIAL_HANDLE = 'swaydotfamily';
+/** Sway's Telegram group (TELEGRAM_URL overrides it for the task). */
+export const SWAY_TELEGRAM_URL = 'https://t.me/swayfams';
 /** Tasks worth up to this many points are trusted when X can't be read, and re-checked later (brief §12). */
 export const TASK_TRUST_MAX_POINTS = 1000;
 export const DAILY_TAG = 'SwayDaily';
@@ -33,7 +35,7 @@ export const TASKS: readonly TaskDef[] = [
   { id: 'tg', title: 'Join the Telegram', pts: 500, icon: 'telegram', group: 'Join checklist', skippable: true, action: 'Join' },
   { id: 'card', title: 'Share your Sway card on X', pts: 2000, icon: 'share', group: 'Join checklist', action: 'Share card' },
   { id: 'daily', title: 'Post with #SwayDaily today', pts: 750, icon: 'flame', group: 'Daily', daily: true, action: 'Post' },
-  { id: 'buykey', title: 'Hold a key you didn’t mint', pts: 1500, icon: 'key', group: 'Daily', auto: true },
+  { id: 'buykey', title: 'Hold a key of another creator', pts: 1500, icon: 'key', group: 'Daily', auto: true },
 ];
 
 export const taskById = (id: string): TaskDef | undefined => TASKS.find((t) => t.id === id);
@@ -43,10 +45,7 @@ export interface TaskLinks {
   telegramUrl?: string | null;
 }
 
-/**
- * Where a task is done: the follow and post intents on X, the launch post, the Telegram group. Null when there
- * is no link (the card is shared from the site; Telegram until TELEGRAM_URL is set).
- */
+/** Where a task is done: the follow and post intents on X, the launch post, the Telegram group. Null: the card is shared from the site. */
 export function taskActionUrl(id: TaskId, links: TaskLinks = {}): string | null {
   switch (id) {
     case 'follow':
@@ -56,7 +55,7 @@ export function taskActionUrl(id: TaskId, links: TaskLinks = {}): string | null 
         ? `https://x.com/intent/retweet?tweet_id=${encodeURIComponent(links.launchPostId)}`
         : `https://x.com/${OFFICIAL_HANDLE}`;
     case 'tg':
-      return links.telegramUrl || null;
+      return links.telegramUrl || SWAY_TELEGRAM_URL;
     case 'daily':
       return 'https://x.com/intent/post?text=' + encodeURIComponent(`gm from Sway #${DAILY_TAG}\nswayfamily.com`);
     default:

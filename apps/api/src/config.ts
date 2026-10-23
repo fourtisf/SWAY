@@ -110,7 +110,7 @@ const EnvSchema = z.object({
   GAS_DRIP_WEI: z.preprocess(blank, z.string().trim().regex(/^\d{1,30}$/, 'must be a wei amount').default('0')),
   /** Testnet faucet page shown in the Deposit modal. */
   FAUCET_URL: z.preprocess(blank, z.string().url().optional()),
-  /** Telegram group for the "Join the Telegram" task (its Join button). */
+  /** Telegram group for the "Join the Telegram" task (its Join button); default t.me/swayfams. */
   TELEGRAM_URL: z.preprocess(blank, z.string().url().optional()),
   /**
    * 1 = the operator pays to open each member's market, claim fan markets and set referrers at sign-up.
