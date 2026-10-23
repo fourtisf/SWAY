@@ -17,6 +17,7 @@ import { openModal } from '@/lib/store';
 import { useSwayWallet } from '@/lib/wallet';
 import { Icon } from '../icons';
 import { Spinner } from '../ui';
+import { GAS_RESERVE_WEI } from '@/lib/util';
 
 /** Dollar price of one token: tiny numbers keep three significant digits. */
 export function tokenUsd(priceWei: string, ethUsd: number): string {
@@ -27,8 +28,6 @@ export function tokenUsd(priceWei: string, ethUsd: number): string {
 }
 
 const ETH_CHIPS = ['0.01', '0.05', '0.1', '0.5'];
-// Max leaves this much ETH for the buy's gas (a few cents on Robinhood Chain).
-const GAS_RESERVE_WEI = 2n * 10n ** 14n;
 /** Wei as an ETH amount for the input, rounded down to 6 decimals. */
 const ethInput = (wei: bigint) => formatEther(wei - (wei % 10n ** 12n));
 

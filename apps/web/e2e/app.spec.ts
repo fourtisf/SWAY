@@ -82,6 +82,12 @@ test('connect, trade, room, post, task, claim', async ({ page }) => {
   await expect(sheet.locator('.sum-r.tot')).toContainText('You pay');
   await sheet.locator('.fees-t').click();
   await expect(sheet.locator('.fees')).toContainText('Creator 6%');
+  // Max: as many keys as the balance buys, fees included (the buy button stays enabled).
+  const quick = sheet.locator('.quick');
+  await quick.getByRole('button', { name: 'Max' }).click();
+  await expect(quick.getByRole('button', { name: 'Max' })).toHaveClass(/on/);
+  await expect(sheet.getByRole('button', { name: /^Buy [\d.,]+ keys? for \$/ })).toBeEnabled();
+  await quick.getByRole('button', { name: '1', exact: true }).click();
   await sheet.getByRole('button', { name: /^Buy 1 key for \$/ }).click();
   await expect(page.locator('.toasts')).toContainText('Bought 1 key of Nova Reyes');
   await expect(page.locator('.modal')).toHaveCount(0);

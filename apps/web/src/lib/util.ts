@@ -57,5 +57,8 @@ export function stepAmount(v: number, dir: 1 | -1): number {
   return Math.max(0.01, n);
 }
 
+/** Max buttons leave this much ETH for the transaction's gas (a few cents on Robinhood Chain). */
+export const GAS_RESERVE_WEI = 2n * 10n ** 14n;
+
 /** n + 1 evenly spaced points from 0 to max, for drawing curves. Counted, so max = 0 still ends. */
 export const samples = (max: number, n: number): number[] => Array.from({ length: n + 1 }, (_, i) => (max * i) / n);

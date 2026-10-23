@@ -1,5 +1,5 @@
 'use client';
-import { ANTI_DUMP_BPS, CURVE, LEVEL_CUT, feePercent, inAntiDumpWindow, keysToUnits, quoteWei, unitsToKeys, weiToEth, type QuoteWei } from '@sway/curve';
+import { ANTI_DUMP_BPS, CURVE, LEVEL_CUT, feePercent, inAntiDumpWindow, keysToUnits, maxBuyUnits, quoteWei, unitsToKeys, weiToEth, type QuoteWei } from '@sway/curve';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useActions } from '@/lib/actions';
@@ -10,7 +10,7 @@ import { useMemberWallets } from '@/lib/wallet';
 import { openConnectWallet } from '@/lib/wallet-actions';
 import { WalletSwitch } from '../wallet/WalletSwitch';
 import { closeModal, openModal } from '@/lib/store';
-import { stepAmount } from '@/lib/util';
+import { GAS_RESERVE_WEI, stepAmount } from '@/lib/util';
 import { Icon } from '../icons';
 import { Avatar, Loading, Spinner, VB } from '../ui';
 
@@ -102,6 +102,10 @@ export function TradeSheet({ handle, side: side0 }: { handle: string; side: 'buy
   const after = q ? weiToEth(q.priceAfter) : now;
   const cashRow = active ? balances?.find((x) => x.address.toLowerCase() === active.address.toLowerCase()) : undefined;
   const cash = cashRow ? BigInt(cashRow.cashWei) : 0n;
+  // Buy Max: the most keys this wallet's balance pays for, fees included (same quote as the contract), keeping a
+  // little ETH for gas.
+  const budget = cash > GAS_RESERVE_WEI ? cash - GAS_RESERVE_WEI : 0n;
+  const maxBuy = buy ? unitsToKeys(maxBuyUnits(supply, budget, { level, creatorInactive })) : 0;
   const needConnect = !!me && !!me.wallet && ready && !!active && !active.usable;
   const tooMuch = buy && !!q && q.total > cash;
   const bad = !live || a < CURVE.MIN || (buy ? tooMuch : a > maxSell);
@@ -192,7 +196,11 @@ export function TradeSheet({ handle, side: side0 }: { handle: string; side: 'buy
                 {v}
               </button>
             ))}
-            {!buy && (
+            {buy ? (
+              <button className={`chip ${maxBuy >= CURVE.MIN && a === maxBuy ? 'on' : ''}`} disabled={maxBuy < CURVE.MIN} title="As many keys as your balance buys" onClick={() => set(maxBuy)}>
+                Max
+              </button>
+            ) : (
               <button className={`chip ${maxSell > 0 && a === +maxSell.toFixed(2) ? 'on' : ''}`} onClick={() => set(+maxSell.toFixed(2))}>
                 Max
               </button>
@@ -234,8 +242,8 @@ export function TradeSheet({ handle, side: side0 }: { handle: string; side: 'buy
             {mainnet && (
               <div className="fee-note risk-note" id="riskNote">
                 <p>
-                  <b>Unaudited contracts.</b> Sway’s contracts haven’t had a third-party audit yet. Trade only what you can afford to
-                  lose: onchain trades can’t be reversed.
+                  <b>Independent audit pending.</b> Sway’s contracts are reviewed internally; a third-party audit is still to
+                  come. Onchain trades can’t be reversed.
                 </p>
               </div>
             )}
