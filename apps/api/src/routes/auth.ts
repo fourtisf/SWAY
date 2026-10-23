@@ -15,6 +15,7 @@ import {
   scoreXAccount,
   XAuthError,
 } from '@sway/x';
+import { inputsFromProfile, score, type ScoreInputs } from '@sway/scoring';
 import { OFFICIAL_HANDLE, normalizeHandle, type MeDTO } from '@sway/shared';
 import { body, query } from './_util';
 import { getViewer, requireViewer } from '../plugins/auth';
@@ -98,9 +99,9 @@ export async function authRoutes(app: FastifyInstance) {
       });
       const tokScope = 'tok:' + createHash('sha256').update(tokens.accessToken).digest('hex').slice(0, 16);
       const me = await xClient(app.deps, tokens.accessToken, tokScope).getMe();
-      // When the posts can't be read (X budget spent, or an API plan without user timelines), a returning
-      // member keeps their stored score and a new one is scored from the public profile alone (no posts, so no
-      // engagement or cadence); either way a refresh-score job re-scores once the read works.
+      // When the posts can't be read (X budget spent, or an API plan without user timelines), the score still
+      // follows today's profile (followers, account age, badge) with the engagement and cadence of the last read
+      // that had posts (none for a new member); a refresh-score job re-scores in full once the read works.
       let scored: MemberScore | null = null;
       let refresh = false;
       try {
@@ -109,11 +110,13 @@ export async function authRoutes(app: FastifyInstance) {
         scored = { inputs, score: result.score, value: result.value };
       } catch (e) {
         req.log.warn({ err: e, xId: me.id }, 'X posts unreadable at sign-in; scoring later');
-        const known = await prisma.user.findUnique({ where: { xId: me.id }, select: { scoredAt: true } });
-        if (!known?.scoredAt) {
-          const { inputs, result } = scoreXAccount(me, []);
-          scored = { inputs, score: result.score, value: result.value };
-        }
+        const known = await prisma.user.findUnique({ where: { xId: me.id }, select: { scoreInputs: true } });
+        const inputs = inputsFromProfile(
+          { followers: me.followers, createdAt: me.createdAt ?? new Date(), verified: me.verified },
+          (known?.scoreInputs as ScoreInputs | null) ?? null,
+        );
+        const result = score(inputs);
+        scored = { inputs, score: result.score, value: result.value };
         refresh = true;
       }
       const profile: MemberProfile = {

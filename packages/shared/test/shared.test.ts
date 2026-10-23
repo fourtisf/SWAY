@@ -17,6 +17,10 @@ describe('format (prototype F at ETH_USD = 3420)', () => {
     expect(F.n(12_100_000)).toBe('12M');
     expect(F.n(2_400_000)).toBe('2.4M');
     expect(F.usd(1234)).toBe('$1.2K');
+    // Cents below $10, so a small reach value doesn't show as $0.
+    expect(F.usd(0.47)).toBe('$0.47');
+    expect(F.usd(12.4)).toBe('$12');
+    expect(F.usd(0)).toBe('$0');
     expect(F.pct(3.14)).toBe('+3.1%');
     expect(F.pct(-2)).toBe('-2.0%');
     expect(F.keys(1.005)).toBe('1');

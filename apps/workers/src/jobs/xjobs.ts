@@ -8,6 +8,7 @@
  * nothing also hands the task back, so a task never sits in 'pending' for good.
  */
 import { TASK_TRUST_MAX_POINTS, taskById, type TaskId } from '@sway/shared';
+import { inputsFromProfile, score, type ScoreInputs } from '@sway/scoring';
 import { checkTaskOnX, getRecentPosts, getUserById, isXBudgetExceeded, isXUnavailable, scoreXAccount } from '@sway/x';
 import type { Clients } from '../clients';
 import { notify } from '../notify';
@@ -165,8 +166,18 @@ export async function refreshScore(c: Clients, userId: string): Promise<boolean>
   if (user.deletedAt) return false;
   const xu = await getUserById(ctx, user.xId);
   if (!xu) return false;
-  const posts = await getRecentPosts(ctx, user.xId, 50);
-  const { inputs, result } = scoreXAccount(xu, posts);
+  let inputs: ScoreInputs;
+  try {
+    inputs = scoreXAccount(xu, await getRecentPosts(ctx, user.xId, 50)).inputs;
+  } catch (e) {
+    if (!isXUnavailable(e)) throw e;
+    // Posts off our API plan (or no budget): today's profile with the last engagement read.
+    inputs = inputsFromProfile(
+      { followers: xu.followers, createdAt: xu.createdAt ?? new Date(), verified: xu.verified },
+      (user.scoreInputs as ScoreInputs | null) ?? null,
+    );
+  }
+  const result = score(inputs);
   await c.prisma.user.update({
     where: { id: userId },
     data: {

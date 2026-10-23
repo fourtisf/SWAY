@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { score, type ScoreInputs } from '@sway/scoring';
 import { codeChallenge } from '@sway/x';
 import type { MeDTO } from '@sway/shared';
 import { devXId, makeDevProfile } from '../src/services/users';
@@ -258,7 +259,7 @@ describe('X OAuth 2.0 PKCE', () => {
     }
   });
 
-  it('when posts can\'t be read at sign-in: new members are scored from the profile, everyone is queued for a rescore', async () => {
+  it('when posts can\'t be read at sign-in: the score follows the profile with the last engagement, and a rescore is queued', async () => {
     const xFetch = (async (input: string | URL | Request) => {
       const url = new URL(String(input));
       const res = (b: unknown, status = 200, h: Record<string, string> = {}) =>
@@ -289,12 +290,17 @@ describe('X OAuth 2.0 PKCE', () => {
       expect(created.joinedAt).not.toBeNull();
       expect(x.jobs.refreshes).toEqual([created.id]);
 
-      // A returning member keeps the stored score (not a fresh profile-only one).
-      await prisma.user.update({ where: { id: created.id }, data: { score: 42 } });
+      // A returning member: today's followers and badge, with the engagement and cadence of the last full read
+      // (not a stale score, nor a profile-only one that drops their engagement).
+      const last = { followers: 3, er: 0.05, ppw: 4, age: 2, verified: false };
+      await prisma.user.update({ where: { id: created.id }, data: { score: 42, scoreInputs: last } });
       const again = await signIn();
       expect(again.headers.location).toBe('http://localhost:3000/?onboard=1');
       const u = await prisma.user.findUniqueOrThrow({ where: { xId: '5150' } });
-      expect(u.score).toBe(42);
+      expect(u.scoreInputs).toMatchObject({ followers: 10, er: 0.05, ppw: 4, verified: false });
+      expect(u.score).toBe(score(u.scoreInputs as unknown as ScoreInputs).score);
+      expect(u.score).not.toBe(42);
+      expect(u.reachValue).toBeGreaterThan(0);
       expect(x.jobs.refreshes).toEqual([u.id, u.id]);
     } finally {
       await x.close();

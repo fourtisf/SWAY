@@ -42,7 +42,8 @@ export function makeFormat(ethUsd: number): Format {
       return String(Math.round(v));
     },
     usd(v) {
-      return '$' + (v >= 1e6 ? (v / 1e6).toFixed(2) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(1) + 'K' : Math.round(v));
+      // Cents below $10, so a small reach value doesn't read as $0.
+      return '$' + (v >= 1e6 ? (v / 1e6).toFixed(2) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(1) + 'K' : v >= 10 || v <= 0 ? Math.round(v) : v.toFixed(2));
     },
     int(v) {
       return Math.round(v).toLocaleString('en-US');

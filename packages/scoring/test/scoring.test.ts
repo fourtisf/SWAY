@@ -5,6 +5,7 @@ import {
   battleScore,
   genesisSharePercent,
   genesisWeight,
+  inputsFromProfile,
   inputsFromX,
   isqrt,
   rankGenesis,
@@ -49,6 +50,14 @@ describe('score()', () => {
     expect(inp.er).toBeCloseTo((14 * 0.135 + 0.01) / 15, 12);
     expect(inp.ppw).toBeCloseTo(14 / (13 / 7), 9);
     expect(inp.age).toBeCloseTo(6, 1);
+  });
+
+  it('refreshes the profile part and keeps the last engagement when posts are unreadable', () => {
+    const now = new Date('2026-10-23T00:00:00Z');
+    const inp = inputsFromProfile({ followers: 89, createdAt: '2026-10-01T00:00:00Z', verified: false }, { er: 0.04, ppw: 9 }, now);
+    expect(inp).toMatchObject({ followers: 89, er: 0.04, ppw: 9, verified: false });
+    expect(inp.age).toBeCloseTo(22 / 365.25, 6);
+    expect(inputsFromProfile({ followers: 89, createdAt: now, verified: true }, null, now)).toMatchObject({ er: 0, ppw: 0 });
   });
 });
 

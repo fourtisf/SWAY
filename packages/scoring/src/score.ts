@@ -93,3 +93,15 @@ export function inputsFromX(
   const age = Math.max(0, (now.getTime() - new Date(profile.createdAt).getTime()) / YEAR_MS);
   return { followers, er, ppw, age, verified: profile.verified };
 }
+
+/**
+ * ScoreInputs when X returns the profile but not the posts: today's followers, account age and verified badge,
+ * with engagement and cadence from the last read that had posts (0 without one).
+ */
+export function inputsFromProfile(
+  profile: { followers: number; createdAt: Date | string; verified: boolean },
+  previous: Pick<ScoreInputs, 'er' | 'ppw'> | null,
+  now: Date = new Date(),
+): ScoreInputs {
+  return { ...inputsFromX(profile, [], now), er: previous?.er ?? 0, ppw: previous?.ppw ?? 0 };
+}
