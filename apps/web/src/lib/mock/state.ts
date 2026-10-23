@@ -19,6 +19,7 @@ import { genesisSharePercent, scorePoints, tierOf, tierProgress, TIERS } from '@
 import {
   TAGS,
   TASKS,
+  taskActionUrl,
   hash,
   makeFormat,
   type ActivityDTO,
@@ -735,7 +736,9 @@ export class MockWorld {
       const lock = !unlocked && tk.group === 'Join checklist';
       if (!st.done && tk.group === 'Join checklist') unlocked = false;
       const status: TaskDTO['status'] = st.done ? (st.skipped ? 'skipped' : 'verified') : lock ? 'locked' : st.busy ? 'pending' : 'open';
-      return { id: tk.id, title: tk.title, pts: tk.pts, icon: tk.icon, group: tk.group, skippable: !!tk.skippable, auto: !!tk.auto, status };
+      // Demo links: a sample launch post and Telegram group so every task has its button.
+      const actionUrl = taskActionUrl(tk.id, { launchPostId: '1', telegramUrl: 'https://t.me/swayfamily' });
+      return { id: tk.id, title: tk.title, pts: tk.pts, icon: tk.icon, group: tk.group, skippable: !!tk.skippable, auto: !!tk.auto, status, action: tk.action ?? null, actionUrl };
     });
   }
 

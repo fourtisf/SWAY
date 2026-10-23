@@ -9,7 +9,9 @@ import { ONE_OFF_DAY, utcDay } from '@sway/db';
 import { isXBudgetExceeded, XApiError, checkTaskOnX } from '@sway/x';
 import {
   TASKS,
+  taskActionUrl,
   taskById,
+  type TaskLinks,
   type RichText,
   type TaskDef,
   type TaskDTO,
@@ -35,7 +37,7 @@ export async function syncTaskCatalogue(prisma: PrismaClient): Promise<void> {
   });
 }
 
-function dto(def: TaskDef, status: TaskStatus): TaskDTO {
+function dto(def: TaskDef, status: TaskStatus, links: TaskLinks): TaskDTO {
   return {
     id: def.id,
     title: def.title,
@@ -45,8 +47,15 @@ function dto(def: TaskDef, status: TaskStatus): TaskDTO {
     skippable: !!def.skippable,
     auto: !!def.auto,
     status,
+    action: def.action ?? null,
+    actionUrl: taskActionUrl(def.id, links),
   };
 }
+
+export const taskLinks = (deps: Pick<AppDeps, 'config'>): TaskLinks => ({
+  launchPostId: deps.config.x.launchPostId,
+  telegramUrl: deps.config.telegramUrl,
+});
 
 async function activeDefs(prisma: PrismaClient): Promise<TaskDef[]> {
   const off = await prisma.task.findMany({ where: { active: false }, select: { id: true } });
@@ -58,6 +67,7 @@ async function activeDefs(prisma: PrismaClient): Promise<TaskDef[]> {
 export async function taskList(
   prisma: PrismaClient,
   userId: string | null,
+  links: TaskLinks = {},
   now = new Date(),
 ): Promise<TaskDTO[]> {
   const defs = await activeDefs(prisma);
@@ -73,7 +83,7 @@ export async function taskList(
       if (!unlocked && !c) status = 'locked';
       if (!DONE.has(status)) unlocked = false;
     }
-    return dto(def, status);
+    return dto(def, status, links);
   });
 }
 
@@ -178,13 +188,14 @@ export async function verifyTask(
 ): Promise<TaskDTO> {
   const deps = req.server.deps;
   const def = taskById(id);
-  const list = await taskList(deps.prisma, user.id);
+  const links = taskLinks(deps);
+  const list = await taskList(deps.prisma, user.id, links);
   const current = list.find((t) => t.id === id);
   if (!def || !current) throw notFound('Unknown task', 'unknown_task');
   if (current.status === 'locked') throw conflict('task_locked', 'Finish the previous checklist task first');
   if (DONE.has(current.status)) return current;
   const day = taskDay(def);
-  const done = async (status: TaskStatus) => dto(def, status);
+  const done = async (status: TaskStatus) => dto(def, status, links);
 
   if (def.auto) {
     if (await holdsOthersKey(deps.prisma, user, wallet)) {
@@ -241,9 +252,14 @@ export async function verifyTask(
   }
 }
 
-export async function skipTask(prisma: PrismaClient, user: User, id: string): Promise<TaskDTO> {
+export async function skipTask(
+  prisma: PrismaClient,
+  user: User,
+  id: string,
+  links: TaskLinks = {},
+): Promise<TaskDTO> {
   const def = taskById(id);
-  const list = await taskList(prisma, user.id);
+  const list = await taskList(prisma, user.id, links);
   const current = list.find((t) => t.id === id);
   if (!def || !current) throw notFound('Unknown task', 'unknown_task');
   if (!def.skippable) throw badRequest('not_skippable', 'Only optional tasks can be skipped');
@@ -255,5 +271,5 @@ export async function skipTask(prisma: PrismaClient, user: User, id: string): Pr
     create: { userId: user.id, taskId: def.id, day, status: 'skipped', points: 0, checkedAt: new Date() },
     update: { status: 'skipped', points: 0, checkedAt: new Date() },
   });
-  return dto(def, 'skipped');
+  return dto(def, 'skipped', links);
 }

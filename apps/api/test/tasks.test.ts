@@ -35,6 +35,12 @@ describe('tasks', () => {
       buykey: 'open',
     });
     expect(t0.inviteLink).toBe('http://localhost:3000/i/tasker');
+    // Each task says where it's done: Follow opens @swaydotfamily on X, Post a #SwayDaily draft.
+    const by = Object.fromEntries(t0.tasks.map((t) => [t.id, t]));
+    expect(by.follow).toMatchObject({ action: 'Follow', actionUrl: 'https://x.com/intent/follow?screen_name=swaydotfamily' });
+    expect(by.daily!.actionUrl).toContain('SwayDaily');
+    expect(by.card).toMatchObject({ action: 'Share card', actionUrl: null });
+    expect(by.buykey).toMatchObject({ action: null, actionUrl: null });
 
     const locked = await verify(cookie, 'card');
     expect(locked.statusCode).toBe(409);

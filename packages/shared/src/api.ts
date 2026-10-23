@@ -233,6 +233,10 @@ export interface TaskDTO {
   skippable: boolean;
   auto: boolean;
   status: TaskStatus;
+  /** Label of the button that takes the member where the task is done; null for automatic tasks. */
+  action: string | null;
+  /** Where that button goes (X intent, launch post, Telegram). Null: the site handles it (card) or no link. */
+  actionUrl: string | null;
 }
 
 export interface PointsDTO {

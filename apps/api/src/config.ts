@@ -110,6 +110,8 @@ const EnvSchema = z.object({
   GAS_DRIP_WEI: z.preprocess(blank, z.string().trim().regex(/^\d{1,30}$/, 'must be a wei amount').default('0')),
   /** Testnet faucet page shown in the Deposit modal. */
   FAUCET_URL: z.preprocess(blank, z.string().url().optional()),
+  /** Telegram group for the "Join the Telegram" task (its Join button). */
+  TELEGRAM_URL: z.preprocess(blank, z.string().url().optional()),
   /**
    * 1 = the operator pays to open each member's market, claim fan markets and set referrers at sign-up.
    * Default 0: the operator only signs permits and the first buyer's transaction carries them.
@@ -179,6 +181,7 @@ export interface Config {
   /* [A] */
   gasDripWei: bigint;
   faucetUrl: string | null;
+  telegramUrl: string | null;
   sponsorOnboarding: boolean;
   swayTokenPublic: boolean;
 }
@@ -288,6 +291,7 @@ export function loadConfig(
     /* [A] */
     gasDripWei: BigInt(e.GAS_DRIP_WEI),
     faucetUrl: e.FAUCET_URL ?? null,
+    telegramUrl: e.TELEGRAM_URL ?? null,
     sponsorOnboarding: e.SPONSOR_ONBOARDING,
     swayTokenPublic: e.SWAY_TOKEN_PUBLIC,
   };

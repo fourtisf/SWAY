@@ -3,23 +3,24 @@ import type { TaskDTO, TasksResponse } from '@sway/shared';
 import { IdParams, params } from './_util';
 import { getViewer, requireViewer } from '../plugins/auth';
 import { EMPTY_POINTS, pointsDTO } from '../services/points';
-import { autoTasks, skipTask, taskList, verifyTask } from '../services/tasks';
+import { autoTasks, skipTask, taskLinks, taskList, verifyTask } from '../services/tasks';
 
 export async function taskRoutes(app: FastifyInstance) {
   const { prisma, config } = app.deps;
+  const links = taskLinks(app.deps);
 
   app.get('/tasks', async (req): Promise<TasksResponse> => {
     const v = await getViewer(req);
     if (!v)
       return {
         points: EMPTY_POINTS,
-        tasks: await taskList(prisma, null),
+        tasks: await taskList(prisma, null, links),
         inviteLink: '',
         invitesCredited: 0,
       };
-    let tasks = await taskList(prisma, v.user.id);
+    let tasks = await taskList(prisma, v.user.id, links);
     if (await autoTasks(app.deps, v.user, v.wallet?.address ?? null, tasks))
-      tasks = await taskList(prisma, v.user.id);
+      tasks = await taskList(prisma, v.user.id, links);
     const [points, invitesCredited] = await Promise.all([
       pointsDTO(prisma, v.user),
       prisma.referral.count({ where: { inviterId: v.user.id, status: 'credited' } }),
@@ -40,6 +41,6 @@ export async function taskRoutes(app: FastifyInstance) {
   app.post('/tasks/:id/skip', async (req): Promise<TaskDTO> => {
     const v = await requireViewer(req);
     const { id } = params(IdParams, req);
-    return skipTask(prisma, v.user, id);
+    return skipTask(prisma, v.user, id, links);
   });
 }

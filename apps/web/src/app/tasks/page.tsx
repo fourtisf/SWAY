@@ -2,7 +2,7 @@
 import { TIERS } from '@sway/scoring';
 import type { TaskDTO } from '@sway/shared';
 import Link from 'next/link';
-import { useEffect, useRef, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Icon } from '@/components/icons';
 import { StreakCard } from '@/components/engage/Engage'; // [D]
 import { Loading, NeedUser, Spinner } from '@/components/ui';
@@ -41,11 +41,22 @@ function Rules() {
 
 const DONE = new Set(['verified', 'trusted', 'skipped']);
 
+/**
+ * One button at a time: the task's action first (Follow opens @swaydotfamily on X, Post opens a #SwayDaily
+ * draft…), then Verify. The action stays as a small button in case X didn't open.
+ */
 function TaskRow({ t }: { t: TaskDTO }) {
   const F = useFormat();
-  const { verifyTask, skipTask } = useActions();
+  const { verifyTask, skipTask, shareCard } = useActions();
+  const [went, setWent] = useState(false);
   const done = DONE.has(t.status);
   const lock = t.status === 'locked';
+  const canGo = !!t.action && (!!t.actionUrl || t.id === 'card');
+  const go = () => {
+    if (t.actionUrl) window.open(t.actionUrl, '_blank', 'noopener');
+    else shareCard();
+    setWent(true);
+  };
   return (
     <div className={`task ${done ? 'done' : ''} ${lock ? 'lock' : ''}`}>
       <div className="task-ic">{done ? <Icon name="check" /> : <Icon name={t.icon} />}</div>
@@ -54,6 +65,9 @@ function TaskRow({ t }: { t: TaskDTO }) {
         <div className="t3" style={{ fontSize: 12.5 }}>
           {t.group} {' '}+{F.int(t.pts)} pts
         </div>
+        {went && !done && t.status !== 'pending' && (
+          <div style={{ fontSize: 12.5, color: 'var(--blue)', fontWeight: 600 }}>Done on X? Tap Verify.</div>
+        )}
       </div>
       <div>
         {done ? (
@@ -77,14 +91,21 @@ function TaskRow({ t }: { t: TaskDTO }) {
           </Link>
         ) : (
           <div className="row" style={{ gap: 6 }}>
-            {t.skippable && (
+            {t.skippable && !went && (
               <button className="btn btn-glass btn-sm" onClick={() => skipTask(t.id)}>
                 Skip
               </button>
             )}
-            <button className="btn btn-white btn-sm" onClick={() => verifyTask(t.id)}>
-              Verify
-            </button>
+            {canGo && (
+              <button className={`btn btn-sm ${went ? 'btn-glass' : 'btn-white'}`} onClick={go}>
+                {t.action}
+              </button>
+            )}
+            {(went || !canGo) && (
+              <button className="btn btn-white btn-sm" onClick={() => verifyTask(t.id)}>
+                Verify
+              </button>
+            )}
           </div>
         )}
       </div>

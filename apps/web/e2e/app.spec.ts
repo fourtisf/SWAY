@@ -107,14 +107,21 @@ test('connect, trade, room, post, task, claim', async ({ page }) => {
   await atlas.locator('[data-act=like]').click();
   await expect(atlas.locator('[data-act=like]')).toHaveClass(/liked/);
 
-  // Verify the first task: spinner, then Verified.
+  // The first task: Follow opens @swaydotfamily on X, then Verify: spinner, then Verified.
   await nav(page, 'Tasks');
   const follow = page.locator('.task').filter({ hasText: 'Follow @swaydotfamily on X' });
+  await expect(follow.getByRole('button', { name: 'Verify' })).toHaveCount(0);
+  await page.context().route('https://x.com/**', (r) => r.fulfill({ status: 200, body: 'X' })); // no real X in tests
+  const [xTab] = await Promise.all([page.waitForEvent('popup'), follow.getByRole('button', { name: 'Follow' }).click()]);
+  await xTab.waitForLoadState();
+  expect(xTab.url()).toContain('x.com/intent/follow?screen_name=swaydotfamily');
+  await xTab.close();
+  await expect(follow).toContainText('Done on X? Tap Verify.');
   await follow.getByRole('button', { name: 'Verify' }).click();
   await expect(follow.locator('.tag.aqua')).toHaveText('Verified', { timeout: 15_000 });
   await expect(page.locator('.toasts')).toContainText('Verified on X. +1,000 pts');
   // The next checklist task unlocked; the key task completed itself.
-  await expect(page.locator('.task').filter({ hasText: 'Repost the launch post' }).getByRole('button', { name: 'Verify' })).toBeVisible();
+  await expect(page.locator('.task').filter({ hasText: 'Repost the launch post' }).getByRole('button', { name: 'Repost' })).toBeVisible();
   await expect(page.locator('.task').filter({ hasText: 'Hold a key you didn’t mint' }).locator('.tag.aqua')).toHaveText('Verified');
 
   // Earnings: run the live simulation until something is claimable, then claim it.
