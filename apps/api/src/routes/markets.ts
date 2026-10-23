@@ -75,12 +75,13 @@ export async function marketRoutes(app: FastifyInstance) {
     const tags = await tagList(prisma, q, 20);
     if (p.tab === 'tags') return { creators: [], tags };
 
-    const where: Prisma.KeyMarketWhereInput = { ...live, claimed: true, user: nameFilter(q) };
+    // Accounts flagged as bots (by the workers or an admin) stay findable in search but aren't listed.
+    const where: Prisma.KeyMarketWhereInput = { ...live, claimed: true, user: { ...nameFilter(q), botFlag: false } };
     let creators: MarketDTO[];
     if (p.tab === 'new') {
       // Every member, newest first: one who skipped the wallet has no market yet but still joined.
       const users = await prisma.user.findMany({
-        where: { AND: [nameFilter(q), { joinedAt: { not: null }, deletedAt: null }] },
+        where: { AND: [nameFilter(q), { joinedAt: { not: null }, deletedAt: null, botFlag: false }] },
         include: { market: true },
         orderBy: { joinedAt: 'desc' },
         take: 60,
@@ -114,7 +115,9 @@ export async function marketRoutes(app: FastifyInstance) {
   app.get('/markets', async (req): Promise<MarketsResponse> => {
     const { tab } = query(z.object({ tab: z.enum(MARKET_CATEGORIES).default('creators') }), req);
     const where: Prisma.KeyMarketWhereInput =
-      tab === 'creators' ? { ...live, claimed: true } : { ...live, category: tab, claimed: false };
+      tab === 'creators'
+        ? { ...live, claimed: true, user: { botFlag: false } }
+        : { ...live, category: tab, claimed: false };
     const [ms, agg] = await Promise.all([
       prisma.keyMarket.findMany({
         where,

@@ -328,6 +328,14 @@ describe('profiles, markets, explore, search', () => {
     const fresh = (await get('/api/explore?tab=new')).json<ExploreResponse>().creators;
     expect(fresh[0]).toMatchObject({ handle: 'walletless', subject: '0x0000000000000000000000000000000000000000' });
 
+    // An account flagged as a bot drops out of every list.
+    await prisma.user.update({ where: { id: b.user.id }, data: { botFlag: true, botReason: 'admin' } });
+    for (const q of ['tab=creators&sort=volume', 'tab=creators&sort=trending', 'tab=new'])
+      expect(await ex(q)).not.toContain('bravo');
+    expect((await get('/api/markets?tab=creators')).json<MarketsResponse>().markets.map((x) => x.handle)).not.toContain(
+      'bravo',
+    );
+
     const s = (await get('/api/search?q=orbit')).json<SearchResponse>();
     expect(s.members.map((x) => [x.handle, x.claimed])).toEqual([['orbitlabs', false]]);
     const t = (await get('/api/search?q=%23genesis')).json<SearchResponse>();
