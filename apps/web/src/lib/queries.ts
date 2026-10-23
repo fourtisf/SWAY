@@ -55,7 +55,7 @@ export const useTasks = (enabled: boolean) =>
     queryFn: () => api().tasks(),
     enabled,
     // Poll while a verification is pending (X reads are queued server-side).
-    refetchInterval: (q) => (q.state.data?.tasks.some((t) => t.status === 'pending') ? 1000 : false),
+    refetchInterval: (q) => (q.state.data?.tasks.some((t) => t.status === 'pending') ? 3000 : false),
   });
 export const useWallet = (enabled: boolean) => useQuery({ queryKey: qk.wallet, queryFn: () => api().wallet(), enabled });
 export const useLeaderboard = (tab: LeaderboardTab) => useQuery({ queryKey: qk.leaderboard(tab), queryFn: () => api().leaderboard({ tab }) });

@@ -3,13 +3,14 @@ import { OFFICIAL_HANDLE } from '@sway/shared';
 import { useConfig } from '@/lib/queries';
 import { toast } from '@/lib/store';
 import { Icon } from '../icons';
+import { TOKEN } from '@/lib/token';
 
 export const OFFICIAL_X_URL = `https://x.com/${OFFICIAL_HANDLE}`;
-// NEXT_PUBLIC_SWAY_CA pins the $SWAY address at build time; otherwise the card shows the token @swaydotfamily
+// NEXT_PUBLIC_SWAY_CA pins the token address at build time; otherwise the card shows the token @swaydotfamily
 // launched, and "Coming soon" until then.
 const PINNED_CA = (process.env.NEXT_PUBLIC_SWAY_CA ?? '').trim();
 
-/** $SWAY contract address + the official X account (rail on desktop, drawer on mobile). */
+/** Sway token contract address + the official X account (rail on desktop, drawer on mobile). */
 export function CommunityCard() {
   const CA = PINNED_CA || (useConfig().data?.swayToken ?? '');
   const copy = () => {
@@ -19,7 +20,7 @@ export function CommunityCard() {
   return (
     <div className="glass wd comm">
       <div className="wd-h">
-        <h3>$SWAY</h3>
+        <h3>{TOKEN.name}</h3>
         {!CA && <span className="tag pink">Soon</span>}
       </div>
       <div className="comm-ca">

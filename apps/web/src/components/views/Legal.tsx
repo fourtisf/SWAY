@@ -1,6 +1,7 @@
 /** [B] Terms and Privacy templates. Not legal advice: counsel must review before launch. */
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { TOKEN } from '@/lib/token';
 
 const ENTITY = '[Company legal name]';
 const CONTACT = '[legal@your-domain]';
@@ -81,7 +82,7 @@ export function Terms() {
       </Sec>
       <Sec n={7} title="Staking">
         <p>
-          Staking $SWAY lowers your trading fees and shares part of the protocol fee with stakers. Staker rewards depend on trading volume: they are variable and may be zero.
+          Staking {TOKEN.the} lowers your trading fees and shares part of the protocol fee with stakers. Staker rewards depend on trading volume: they are variable and may be zero.
           Unstaking has a cooldown period during which your tokens can’t be withdrawn.
         </p>
       </Sec>

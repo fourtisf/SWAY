@@ -67,7 +67,10 @@ function TaskRow({ t }: { t: TaskDTO }) {
             Unlocks next
           </span>
         ) : t.status === 'pending' ? (
-          <Spinner color="var(--vio2)" />
+          <span className="row t3" style={{ gap: 8, fontSize: 12.5, fontWeight: 600 }}>
+            Checking on X
+            <Spinner color="var(--vio2)" />
+          </span>
         ) : t.auto ? (
           <Link className="btn btn-glass btn-sm" href="/explore">
             Find a key
@@ -99,6 +102,8 @@ export default function TasksPage() {
     if (!data) return;
     for (const t of data.tasks) {
       if (prev.current[t.id] === 'pending' && (t.status === 'verified' || t.status === 'trusted')) toast(`Verified on X. +${F.int(t.pts)} pts`);
+      // The worker hands a task back when X shows nothing yet or can't be read: say so, Verify is back.
+      if (prev.current[t.id] === 'pending' && t.status === 'open') toast(`Couldn’t confirm “${t.title}” on X yet. Try Verify again in a bit.`);
       prev.current[t.id] = t.status;
     }
   }, [data, F]);

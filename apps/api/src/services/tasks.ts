@@ -232,7 +232,8 @@ export async function verifyTask(
     );
   } catch (e) {
     if (isXBudgetExceeded(e) || e instanceof XApiError) {
-      // Budget spent, token rejected or X down: the task stays open for the worker to check later.
+      // Budget spent, token rejected, endpoint off our API plan or X down: the worker checks it next.
+      req.log.warn({ err: e, task: def.id, body: (e as XApiError).body }, 'X task check failed');
       await markPending(deps, user, def, day);
       return done('pending');
     }

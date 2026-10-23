@@ -8,7 +8,7 @@ import { makeClients, type Clients } from '../src/clients';
 import { recountPoints } from '../src/jobs/points';
 import { simulatedBattleReader, tickBattles } from '../src/jobs/battles';
 import { creditReferrals } from '../src/jobs/referrals';
-import { completeTask } from '../src/jobs/xjobs';
+import { completeTask, runVerifyTask } from '../src/jobs/xjobs';
 import { takeSnapshot } from '../src/jobs/genesis';
 
 let c: Clients;
@@ -124,6 +124,22 @@ describe('tasks', () => {
     const tc = await prisma.taskCompletion.findUniqueOrThrow({ where: { userId_taskId_day: { userId: u.id, taskId: 'follow', day: ONE_OFF_DAY } } });
     expect(tc.status).toBe('verified');
     expect(await prisma.notification.count({ where: { userId: u.id, type: 'points' } })).toBe(1);
+  });
+
+  it('never leaves a task pending when X can\'t be read: trusts small ones, hands the rest back', async () => {
+    // Production without an app token: no dev shortcut and no X read.
+    const prod = { ...c, cfg: { ...c.cfg, devAuth: false, xBearer: '' } } as Clients;
+    const u = await member();
+    for (const taskId of ['follow', 'card'] as const)
+      await prisma.taskCompletion.create({ data: { userId: u.id, taskId, day: ONE_OFF_DAY, status: 'pending', attempts: 1 } });
+    expect(await runVerifyTask(prod, { userId: u.id, taskId: 'follow', day: '1970-01-01' })).toBe('trusted');
+    expect(await runVerifyTask(prod, { userId: u.id, taskId: 'card', day: '1970-01-01' })).toBe('unsupported');
+    const rows = await prisma.taskCompletion.findMany({ where: { userId: u.id }, select: { taskId: true, status: true } });
+    // 'card' is open again (no row), so the member sees Verify instead of a spinner.
+    expect(rows).toEqual([{ taskId: 'follow', status: 'trusted' }]);
+    expect(await sumLedger(u.id)).toBe(1000);
+    const notes = await prisma.notification.findMany({ where: { userId: u.id }, select: { body: true } });
+    expect(JSON.stringify(notes)).toContain('Press Verify again later');
   });
 });
 

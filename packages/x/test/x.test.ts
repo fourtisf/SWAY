@@ -6,6 +6,7 @@ import {
   createXClient,
   exchangeCode,
   generateCodeVerifier,
+  isXUnavailable,
   refreshAccessToken,
   scoreXAccount,
   XApiError,
@@ -325,6 +326,16 @@ describe('budget and backoff', () => {
       .catch((e) => e);
     expect(err).toBeInstanceOf(XBudgetExceeded);
     expect(calls).toHaveLength(1);
+  });
+
+  it('tells "X won\'t answer this" (plan, token, budget) from transient failures', () => {
+    expect(isXUnavailable(new XBudgetExceeded('users/following', new Date()))).toBe(true);
+    expect(isXUnavailable(new XAuthError('users/following'))).toBe(true);
+    expect(isXUnavailable(new XApiError('forbidden', 403, 'users/following', { reason: 'client-not-enrolled' }))).toBe(true);
+    expect(isXUnavailable(new XApiError('subset', 453, 'users/tweets'))).toBe(true);
+    expect(isXUnavailable(new XApiError('down', 503, 'users/tweets'))).toBe(false);
+    expect(isXUnavailable(new XApiError('unreachable', 0, 'users/tweets'))).toBe(false);
+    expect(isXUnavailable(new Error('other'))).toBe(false);
   });
 
   it('backs off exponentially on 5xx and gives up after maxRetries', async () => {

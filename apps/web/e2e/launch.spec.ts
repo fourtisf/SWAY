@@ -49,7 +49,7 @@ test('launch my token, trade it and claim creator fees', async ({ page }) => {
   await expect(sheet.locator('#lt-hint')).toContainText('2 to 10 letters or digits');
   await expect(sheet.getByRole('button', { name: /^Launch \$/ })).toBeDisabled();
   await ticker.fill('$sway');
-  await expect(sheet.locator('#lt-hint')).toContainText('$SWAY is reserved for Sway');
+  await expect(sheet.locator('#lt-hint')).toContainText('That ticker is reserved for Sway');
   await ticker.fill('ltest');
   await expect(sheet).toContainText('Launch $LTEST?');
   await sheet.getByRole('button', { name: 'Launch $LTEST' }).click();
@@ -115,27 +115,27 @@ test('a creator whose keys I hold launches: claim the airdrop, trade another tok
   await expect(page.locator('#main')).toContainText('hasn’t launched a token yet');
 });
 
-test('stake $SWAY, request unstake, withdraw after the cooldown', async ({ page }) => {
+test('stake the Sway token, request unstake, withdraw after the cooldown', async ({ page }) => {
   await connect(page, 'staketester');
   await nav(page, 'Wallet');
   await page.locator('#stakeCard').click();
   await expect(page.locator('#ch')).toContainText('Staking');
   await expect(page.locator('#main')).toContainText('No level yet');
-  await page.getByRole('button', { name: 'Get test $SWAY' }).click();
-  await expect(page.locator('.toasts')).toContainText('10,000 $SWAY');
+  await page.getByRole('button', { name: 'Get test tokens' }).click();
+  await expect(page.locator('.toasts')).toContainText('10,000 tokens');
 
   await page.fill('#stakeAmt', '1000');
   await expect(page.locator('#stakeForm')).toContainText('1 Beat');
-  await page.getByRole('button', { name: 'Approve and stake 1K $SWAY' }).click();
-  await expect(page.locator('.toasts')).toContainText('Staked 1K $SWAY');
+  await page.getByRole('button', { name: 'Approve and stake 1K tokens' }).click();
+  await expect(page.locator('.toasts')).toContainText('Staked 1K tokens');
   await expect(page.locator('.bal .tag')).toHaveText('Level 1 Beat');
   await expect(page.locator('.tr.me')).toContainText('Your level');
 
   const form = page.locator('#stakeForm');
   await form.getByRole('button', { name: 'Unstake' }).click();
   await form.getByRole('button', { name: 'Max' }).click();
-  await form.getByRole('button', { name: 'Request unstake of 1K $SWAY' }).click();
-  await expect(page.locator('.toasts')).toContainText('Unstaking 1K $SWAY');
+  await form.getByRole('button', { name: 'Request unstake of 1K tokens' }).click();
+  await expect(page.locator('.toasts')).toContainText('Unstaking 1K tokens');
   await expect(page.locator('#main')).toContainText(/Unstaking, unlocks in (7d|6d 23h)/);
   await expect(page.locator('.bal .tag')).toHaveText('No level yet');
   await expect(page.getByRole('button', { name: 'Withdraw' })).toBeDisabled();
@@ -145,7 +145,7 @@ test('stake $SWAY, request unstake, withdraw after the cooldown', async ({ page 
   await page.locator('#stakeCard').click();
   await expect(page.locator('#main')).toContainText('Ready to withdraw');
   await page.getByRole('button', { name: 'Withdraw' }).click();
-  await expect(page.locator('.toasts')).toContainText('Withdrew your unstaked $SWAY');
+  await expect(page.locator('.toasts')).toContainText('Withdrew your unstaked tokens');
 });
 
 test('the frozen Genesis list', async ({ page }) => {

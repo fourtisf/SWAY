@@ -21,7 +21,7 @@ import { checkPriceAlerts } from './jobs/alerts';
 import { deliverPushes } from './jobs/push';
 import { recordJob, startHealthServer } from './health';
 import { genesisTick } from './jobs/genesis';
-import { X_QUEUE, recheckTrusted, refreshScore, runVerifyTask, sweepScores, type VerifyTaskJob } from './jobs/xjobs';
+import { X_QUEUE, recheckTrusted, refreshScore, reopenTask, runVerifyTask, sweepScores, type VerifyTaskJob } from './jobs/xjobs';
 
 const CRON_QUEUE = 'sway-cron';
 const LOCK_KEY = 'lock:indexer';
@@ -91,7 +91,12 @@ async function main() {
     },
     { connection, concurrency: 2, limiter: { max: 10, duration: 1000 } },
   );
-  xWorker.on('failed', (job, err) => console.warn(`[x-jobs] ${job?.name} ${job?.id} failed (attempt ${job?.attemptsMade}):`, err.message));
+  xWorker.on('failed', (job, err) => {
+    console.warn(`[x-jobs] ${job?.name} ${job?.id} failed (attempt ${job?.attemptsMade}):`, err.message);
+    // Out of retries: give the task back instead of leaving it 'pending' for good.
+    if (job?.name === 'verify-task' && job.attemptsMade >= (job.opts.attempts ?? 1))
+      reopenTask(c, job.data as VerifyTaskJob, 'unavailable').catch((e) => console.error('[x-jobs] reopen failed', e));
+  });
 
   // ---- indexer, single active instance
   const indexer = new Indexer(c);

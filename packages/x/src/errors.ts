@@ -36,3 +36,11 @@ export class XBudgetExceeded extends Error {
 
 export const isXBudgetExceeded = (e: unknown): e is XBudgetExceeded =>
   e instanceof XBudgetExceeded || (e as { name?: string } | null)?.name === 'XBudgetExceeded';
+
+/**
+ * X won't answer this read for us, now or on this API plan: budget spent, the token rejected (401), or the
+ * endpoint off limits for the app (403, or 453 "access to a subset of endpoints"). Retrying soon won't help;
+ * a network error or a 5xx might.
+ */
+export const isXUnavailable = (e: unknown): boolean =>
+  isXBudgetExceeded(e) || (e instanceof XApiError && [401, 403, 453].includes(e.status));

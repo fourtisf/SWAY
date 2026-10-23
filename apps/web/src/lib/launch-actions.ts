@@ -1,7 +1,7 @@
 'use client';
 /**
  * [C] Launchpad and staking actions through the SwayWallet: attest → launch from the account wallet, token
- * buys/sells with 1% slippage (approve first when needed), creator fees, key-holder airdrop claims, and $SWAY
+ * buys/sells with 1% slippage (approve first when needed), creator fees, key-holder airdrop claims, and Sway token
  * approve/stake/unstake/withdraw/harvest/claim. The token view reads the chain live, so a refetch after the
  * receipt is enough; launches poll GET /api/launchpad until the token shows.
  */
@@ -25,6 +25,7 @@ import { qk, qkLaunch, useConfig, useMe } from './queries';
 import { closeModal, openModal, toast } from './store';
 import { SWAY_WALLET_OFF, useMemberWallets, useSwayWallet, type SwayWallet } from './wallet';
 import { openConnectWallet } from './wallet-actions';
+import { TOKEN } from './token';
 
 const api = () => getApi();
 const same = (a?: string | null, b?: string | null) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
@@ -244,11 +245,11 @@ export function useLaunchActions() {
       if (!w || !s.stakingAddress || !s.tokenAddress) return false;
       try {
         if (BigInt(s.allowanceWei) < amount) {
-          toast('Approving $SWAY…');
+          toast(`Approving ${TOKEN.the}…`);
           await send(w, { address: s.tokenAddress, abi: erc20Abi, functionName: 'approve', args: [s.stakingAddress, amount] });
         }
         await send(w, { address: s.stakingAddress, abi: swayStakingAbi, functionName: 'stake', args: [amount] });
-        toast(`Staked ${fmtTokens(amount)} $SWAY`);
+        toast(`Staked ${fmtTokens(amount)} ${TOKEN.unit}`);
         await afterStake();
         return true;
       } catch (e) {
@@ -258,10 +259,10 @@ export function useLaunchActions() {
     },
 
     async requestUnstake(s: StakingResponse, amount: bigint): Promise<boolean> {
-      return stakingCall(s, 'requestUnstake', [amount], `Unstaking ${fmtTokens(amount)} $SWAY. Withdraw after the 7-day cooldown.`);
+      return stakingCall(s, 'requestUnstake', [amount], `Unstaking ${fmtTokens(amount)} ${TOKEN.unit}. Withdraw after the 7-day cooldown.`);
     },
     async withdraw(s: StakingResponse): Promise<boolean> {
-      return stakingCall(s, 'withdraw', [], 'Withdrew your unstaked $SWAY');
+      return stakingCall(s, 'withdraw', [], `Withdrew your unstaked ${TOKEN.unit}`);
     },
     async harvest(s: StakingResponse): Promise<boolean> {
       return stakingCall(s, 'harvest', [], 'Harvested the stakers’ protocol share');
@@ -273,7 +274,7 @@ export function useLaunchActions() {
     async faucet(): Promise<boolean> {
       try {
         await api().faucet();
-        toast('Added test funds and 10,000 $SWAY');
+        toast(`Added test funds and 10,000 ${TOKEN.unit}`);
         await Promise.all([qc.invalidateQueries({ queryKey: qkLaunch.staking }), qc.invalidateQueries({ queryKey: qk.wallet })]);
         return true;
       } catch (e) {

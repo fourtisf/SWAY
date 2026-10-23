@@ -1,5 +1,5 @@
 'use client';
-/** [C] "Token airdrops to claim" and the "Stake $SWAY" card (launchpad and wallet pages). */
+/** [C] "Token airdrops to claim" and the "Stake the Sway token" card (launchpad and wallet pages). */
 import { STAKING_LEVELS } from '@sway/shared';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -8,6 +8,7 @@ import { useAirdrops, useMe } from '@/lib/queries';
 import { useSwayWallet } from '@/lib/wallet';
 import { Icon } from '../icons';
 import { Avatar, Spinner } from '../ui';
+import { TOKEN } from '@/lib/token';
 
 export function AirdropsCard() {
   const me = useMe().data;
@@ -71,7 +72,7 @@ export function StakeCard({ level }: { level: number }) {
           <Icon name="bolt" />
         </span>
         <span style={{ minWidth: 0 }}>
-          <b>Stake $SWAY</b>
+          <b>Stake {TOKEN.the}</b>
           <br />
           <span className="t3" style={{ fontSize: 13 }}>
             {level > 0 ? `Level ${level} ${l.name}: −${Math.round(l.cut * 100)}% protocol fee, 2,000-character posts` : 'Cut the protocol fee on your trades by up to 75%'}

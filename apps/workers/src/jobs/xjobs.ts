@@ -3,11 +3,12 @@
  *   verify-task   { userId, taskId, day: 'YYYY-MM-DD' }   task left 'pending' by the API
  *   refresh-score { userId }                              rescore a member from public X data
  * plus a scheduled sweep that rescores the stalest members within the X budget.
- * When the budget runs out, jobs retry with backoff and tasks stay open; low-value tasks (≤ 1,000 pts)
- * are marked 'trusted' and re-checked later (brief §12).
+ * When X can't answer (budget spent, or the endpoint off our API plan), low-value tasks (≤ 1,000 pts) are
+ * marked 'trusted' and re-checked later (brief §12); the rest go back to Verify with a note. A check that finds
+ * nothing also hands the task back, so a task never sits in 'pending' for good.
  */
 import { taskById, type TaskId } from '@sway/shared';
-import { checkTaskOnX, getRecentPosts, getUserById, isXBudgetExceeded, scoreXAccount } from '@sway/x';
+import { checkTaskOnX, getRecentPosts, getUserById, isXBudgetExceeded, isXUnavailable, scoreXAccount } from '@sway/x';
 import type { Clients } from '../clients';
 import { notify } from '../notify';
 import { appXContext } from '../xctx';
@@ -48,6 +49,35 @@ export async function completeTask(c: Clients, job: VerifyTaskJob, status: 'veri
   }
 }
 
+/**
+ * Hands a 'pending' task back to the member (the row goes, so it reads Verify again) with a note saying why.
+ * Verified, trusted and skipped rows are never touched.
+ */
+export async function reopenTask(c: Clients, job: VerifyTaskJob, why: 'not_found' | 'unavailable'): Promise<void> {
+  const def = taskById(job.taskId);
+  if (!def) return;
+  const r = await c.prisma.taskCompletion.deleteMany({
+    where: { userId: job.userId, taskId: job.taskId, day: dayDate(job.day), status: 'pending' },
+  });
+  if (!r.count) return;
+  await notify(c, {
+    userId: job.userId, type: 'points', link: '/tasks',
+    body: why === 'not_found'
+      ? [{ t: 'We couldn’t find ' }, { t: def.title, b: true }, { t: ' on your X account yet. Check it’s public, then press Verify again.' }]
+      : [{ t: 'We couldn’t check ' }, { t: def.title, b: true }, { t: ' on X right now. Press Verify again later.' }],
+  });
+}
+
+/** X can't tell us: trust a low-value task (re-checked later), hand the rest back. */
+async function cannotCheck(c: Clients, job: VerifyTaskJob, pts: number): Promise<'trusted' | 'unsupported'> {
+  if (pts <= TRUST_MAX_POINTS) {
+    await completeTask(c, job, 'trusted');
+    return 'trusted';
+  }
+  await reopenTask(c, job, 'unavailable');
+  return 'unsupported';
+}
+
 export async function runVerifyTask(c: Clients, job: VerifyTaskJob): Promise<'verified' | 'trusted' | 'not_found' | 'unsupported'> {
   const def = taskById(job.taskId);
   const user = await c.prisma.user.findUnique({ where: { id: job.userId } });
@@ -58,7 +88,8 @@ export async function runVerifyTask(c: Clients, job: VerifyTaskJob): Promise<'ve
       await completeTask(c, job, 'verified'); // local dev without X: same behaviour as the prototype
       return 'verified';
     }
-    return 'unsupported';
+    console.warn('[x-jobs] X_BEARER_TOKEN is not set: tasks can only be checked with the member’s own X token');
+    return cannotCheck(c, job, def.pts);
   }
   try {
     const r = await checkTaskOnX(ctx, {
@@ -66,19 +97,15 @@ export async function runVerifyTask(c: Clients, job: VerifyTaskJob): Promise<'ve
       launchPostId: c.cfg.launchPostId || null, cardHosts: [new URL(c.cfg.webUrl).host, 'swayfamily.com'],
     });
     if (r === 'verified') await completeTask(c, job, 'verified');
-    else {
-      await c.prisma.taskCompletion.updateMany({
-        where: { userId: job.userId, taskId: job.taskId, day: dayDate(job.day) },
-        data: { checkedAt: new Date(), attempts: { increment: 1 } },
-      });
-    }
+    else if (r === 'not_found') await reopenTask(c, job, 'not_found');
+    else return cannotCheck(c, job, def.pts); // e.g. 'repost' without X_LAUNCH_POST_ID
     return r;
   } catch (e) {
-    if (isXBudgetExceeded(e) && def.pts <= TRUST_MAX_POINTS) {
-      await completeTask(c, job, 'trusted');
-      return 'trusted';
+    if (isXUnavailable(e)) {
+      console.warn(`[x-jobs] X can't check ${job.taskId}:`, (e as Error).message, JSON.stringify((e as { body?: unknown }).body ?? null));
+      return cannotCheck(c, job, def.pts);
     }
-    throw e; // BullMQ retries with backoff; the task stays 'pending'
+    throw e; // network or 5xx: BullMQ retries with backoff, and the last failure reopens the task (main.ts)
   }
 }
 
@@ -101,7 +128,7 @@ export async function recheckTrusted(c: Clients, limit = 20): Promise<number> {
       }
       n++;
     } catch (e) {
-      if (isXBudgetExceeded(e)) break;
+      if (isXUnavailable(e)) break;
       throw e;
     }
   }

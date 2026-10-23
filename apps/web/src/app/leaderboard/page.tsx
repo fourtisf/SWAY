@@ -8,6 +8,7 @@ import { Avatar, Loading, Tabs } from '@/components/ui';
 import { useFormat } from '@/lib/format';
 import { useLeaderboard, useMe } from '@/lib/queries';
 import { openModal, useUI } from '@/lib/store';
+import { TOKEN } from '@/lib/token';
 
 const COLS = { gridTemplateColumns: '46px minmax(0,1fr) auto 96px' };
 
@@ -20,7 +21,7 @@ export default function LeaderboardPage() {
   const val: Record<LeaderboardTab, (r: LeaderboardRow) => [string, string]> = {
     points: (r) => [F.int(r.points), 'points'],
     creators: (r) => [F.$(weiToEth(r.feesWei)), 'fees earned'],
-    stakers: (r) => [F.int(r.staked), '$SWAY staked'],
+    stakers: (r) => [F.int(r.staked), `${TOKEN.unit} staked`],
     fighters: (r) => [F.int(r.won), 'points won'],
   };
   const v = val[tab];

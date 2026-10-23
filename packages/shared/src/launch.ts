@@ -37,7 +37,7 @@ export const normalizeSymbol = (s: string): string => s.trim().replace(/^\$/, ''
 /** Why a ticker can't be used, or null. */
 export function symbolProblem(symbol: string, official = false): string | null {
   if (!LAUNCH_SYMBOL_RE.test(symbol)) return 'Use 2 to 10 letters or digits.';
-  if (!official && RESERVED_SYMBOLS.includes(symbol)) return `$${symbol} is reserved for Sway.`;
+  if (!official && RESERVED_SYMBOLS.includes(symbol)) return 'That ticker is reserved for Sway.';
   return null;
 }
 

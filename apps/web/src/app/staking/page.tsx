@@ -1,5 +1,5 @@
 'use client';
-/** [C] $SWAY staking: balance, stake, level and perks, cooldown, staker rewards. */
+/** [C] Sway token staking: balance, stake, level and perks, cooldown, staker rewards. */
 import { ethToWei, weiToEth } from '@sway/curve';
 import { LOCAL_CHAIN_ID, STAKING_LEVELS, type StakingResponse } from '@sway/shared';
 import { useState } from 'react';
@@ -8,6 +8,7 @@ import { useFormat } from '@/lib/format';
 import { fmtTokens, tokensInput, useLaunchActions } from '@/lib/launch-actions';
 import { useConfig, useMe, useStaking } from '@/lib/queries';
 import { openModal, useClock } from '@/lib/store';
+import { TOKEN } from '@/lib/token';
 
 const levelAt = (s: StakingResponse, staked: bigint) => s.levels.reduce((lv, l) => (staked >= BigInt(l.thresholdWei) ? l.level : lv), 0);
 const nameOf = (level: number) => STAKING_LEVELS[level]?.name ?? 'None';
@@ -31,7 +32,7 @@ export default function StakingPage() {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   if (me.isPending || !s) return <Loading />;
-  if (!me.data) return <NeedUser title="Connect X to stake $SWAY" text="Stake $SWAY for a level that cuts the protocol fee on your key trades and unlocks 2,000-character posts." />;
+  if (!me.data) return <NeedUser title={`Connect X to stake ${TOKEN.the}`} text={`Stake ${TOKEN.the} for a level that cuts the protocol fee on your key trades and unlocks 2,000-character posts.`} />;
   if (!me.data.wallet)
     return (
       <Empty
@@ -43,14 +44,14 @@ export default function StakingPage() {
           </button>
         }
       >
-        $SWAY is staked from your Sway wallet on Robinhood Chain.
+        {TOKEN.The} is staked from your Sway wallet on Robinhood Chain.
       </Empty>
     );
-  // Mainnet deploys without staking: it needs the $SWAY token, which the official account launches first.
+  // Mainnet deploys without staking: it needs the Sway token, which the official account launches first.
   if (!s.stakingAddress)
     return (
       <Empty icon="rocket" title="Staking isn’t open yet">
-        Staking opens on this network once $SWAY is live.
+        Staking opens on this network once {TOKEN.the} is live.
       </Empty>
     );
 
@@ -84,7 +85,7 @@ export default function StakingPage() {
         <div className="bal-in">
           <div className="between">
             <span className="t2" style={{ fontWeight: 600, fontSize: 13.5 }}>
-              Staked $SWAY
+              Staked {TOKEN.unit}
             </span>
             <span className={`tag ${s.level ? 'aqua' : 'line'}`}>{s.level ? `Level ${s.level} ${cur.name}` : 'No level yet'}</span>
           </div>
@@ -93,7 +94,7 @@ export default function StakingPage() {
             {s.level
               ? `−${Math.round(cur.cut * 100)}% protocol fee on your key trades and 2,000-character posts`
               : next
-                ? `Stake ${fmtTokens(next.thresholdWei)} $SWAY for ${next.name}: −${Math.round(next.cut * 100)}% protocol fee and 2,000-character posts`
+                ? `Stake ${fmtTokens(next.thresholdWei)} ${TOKEN.unit} for ${next.name}: −${Math.round(next.cut * 100)}% protocol fee and 2,000-character posts`
                 : ''}
           </div>
         </div>
@@ -114,12 +115,12 @@ export default function StakingPage() {
         <div style={{ marginTop: 10 }}>
           <div className="earn-r">
             <span>In your wallet</span>
-            <b>{fmtTokens(balance)} $SWAY</b>
+            <b>{fmtTokens(balance)} {TOKEN.unit}</b>
           </div>
           <div className="earn-r" style={{ alignItems: 'center' }}>
             <span>{unstaking > 0n ? (s.canWithdraw ? 'Ready to withdraw' : `Unstaking, unlocks in ${untilText(s.unlockAt!, now)}`) : 'Unstaking'}</span>
             <span className="row">
-              <b>{fmtTokens(unstaking)} $SWAY</b>
+              <b>{fmtTokens(unstaking)} {TOKEN.unit}</b>
               {unstaking > 0n && (
                 <button className="btn btn-glass btn-sm" disabled={!s.canWithdraw || !!busy} onClick={() => run('withdraw', () => act.withdraw(s))}>
                   {busy === 'withdraw' ? <Spinner /> : 'Withdraw'}
@@ -130,7 +131,7 @@ export default function StakingPage() {
           <div className="earn-r" style={{ alignItems: 'center' }}>
             <span>Total staked</span>
             <span className="row">
-              <b>{fmtTokens(s.totalStakedWei)} $SWAY</b>
+              <b>{fmtTokens(s.totalStakedWei)} {TOKEN.unit}</b>
               <button className="btn btn-glass btn-sm" disabled={!s.enabled || !!busy} onClick={() => run('harvest', () => act.harvest(s))}>
                 {busy === 'harvest' ? <Spinner /> : 'Harvest'}
               </button>
@@ -154,16 +155,16 @@ export default function StakingPage() {
           </div>
           {local && balance === 0n && stake ? (
             <button className="btn btn-glass btn-sm" disabled={!!busy} onClick={() => run('faucet', () => act.faucet())}>
-              {busy === 'faucet' ? <Spinner /> : 'Get test $SWAY'}
+              {busy === 'faucet' ? <Spinner /> : `Get test ${TOKEN.unit}`}
             </button>
           ) : null}
         </div>
         <div className="amt-l">
-          <span>{stake ? '$SWAY to stake' : '$SWAY to unstake'}</span>
+          <span>{stake ? `${TOKEN.name} to stake` : `${TOKEN.name} to unstake`}</span>
           <span>{stake ? `In your wallet ${fmtTokens(balance)}` : `Staked ${fmtTokens(staked)}`}</span>
         </div>
         <div className="amt">
-          <input id="stakeAmt" inputMode="decimal" aria-label={stake ? '$SWAY to stake' : '$SWAY to unstake'} placeholder="0" value={text} onChange={(e) => setText(e.target.value)} />
+          <input id="stakeAmt" inputMode="decimal" aria-label={stake ? `${TOKEN.name} to stake` : `${TOKEN.name} to unstake`} placeholder="0" value={text} onChange={(e) => setText(e.target.value)} />
         </div>
         <div className="quick">
           {(['25', '50', '100'] as const).map((p) => (
@@ -205,11 +206,11 @@ export default function StakingPage() {
           ) : amount <= 0n ? (
             'Enter an amount'
           ) : amount > max ? (
-            stake ? 'Not enough $SWAY' : 'More than you staked'
+            stake ? `Not enough ${TOKEN.unit}` : 'More than you staked'
           ) : stake ? (
-            BigInt(s.allowanceWei) < amount ? `Approve and stake ${fmtTokens(amount)} $SWAY` : `Stake ${fmtTokens(amount)} $SWAY`
+            BigInt(s.allowanceWei) < amount ? `Approve and stake ${fmtTokens(amount)} ${TOKEN.unit}` : `Stake ${fmtTokens(amount)} ${TOKEN.unit}`
           ) : (
-            `Request unstake of ${fmtTokens(amount)} $SWAY`
+            `Request unstake of ${fmtTokens(amount)} ${TOKEN.unit}`
           )}
         </button>
         <div className="disc">Requesting an unstake drops your level right away and starts a 7-day cooldown.</div>
@@ -218,7 +219,7 @@ export default function StakingPage() {
       <div className="sec-h">
         <h2>Levels</h2>
         <span className="t3" style={{ fontSize: 13 }}>
-          Placeholders until $SWAY launches
+          Placeholders until {TOKEN.the} launches
         </span>
       </div>
       {s.levels.map((l) => (
@@ -237,12 +238,12 @@ export default function StakingPage() {
           </div>
           <div className="num">
             <b>{fmtTokens(l.thresholdWei)}</b>
-            <small>$SWAY</small>
+            <small>{TOKEN.name}</small>
           </div>
         </div>
       ))}
       <div style={{ padding: '14px 16px 18px' }}>
-        <div className="note">The protocol fee is 2% of every key trade: half to $SWAY stakers, half to the treasury. Your level cuts what you pay by 10, 25, 50 or 75%.</div>
+        <div className="note">The protocol fee is 2% of every key trade: half to {TOKEN.name} stakers, half to the treasury. Your level cuts what you pay by 10, 25, 50 or 75%.</div>
       </div>
     </>
   );

@@ -5,6 +5,7 @@
 # 2. whether X accepts the Client ID + Client Secret (a dummy code is exchanged: X says the code is invalid
 #    when the keys are right, and "unauthorized" when they are wrong)
 # 3. whether the callback URL is reachable from the internet
+# 4. whether X answers the reads that verify tasks (follows, posts) with X_BEARER_TOKEN
 # and prints the exact values to enter in the X developer console.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -79,8 +80,33 @@ const info = (m) => console.log(`        ${m}`);
     r.status === 302 && loc.includes('auth_error=') ? ok(`${callback} answers (302 → site)`) : bad(`${callback} answered ${r.status}: check nginx and pm2`);
   } catch (e) { bad(`${callback} unreachable (${e.message})`); }
 
+  // Tasks are checked with these reads (the workers use X_BEARER_TOKEN). Prints X's answer, never the token.
+  console.log('\n5. X API reads used to verify tasks (X_BEARER_TOKEN)');
+  const bearer = env.X_BEARER_TOKEN || '';
+  if (!bearer) bad('X_BEARER_TOKEN is empty: the workers cannot check tasks (small ones are trusted, the card task waits)');
+  else {
+    const read = async (label, path) => {
+      try {
+        const r = await fetch(`https://api.x.com${path}`, { headers: { authorization: `Bearer ${bearer}` } });
+        const j = await r.json().catch(() => ({}));
+        if (r.ok) { ok(`${label}: ${r.status}`); return j; }
+        const why = [j.title, j.detail, j.reason, j.errors?.[0]?.message].filter(Boolean).join(' · ');
+        bad(`${label}: ${r.status} ${why}`);
+      } catch (e) { bad(`${label}: ${e.message}`); }
+      return null;
+    };
+    const u = await read('user lookup  (GET /2/users/by/username/swaydotfamily)', '/2/users/by/username/swaydotfamily');
+    const id = u?.data?.id;
+    if (id) {
+      await read('follows      (GET /2/users/:id/following)  → Follow task', `/2/users/${id}/following?max_results=5`);
+      await read('user posts   (GET /2/users/:id/tweets)     → Repost, card and #SwayDaily tasks', `/2/users/${id}/tweets?max_results=5`);
+    }
+    info('403 / 453 means your X API plan does not include that endpoint; 401 means the bearer token is wrong;');
+    info('429 means the monthly or 15-minute limit is used up.');
+  }
+
   console.log(`
-5. In console.x.com → your app → User authentication settings → Set up / Edit, enter exactly:
+6. In console.x.com → your app → User authentication settings → Set up / Edit, enter exactly:
      App permissions .......... Read
      Type of App .............. Web App, Automated App or Bot
      Callback URI / Redirect .. ${callback}

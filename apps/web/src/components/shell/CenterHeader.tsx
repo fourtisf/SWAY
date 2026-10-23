@@ -25,7 +25,7 @@ const TITLES: Record<string, [string, string]> = {
   launchpad: ['Launchpad', 'Your reach, as a token'],
   genesis: ['Genesis pass', '500 soulbound passes'],
   model: ['Open model', 'Public scoring and contracts'],
-  staking: ['Staking', 'Stake $SWAY for lower fees'],
+  staking: ['Staking', `Stake ${TOKEN.the} for lower fees`],
   // [B]
   settings: ['Settings', 'Your account and your data'],
   admin: ['Admin', 'Moderation and operations'],
@@ -35,6 +35,7 @@ const TITLES: Record<string, [string, string]> = {
   referrals: ['Referrals', 'Your invites, points and fees'],
   watchlist: ['Watchlist', 'Keys you follow, with price alerts'],
 };
+import { TOKEN } from '@/lib/token';
 
 /** [B] Pages you reach from somewhere else get a Back button (post page, share card). */
 function BackHeader({ title, sub }: { title: string; sub?: string }) {

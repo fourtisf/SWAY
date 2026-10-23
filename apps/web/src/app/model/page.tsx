@@ -4,6 +4,7 @@ import { score, scorePoints } from '@sway/scoring';
 import Link from 'next/link';
 import { useFormat } from '@/lib/format';
 import { useUI } from '@/lib/store';
+import { TOKEN } from '@/lib/token';
 
 // score.ts as published (packages/scoring/src/score.ts), highlighted like the prototype.
 const SCORE_TS = `<span class="k">export function</span> score({ followers, er, ppw, age, verified }) {
@@ -158,7 +159,7 @@ export default function ModelPage() {
       </div>
       <div style={{ padding: '0 18px 16px' }}>
         <div className="note">
-          The 1% holder share is new compared with friend.tech: it streams to everyone holding that creator’s keys, pro rata, claimable onchain. The protocol fee goes half to $SWAY stakers and half to the
+          The 1% holder share is new compared with friend.tech: it streams to everyone holding that creator’s keys, pro rata, claimable onchain. The protocol fee goes half to {TOKEN.name} stakers and half to the
           treasury, and{' '}
           <Link className="lnk" href="/staking" style={{ fontSize: 'inherit' }}>
             staking levels
