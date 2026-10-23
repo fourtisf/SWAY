@@ -768,6 +768,21 @@ export interface ProfileDTO {
 export interface ConfigDTO {
   /** Testnet faucet page (FAUCET_URL), shown in the Deposit modal. */
   faucetUrl?: string | null;
+  /** Ethereum, where this chain settles: the Wallet page shows ETH there and moves it here. Null without a known bridge. */
+  parentChain?: ParentChainDTO | null;
+}
+
+/**
+ * The parent chain of an Arbitrum Orbit chain and its Delayed Inbox: Inbox.depositEth() there credits the sender's
+ * own address on this chain. The web app checks inbox → bridge → rollup.chainId onchain before each deposit.
+ */
+export interface ParentChainDTO {
+  chainId: number;
+  name: string;
+  rpcUrl: string;
+  explorerUrl: string;
+  inbox: Address;
+  bridge: Address;
 }
 
 export const WALLET_ROUTES = {

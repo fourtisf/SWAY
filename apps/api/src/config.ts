@@ -9,10 +9,11 @@ import {
   BOOST_USD_DEFAULT,
   LOCAL_CHAIN_ID,
   normalizeHandle,
+  PARENT_CHAINS,
   ROBINHOOD_MAINNET_ID,
   swayChain,
 } from '@sway/shared';
-import type { Address } from '@sway/shared';
+import type { Address, ParentChainDTO } from '@sway/shared';
 
 const blank = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? undefined : v);
 const optStr = z.preprocess(blank, z.string().trim().optional());
@@ -57,6 +58,8 @@ const EnvSchema = z.object({
   /** RPC URL handed to browsers (defaults to RPC_URL). */
   PUBLIC_RPC_URL: optStr,
   EXPLORER_URL: optStr,
+  /** Ethereum RPC the browser reads balances from and sends bridge deposits through (default: a public node). */
+  PARENT_RPC_URL: z.preprocess(blank, z.string().url().optional()),
   SWAY_ENABLE_MAINNET: flag,
   /**
    * 1 = offer "Create a Sway wallet" (a key kept in the member's browser) on mainnet too. Off by default: the key
@@ -161,6 +164,8 @@ export interface Config {
     isLocal: boolean;
     isMainnet: boolean;
     multicall3: Address | null;
+    /** Where the chain settles and its Delayed Inbox (PARENT_CHAINS), null on local chains. */
+    parent: ParentChainDTO | null;
   };
   contracts: {
     swayKeys: Address | null;
@@ -261,6 +266,7 @@ export function loadConfig(
       isLocal,
       isMainnet: e.CHAIN_ID === ROBINHOOD_MAINNET_ID,
       multicall3: lower(e.MULTICALL3_ADDRESS),
+      parent: PARENT_CHAINS[e.CHAIN_ID] ? { ...PARENT_CHAINS[e.CHAIN_ID]!, rpcUrl: e.PARENT_RPC_URL ?? PARENT_CHAINS[e.CHAIN_ID]!.rpcUrl } : null,
     },
     contracts: {
       swayKeys: lower(e.SWAY_KEYS_ADDRESS),

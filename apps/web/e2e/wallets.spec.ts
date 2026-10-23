@@ -167,6 +167,45 @@ test('deposit QR per wallet, Sway wallet backup and import, rename and remove', 
   await expect(page.locator('.wl-list .tr.wl')).toHaveCount(2);
 });
 
+test('ETH on Ethereum shows on the Wallet page and moves to Robinhood Chain in one step', async ({ page }) => {
+  await signIn(page, 'ethmover');
+  await enter(page, 'ethmover');
+  await nav(page, 'Wallet');
+  const card = page.locator('#eth-card');
+  await expect(card).toContainText('On Ethereum');
+  await expect(card).toContainText('0.0400 ETH');
+  await expect(card.locator('.eth-v')).toHaveText('$136.80');
+  const before = await page.locator('.bal-v').innerText();
+
+  await card.getByRole('button', { name: 'Move to Robinhood Chain' }).click();
+  const modal = page.locator('.modal');
+  await expect(modal.locator('h3')).toHaveText('Move to Robinhood Chain');
+  await expect(modal.locator('#mv-have')).toHaveText('$136.80');
+  await expect(modal).toContainText('Sway fee');
+  await modal.locator('#mv-a').fill('50');
+  await modal.getByRole('button', { name: 'Move $50.00' }).click();
+  await expect(page.locator('.toasts')).toContainText('On its way: $50.00 lands on Robinhood Chain');
+  await expect(modal).toHaveCount(0);
+  await expect(card.locator('.eth-arr')).toContainText('$50.00 on its way to Robinhood Chain');
+  await expect(card.locator('.eth-v')).not.toHaveText('$136.80');
+  await expect(page.locator('.bal-v')).not.toHaveText(before);
+
+  // Max keeps the network fee back; the Deposit modal leads here too.
+  await page.getByRole('button', { name: 'Deposit' }).click();
+  await modal.getByRole('button', { name: 'Have ETH on Ethereum? Move it here' }).click();
+  await expect(modal.locator('h3')).toHaveText('Move to Robinhood Chain');
+  await modal.getByRole('button', { name: 'Max' }).click();
+  await modal.locator('#mv-go').click();
+  await expect(page.locator('.toasts')).toContainText('lands on Robinhood Chain');
+  await expect(card.locator('.eth-v')).toHaveText('$0');
+  await expect(card.locator('.eth-arr')).toHaveCount(2);
+
+  // Nothing left on Ethereum: the sheet explains how to fund it instead.
+  await card.getByRole('button', { name: 'Move to Robinhood Chain' }).click();
+  await expect(modal).toContainText('No ETH on Ethereum in this wallet yet');
+  await expect(modal.getByRole('button', { name: 'Copy address' })).toBeVisible();
+});
+
 test('a linked wallet app becomes the account wallet; the Sway wallet stays added', async ({ page }) => {
   await signIn(page, 'switchfan');
   await enter(page, 'switchfan');

@@ -45,6 +45,7 @@ export async function systemRoutes(app: FastifyInstance) {
       swayToken: await swayToken(),
       /* [A] */
       faucetUrl: config.faucetUrl,
+      parentChain: config.chain.parent,
     };
   });
 

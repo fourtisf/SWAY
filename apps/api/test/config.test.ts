@@ -39,12 +39,15 @@ describe('config', () => {
       'explorerUrl',
       'faucetUrl',
       'mainnet',
+      'parentChain',
       'rpcUrl',
       'snapshotAt',
       'swayToken',
       'wallets',
     ]);
     expect(c.swayToken).toBeNull();
+    // Local chains have no parent-chain bridge.
+    expect(c.parentChain).toBeNull();
   });
 
   it('shows the token @swaydotfamily launched as swayToken once SWAY_TOKEN_PUBLIC=1', async () => {
@@ -89,6 +92,15 @@ describe('config', () => {
     const c = loadConfig({ ...TEST_ENV, CHAIN_ID: '4663', SWAY_ENABLE_MAINNET: '1' });
     expect(c.chain.isMainnet).toBe(true);
     expect(c.chain.explorerUrl).toBe('https://robinhoodchain.blockscout.com');
+  });
+
+  it('knows the Ethereum Inbox of mainnet and testnet; PARENT_RPC_URL overrides the RPC', () => {
+    const main = loadConfig({ ...TEST_ENV, CHAIN_ID: '4663', SWAY_ENABLE_MAINNET: '1' }).chain.parent;
+    expect(main).toMatchObject({ chainId: 1, inbox: '0x1a07cc4bd17e0118bdb54d70990d2158abad7a2d', bridge: '0xdf8755334ce7a73ccf6b581c02ea649ae3e864b3' });
+    expect(main!.rpcUrl).toMatch(/^https:\/\//);
+    const test = loadConfig({ ...TEST_ENV, CHAIN_ID: '46630', PARENT_RPC_URL: 'https://sepolia.example.org' }).chain.parent;
+    expect(test).toMatchObject({ chainId: 11155111, rpcUrl: 'https://sepolia.example.org' });
+    expect(loadConfig(TEST_ENV).chain.parent).toBeNull();
   });
 
   it('turns the in-browser Sway wallet off on mainnet', () => {

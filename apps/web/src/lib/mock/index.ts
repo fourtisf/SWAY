@@ -56,6 +56,14 @@ export function getMockApi(): SwayApi {
         wallets: { embedded: 'burner', walletConnectProjectId: null },
         mainnet: false,
         swayToken: null,
+        parentChain: {
+          chainId: 1,
+          name: 'Ethereum',
+          rpcUrl: 'http://127.0.0.1:8546',
+          explorerUrl: 'https://etherscan.io',
+          inbox: fakeAddress('inbox'),
+          bridge: fakeAddress('bridge'),
+        },
       };
     },
     async price() {

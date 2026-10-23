@@ -12,6 +12,8 @@ export type Modal =
   | { type: 'compose' }
   | { type: 'withdraw' }
   | { type: 'deposit' }
+  /** Move ETH from Ethereum to the same address here (components/wallet/Ethereum). */
+  | { type: 'bridgeIn' }
   | { type: 'challenge'; handle?: string }
   | { type: 'claim'; handle: string }
   | { type: 'launch' }

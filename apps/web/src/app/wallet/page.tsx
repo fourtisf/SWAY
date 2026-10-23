@@ -8,6 +8,7 @@ import { Icon } from '@/components/icons';
 import { AirdropsCard, StakeCard } from '@/components/launch/Cards'; // [C]
 import { DropsCard } from '@/components/engage/Drops'; // [D]
 import { Avatar, Empty, Loading, NeedUser, Spinner, VB } from '@/components/ui';
+import { EthereumCard } from '@/components/wallet/Ethereum';
 import { LaunchKeyCard } from '@/components/wallet/LaunchKeyCard';
 import { WalletLogo } from '@/components/wallet/WalletLogo';
 import { useActions } from '@/lib/actions';
@@ -206,6 +207,8 @@ export default function WalletPage() {
           </div>
         </div>
       </div>
+
+      <EthereumCard />
 
       <LaunchKeyCard />
 

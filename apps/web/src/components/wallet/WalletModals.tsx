@@ -10,7 +10,7 @@ import { errorMessage, getApi, isAuthRequired } from '@/lib/api';
 import { MOCK } from '@/lib/env';
 import { useEthUsd, useFormat } from '@/lib/format';
 import { invalidateMoney, useConfig, useMe, useWallets } from '@/lib/queries';
-import { closeModal, toast } from '@/lib/store';
+import { closeModal, openModal, toast } from '@/lib/store';
 import { useMemberWallets, type MemberWallet } from '@/lib/wallet';
 import { burnerAddress, findBurnerKey, parsePrivateKey } from '@/lib/wallet/burner';
 import { mockPrivateKey } from '@/lib/wallet/mock';
@@ -136,6 +136,12 @@ export function DepositModal() {
         <p className="t3" style={{ fontSize: 12.5, margin: '10px 0 0' }}>
           Only send ETH on {chainName} (chain {cfg?.chainId}). Funds sent on another network don’t arrive here.
         </p>
+        {cfg?.parentChain && (
+          <button className="btn btn-glass btn-block" id="dep-eth" style={{ marginTop: 14 }} onClick={() => openModal({ type: 'bridgeIn' })}>
+            <Icon name="down" />
+            Have ETH on {cfg.parentChain.name}? Move it here
+          </button>
+        )}
         {(local || cfg?.faucetUrl) && (
           <div className="row" style={{ marginTop: 16 }}>
             {local && (

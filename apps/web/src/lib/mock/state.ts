@@ -173,6 +173,8 @@ export class MockWorld {
   account: { connector: string; kind: 'embedded' | 'external'; createdAt: number; label?: string | null } = { connector: 'sway', kind: 'embedded', createdAt: Date.now() };
   /** The member's own market is onchain (its first buy, "Launch my key" or a token launch opens it). */
   keyOpen = true;
+  /** ETH each address holds on Ethereum, lowercase keys (unset = MOCK_PARENT_ETH in lib/wallet/parent). */
+  parentEth: Record<string, number> = {};
   /** Average-cost basis per `${address}|${handle}` (ETH paid, fees included) and realized PnL. */
   basis: Record<string, { cost: number; realized: number }> = {};
   /** [D] Last buy per `${address}|${handle}` (anti-dump window) and creators under the activity bond. */
@@ -637,6 +639,7 @@ export class MockWorld {
     this.user = u;
     // [A] a new member starts with just the account wallet
     this.linked = [];
+    this.parentEth = {};
     this.basis = {};
     this.account = { connector: 'sway', kind: 'embedded', createdAt: Date.now() };
     this.keyOpen = false;
@@ -667,6 +670,7 @@ export class MockWorld {
     this.earned = { creator: 0, holder: 0, ref: 0 };
     this.eth = 0.75;
     this.linked = [];
+    this.parentEth = {};
     this.basis = {};
     this.account = { connector: 'sway', kind: 'embedded', createdAt: Date.now() };
     this.blocked.clear(); // [B]

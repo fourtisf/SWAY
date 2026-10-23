@@ -5,10 +5,11 @@
  * testnets only.
  */
 import { swayKeysAbi } from '@sway/shared/abi';
-import { permitArgs, swayChain, type ConfigDTO } from '@sway/shared';
+import { parentViemChain, permitArgs, swayChain, type ConfigDTO, type ParentChainDTO } from '@sway/shared';
 import { createPublicClient, createWalletClient, http, type Address, type Hex } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
-import type { SwayWallet } from './types';
+import { inboxAbi } from './parent';
+import type { ParentOps, SwayWallet } from './types';
 
 const storageKey = (userId: string) => `sway.burner.${userId}`;
 const extraKey = (userId: string, address: string) => `sway.burner.${userId}.${address.toLowerCase()}`;
@@ -91,6 +92,20 @@ export function burnerWalletCached(pk: Hex, config: ConfigDTO): SwayWallet {
   return w;
 }
 
+function burnerParent(pk: Hex, p: ParentChainDTO): ParentOps {
+  const chain = parentViemChain(p);
+  const transport = http(p.rpcUrl);
+  const wallet = createWalletClient({ account: privateKeyToAccount(pk), chain, transport });
+  const pub = createPublicClient({ chain, transport });
+  return {
+    deposit: (value) => wallet.writeContract({ address: p.inbox, abi: inboxAbi, functionName: 'depositEth', value }),
+    async waitForReceipt(hash) {
+      const r = await pub.waitForTransactionReceipt({ hash });
+      if (r.status !== 'success') throw new Error('Transaction reverted');
+    },
+  };
+}
+
 export function burnerWallet(pk: Hex, config: ConfigDTO): SwayWallet {
   const chain = swayChain({ chainId: config.chainId, rpcUrl: config.rpcUrl, explorerUrl: config.explorerUrl, name: config.chainName });
   const account = privateKeyToAccount(pk);
@@ -128,5 +143,6 @@ export function burnerWallet(pk: Hex, config: ConfigDTO): SwayWallet {
       const r = await pub.waitForTransactionReceipt({ hash });
       if (r.status !== 'success') throw new Error('Transaction reverted');
     },
+    parent: config.parentChain ? burnerParent(pk, config.parentChain) : null,
   };
 }

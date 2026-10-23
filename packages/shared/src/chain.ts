@@ -1,5 +1,5 @@
 import { defineChain, encodePacked, keccak256, getAddress, type Chain } from 'viem';
-import type { Address } from './api';
+import type { Address, ParentChainDTO } from './api';
 
 /**
  * Robinhood Chain. Mainnet is chain ID 4663; its explorer is the Blockscout below (the brief's
@@ -9,7 +9,42 @@ import type { Address } from './api';
  */
 export const ROBINHOOD_MAINNET_ID = 4663;
 export const ROBINHOOD_MAINNET_EXPLORER = 'https://robinhoodchain.blockscout.com';
+export const ROBINHOOD_TESTNET_ID = 46630;
 export const LOCAL_CHAIN_ID = 31337;
+
+/**
+ * Robinhood Chain is an Arbitrum Orbit rollup on Ethereum (testnet: Sepolia). Delayed Inbox and Bridge addresses
+ * from the Robinhood Chain docs (protocol contracts); the RPCs are public endpoints (PARENT_RPC_URL overrides).
+ */
+export const PARENT_CHAINS: Record<number, ParentChainDTO> = {
+  [ROBINHOOD_MAINNET_ID]: {
+    chainId: 1,
+    name: 'Ethereum',
+    rpcUrl: 'https://ethereum-rpc.publicnode.com',
+    explorerUrl: 'https://etherscan.io',
+    inbox: '0x1a07cc4bd17e0118bdb54d70990d2158abad7a2d',
+    bridge: '0xdf8755334ce7a73ccf6b581c02ea649ae3e864b3',
+  },
+  [ROBINHOOD_TESTNET_ID]: {
+    chainId: 11155111,
+    name: 'Sepolia',
+    rpcUrl: 'https://ethereum-sepolia-rpc.publicnode.com',
+    explorerUrl: 'https://sepolia.etherscan.io',
+    inbox: '0xf2939afa86f6f933a3ce17fcab007907b6b0b7a4',
+    bridge: '0x96295bdad104ead97cc08797b3dc68eff59ccf30',
+  },
+};
+
+export function parentViemChain(p: ParentChainDTO): Chain {
+  return defineChain({
+    id: p.chainId,
+    name: p.name,
+    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    rpcUrls: { default: { http: [p.rpcUrl] } },
+    blockExplorers: p.explorerUrl ? { default: { name: 'Etherscan', url: p.explorerUrl } } : undefined,
+    testnet: p.chainId !== 1,
+  });
+}
 
 export interface ChainEnv {
   chainId: number;

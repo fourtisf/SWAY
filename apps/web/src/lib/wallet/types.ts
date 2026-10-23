@@ -31,6 +31,15 @@ export interface SwayWallet {
   writeContract(call: ContractCall): Promise<Hex>;
   /** Resolves once mined; throws if the transaction reverted. */
   waitForReceipt(hash: Hex): Promise<void>;
+  /** The same address on Ethereum (ConfigDTO.parentChain); go through moveFromParent() in ./parent. */
+  parent?: ParentOps | null;
+}
+
+/** Calls on the parent chain from this wallet. */
+export interface ParentOps {
+  /** Inbox.depositEth(): the value arrives at this address on the Sway chain. */
+  deposit(wei: bigint): Promise<Hex>;
+  waitForReceipt(hash: Hex): Promise<void>;
 }
 
 export type WalletStatus =

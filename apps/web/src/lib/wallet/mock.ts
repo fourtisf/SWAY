@@ -6,6 +6,7 @@ import { weiToEth } from '@sway/curve';
 import type { Address, Hex } from 'viem';
 import { getWorld } from '../mock';
 import { fakeHash } from '../mock/seed';
+import { MOCK_PARENT_ETH } from './parent';
 import type { SwayWallet } from './types';
 
 let n = 0;
@@ -74,6 +75,27 @@ export function mockWallet(address: Address, kind: 'embedded' | 'external' = 'em
     },
     async waitForReceipt() {
       await new Promise((r) => setTimeout(r, 0));
+    },
+    // Ethereum → this chain lands at once here (onchain it takes 10–15 minutes).
+    parent: {
+      async deposit(wei) {
+        const k = address.toLowerCase();
+        const eth = weiToEth(wei);
+        const have = w.parentEth[k] ?? MOCK_PARENT_ETH;
+        const fee = 0.00006;
+        if (!(eth > 0) || eth + fee > have + 1e-12) throw new Error('Not enough ETH on Ethereum for this amount plus the network fee');
+        const left = have - eth - fee;
+        w.parentEth[k] = left > 1e-9 ? left : 0;
+        const l = linked();
+        if (l) l.eth += eth;
+        else w.eth += eth;
+        const h = txHash('deposit');
+        w.log('Moved from Ethereum', eth, h);
+        return h;
+      },
+      async waitForReceipt() {
+        await new Promise((r) => setTimeout(r, 0));
+      },
     },
   };
 }

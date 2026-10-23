@@ -15,6 +15,7 @@ import { TradeSheet } from './TradeSheet';
 import { LaunchSheet } from '../launch/LaunchSheet'; // [C]
 import { BoostSheet, DeletePostModal, ReportModal } from './Social'; // [B]
 // [A] wallets & funding
+import { MoveFromEthereumModal } from '../wallet/Ethereum';
 import { AccountWalletModal, BackupModal, ConnectWalletModal, DepositModal, ImportModal, RemoveModal, RenameModal, WithdrawModal } from '../wallet/WalletModals';
 import { DropModal } from '../engage/Drops'; // [D]
 
@@ -165,6 +166,8 @@ function Body({ m }: { m: Modal }) {
       return <WithdrawModal />;
     case 'deposit':
       return <DepositModal />;
+    case 'bridgeIn':
+      return <MoveFromEthereumModal />;
     case 'challenge':
       return <ChallengeModal handle={m.handle} />;
     case 'claim':

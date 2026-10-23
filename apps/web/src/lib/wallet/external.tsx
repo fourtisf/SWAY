@@ -7,24 +7,26 @@
  * useExternalWallet as a SwayWallet bound to its connector, so the UI never touches wagmi directly.
  */
 import { swayKeysAbi } from '@sway/shared/abi';
-import { permitArgs, swayChain, type ConfigDTO } from '@sway/shared';
+import { parentViemChain, permitArgs, swayChain, type ConfigDTO, type ParentChainDTO } from '@sway/shared';
 import { useEffect, useMemo, useRef } from 'react';
 import type { Address } from 'viem';
 import { WagmiProvider, createConfig, http, useAccount, useConnections, useConnectors, type Config, type Connector } from 'wagmi';
 import { connect, getConnections, reconnect, sendTransaction, signMessage, switchChain, waitForTransactionReceipt, writeContract } from 'wagmi/actions';
 import { coinbaseWallet, injected, walletConnect } from 'wagmi/connectors';
 import { useExternalWallet, type ConnectAction, type ExternalApi } from './index';
+import { inboxAbi } from './parent';
 import type { SwayWallet } from './types';
 
-function wagmiWallet(cfg: Config, address: Address, connector: Connector, swayKeys: Address | null, chainId: number): SwayWallet {
+function wagmiWallet(cfg: Config, address: Address, connector: Connector, swayKeys: Address | null, chainId: number, parent: ParentChainDTO | null): SwayWallet {
   const keys = () => {
     if (!swayKeys) throw new Error('SwayKeys is not deployed on this chain yet');
     return swayKeys;
   };
-  // Writes need the wallet on the Sway chain: switch (or add) it first, as the wallet app asks.
-  const onChain = async () => {
+  // Writes need the wallet on the Sway chain: switch (or add) it first, as the wallet app asks. A move from
+  // Ethereum switches the app to Ethereum; the next Sway write switches it back.
+  const onChain = async (id = chainId) => {
     const c = getConnections(cfg).find((x) => x.connector.uid === connector.uid);
-    if (c && c.chainId !== chainId) await switchChain(cfg, { chainId, connector });
+    if (c && c.chainId !== id) await switchChain(cfg, { chainId: id, connector });
   };
   const base = { account: address, connector, chainId } as const;
   return {
@@ -61,6 +63,18 @@ function wagmiWallet(cfg: Config, address: Address, connector: Connector, swayKe
       const r = await waitForTransactionReceipt(cfg, { hash, chainId });
       if (r.status !== 'success') throw new Error('Transaction reverted');
     },
+    parent: parent
+      ? {
+          deposit: async (value) => {
+            await onChain(parent.chainId);
+            return writeContract(cfg, { account: address, connector, chainId: parent.chainId, address: parent.inbox, abi: inboxAbi, functionName: 'depositEth', value });
+          },
+          async waitForReceipt(hash) {
+            const r = await waitForTransactionReceipt(cfg, { hash, chainId: parent.chainId });
+            if (r.status !== 'success') throw new Error('Transaction reverted');
+          },
+        }
+      : null,
   };
 }
 
@@ -68,7 +82,7 @@ const walletCache = new Map<string, SwayWallet>();
 function walletFor(cfg: Config, address: Address, connector: Connector, config: ConfigDTO): SwayWallet {
   const k = `${connector.uid}:${address.toLowerCase()}:${config.chainId}:${config.contracts.swayKeys}`;
   let w = walletCache.get(k);
-  if (!w) walletCache.set(k, (w = wagmiWallet(cfg, address, connector, config.contracts.swayKeys, config.chainId)));
+  if (!w) walletCache.set(k, (w = wagmiWallet(cfg, address, connector, config.contracts.swayKeys, config.chainId, config.parentChain ?? null)));
   return w;
 }
 
@@ -153,15 +167,19 @@ function Bridge({ cfg, config }: { cfg: Config; config: ConfigDTO }) {
 }
 
 export default function ExternalWalletRoot({ config }: { config: ConfigDTO }) {
-  const { chainId, rpcUrl, explorerUrl, chainName } = config;
+  const { chainId, rpcUrl, explorerUrl, chainName, parentChain } = config;
   const projectId = config.wallets.walletConnectProjectId;
+  const parentId = parentChain?.chainId;
+  const parentRpc = parentChain?.rpcUrl;
   // Keyed on the chain alone: a new wagmi config starts over (new connectors, a fresh reconnect), which a ConfigDTO
   // refetch shouldn't cause (ethUsd changes with the price).
   const cfg = useMemo(() => {
     const chain = swayChain({ chainId, rpcUrl, explorerUrl, name: chainName });
+    // Ethereum too, so a wallet app can switch there to move ETH from Ethereum (lib/wallet/parent).
+    const parent = parentChain ? parentViemChain(parentChain) : null;
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://swayfamily.com';
     return createConfig({
-      chains: [chain],
+      chains: parent ? [chain, parent] : [chain],
       connectors: [
         injected({ shimDisconnect: true }),
         // No Coinbase analytics script on every page view.
@@ -171,11 +189,12 @@ export default function ExternalWalletRoot({ config }: { config: ConfigDTO }) {
           : []),
       ],
       multiInjectedProviderDiscovery: true,
-      transports: { [chain.id]: http(config.rpcUrl) },
+      transports: { [chain.id]: http(rpcUrl), ...(parent && parentRpc ? { [parent.id]: http(parentRpc) } : {}) },
       ssr: false,
       pollingInterval: 1000,
     });
-  }, [chainId, rpcUrl, explorerUrl, chainName, projectId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chainId, rpcUrl, explorerUrl, chainName, projectId, parentId, parentRpc]);
   return (
     <WagmiProvider config={cfg}>
       <Bridge cfg={cfg} config={config} />
