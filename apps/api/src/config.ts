@@ -58,6 +58,11 @@ const EnvSchema = z.object({
   PUBLIC_RPC_URL: optStr,
   EXPLORER_URL: optStr,
   SWAY_ENABLE_MAINNET: flag,
+  /**
+   * 1 = offer "Create a Sway wallet" (a key kept in the member's browser) on mainnet too. Off by default: the key
+   * lives only in that browser, so members must back it up (they're asked to right after creating it).
+   */
+  BROWSER_WALLETS_ON_MAINNET: flag,
   MULTICALL3_ADDRESS: optAddr,
 
   SWAY_KEYS_ADDRESS: optAddr,
@@ -271,8 +276,11 @@ export function loadConfig(
       devHosts: e.NODE_ENV === 'production' ? [] : (e.PUSH_DEV_HOSTS ?? '').split(',').map((h) => h.trim()).filter(Boolean),
     },
     wallets: {
-      // The burner keeps its key in browser storage: fine for testnets, not for real funds.
-      embedded: e.CHAIN_ID === ROBINHOOD_MAINNET_ID && e.EMBEDDED_WALLET_PROVIDER === 'burner' ? 'off' : e.EMBEDDED_WALLET_PROVIDER,
+      // The burner keeps its key in browser storage: on mainnet only when the operator opts in.
+      embedded:
+        e.CHAIN_ID === ROBINHOOD_MAINNET_ID && e.EMBEDDED_WALLET_PROVIDER === 'burner' && !e.BROWSER_WALLETS_ON_MAINNET
+          ? 'off'
+          : e.EMBEDDED_WALLET_PROVIDER,
       walletConnectProjectId: e.WALLETCONNECT_PROJECT_ID ?? null,
     },
     ethUsdFallback: e.ETH_USD_FALLBACK,

@@ -295,7 +295,15 @@ export function OnboardingModal({ handle, followers }: { handle?: string; follow
               <LogoBox logo={{ kind: 'sway' }} size={38} />
               <span className="wopt-t">
                 <b>Create a Sway wallet</b>
-                <small>{embeddedOk ? 'Made in this browser. No extension.' : cfg?.wallets.embedded === 'off' ? 'Off on mainnet: use a wallet app below' : 'Not available on this server yet'}</small>
+                <small>
+                  {embeddedOk
+                    ? cfg?.mainnet
+                      ? 'Made in this browser. Back up its key right after.'
+                      : 'Made in this browser. No extension.'
+                    : cfg?.wallets.embedded === 'off'
+                      ? 'Off on mainnet: use a wallet app below'
+                      : 'Not available on this server yet'}
+                </small>
               </span>
               {embeddedOk && <span className="tag">Recommended</span>}
             </button>
@@ -395,10 +403,13 @@ export function UserCard({ me, live = false }: { me: MeDTO; live?: boolean }) {
 
 export function CardModal({ walletLater = false }: { walletLater?: boolean }) {
   const me = useMe().data;
+  const cfg = useConfig().data;
   const F = useFormat();
   const { shareCard } = useActions();
   if (!me) return null;
   const later = walletLater || !me.wallet;
+  // A browser-made wallet on mainnet: its key exists only in this browser until the member backs it up.
+  const backup = !!cfg?.mainnet && me.wallet?.kind === 'embedded' ? me.wallet.address : null;
   return (
     <>
       <div className="m-h">
@@ -414,6 +425,16 @@ export function CardModal({ walletLater = false }: { walletLater?: boolean }) {
             ? 'You’re in. Post, follow and earn points now. Add a wallet when you want to buy keys or launch your own key market.'
             : `Your key market is open at ${F.$(weiToEth(priceWei(100n)))} a key. The first key is yours and can’t be sold, so your room always has an owner.`}
         </p>
+        {backup && (
+          <div className="note" style={{ margin: '0 0 14px' }}>
+            Your Sway wallet’s key lives only in this browser. Back it up now: if this browser’s data is cleared, the
+            wallet and its funds can’t be recovered.
+            <button className="btn btn-white btn-sm" style={{ marginTop: 10 }} onClick={() => openModal({ type: 'walletBackup', address: backup })}>
+              <Icon name="lock" size={14} />
+              Back up wallet key
+            </button>
+          </div>
+        )}
         <div className="row">
           <button className="btn btn-glass btn-block" onClick={shareCard}>
             <Icon name="x" />

@@ -81,7 +81,8 @@ deviates from it, and what is still open. Keep this current.
 1. **Audit** of all contracts. An internal review is done (`docs/SECURITY_REVIEW.md`: two staking bugs and a launchpad
    cap fixed, deploy hardened); a third-party audit is still recommended before significant value. Mainnet runs
    through `deploy/setup-chain.sh --mainnet` (owner wallet separate from the operator key, no launchpad, no staking
-   until $SWAY, browser wallets off). The owner had the unaudited notice taken off the trade sheet (23 Oct); the
+   until $SWAY, browser wallets off unless `BROWSER_WALLETS_ON_MAINNET=1`, which the owner turned on 23 Oct: the
+   card after sign-up then asks members to back up the browser-kept key). The owner had the unaudited notice taken off the trade sheet (23 Oct); the
    Terms still state the contracts aren't audited until a report is published.
 2. **Verify Robinhood Chain parameters**: chain id (4663 per influence.family), explorer, ArbOS version / EVM target, RPC.
 3. **Embedded wallets**: choose Privy or Coinbase CDP and wire the adapter (the web has the interface and a

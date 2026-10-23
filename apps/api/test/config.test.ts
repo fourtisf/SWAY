@@ -94,6 +94,10 @@ describe('config', () => {
   it('turns the in-browser Sway wallet off on mainnet', () => {
     const main = loadConfig({ ...TEST_ENV, CHAIN_ID: '4663', SWAY_ENABLE_MAINNET: '1' });
     expect(main.wallets.embedded).toBe('off');
+    // The operator can opt in to browser-made wallets on mainnet.
+    expect(
+      loadConfig({ ...TEST_ENV, CHAIN_ID: '4663', SWAY_ENABLE_MAINNET: '1', BROWSER_WALLETS_ON_MAINNET: '1' }).wallets.embedded,
+    ).toBe('burner');
     expect(loadConfig({ ...TEST_ENV, CHAIN_ID: '4663', SWAY_ENABLE_MAINNET: '1', EMBEDDED_WALLET_PROVIDER: 'privy' }).wallets.embedded).toBe('privy');
     expect(loadConfig({ ...TEST_ENV, CHAIN_ID: '46630' }).wallets.embedded).toBe('burner');
   });
