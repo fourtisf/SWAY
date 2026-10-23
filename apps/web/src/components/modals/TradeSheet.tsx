@@ -9,7 +9,7 @@ import { useConfig, useMe, useProfile, useWallets } from '@/lib/queries';
 import { useMemberWallets } from '@/lib/wallet';
 import { openConnectWallet } from '@/lib/wallet-actions';
 import { WalletSwitch } from '../wallet/WalletSwitch';
-import { closeModal, openModal } from '@/lib/store';
+import { closeModal, openModal, toast } from '@/lib/store';
 import { GAS_RESERVE_WEI, stepAmount } from '@/lib/util';
 import { Icon } from '../icons';
 import { Avatar, Loading, Spinner, VB } from '../ui';
@@ -31,7 +31,6 @@ export function TradeSheet({ handle, side: side0 }: { handle: string; side: 'buy
   const [text, setText] = useState<string | null>(null);
   const [showFees, setShowFees] = useState(false);
   const cfg = useConfig().data;
-  const mainnet = !!cfg?.mainnet;
   // Until SwayKeys is deployed the markets exist only in the database: say so instead of failing at the wallet.
   const live = MOCK || !cfg || !!cfg.contracts.swayKeys;
   const [busy, setBusy] = useState(false);
@@ -197,7 +196,15 @@ export function TradeSheet({ handle, side: side0 }: { handle: string; side: 'buy
               </button>
             ))}
             {buy ? (
-              <button className={`chip ${maxBuy >= CURVE.MIN && a === maxBuy ? 'on' : ''}`} disabled={maxBuy < CURVE.MIN} title="As many keys as your balance buys" onClick={() => set(maxBuy)}>
+              <button
+                className={`chip ${maxBuy >= CURVE.MIN && a === maxBuy ? 'on' : ''}`}
+                title="As many keys as your balance buys"
+                onClick={() =>
+                  maxBuy >= CURVE.MIN
+                    ? set(maxBuy)
+                    : toast(cash > 0n ? 'Your balance buys less than 0.01 key. Deposit ETH to buy more.' : 'Your balance is $0. Deposit ETH to buy keys.')
+                }
+              >
                 Max
               </button>
             ) : (
@@ -239,14 +246,6 @@ export function TradeSheet({ handle, side: side0 }: { handle: string; side: 'buy
                 </p>
               </div>
             )}
-            {mainnet && (
-              <div className="fee-note risk-note" id="riskNote">
-                <p>
-                  <b>Independent audit pending.</b> Sway’s contracts are reviewed internally; a third-party audit is still to
-                  come. Onchain trades can’t be reversed.
-                </p>
-              </div>
-            )}
             {(dump || creatorInactive) && (
               <div className="fee-note" id="feeNote">
                 {dump && <p>This wallet bought this key less than 24 hours ago, so selling now adds a {dumpPct}% fee that goes to holders.</p>}
@@ -275,6 +274,12 @@ export function TradeSheet({ handle, side: side0 }: { handle: string; side: 'buy
             <button className="btn btn-lg btn-block btn-white" onClick={() => openConnectWallet(active!.address)}>
               <Icon name="wallet" />
               Connect a wallet
+            </button>
+          ) : me && buy && tooMuch && !busy ? (
+            // Short of ETH: the way forward is a deposit, not a dead button.
+            <button className="btn btn-lg btn-block btn-white" onClick={() => openModal({ type: 'deposit' })}>
+              <Icon name="wallet" />
+              Not enough balance: deposit ETH
             </button>
           ) : me ? (
             <button className={`btn btn-lg btn-block ${buy ? 'btn-buy' : 'btn-sell'}`} disabled={bad || busy} onClick={exec}>
