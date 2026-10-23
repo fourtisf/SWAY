@@ -48,6 +48,13 @@ export const shareCardUrl = (score: number, valueUsd: string, cardUrl?: string) 
   encodeURIComponent(`My Sway score is ${score}/100 and my reach is valued at ${valueUsd}. Buy my key and join my room.`) +
   (cardUrl ? '&url=' + encodeURIComponent(cardUrl) : '');
 
+/** X post for a member whose key just went live; the card URL makes X unfurl their Sway card. */
+export const keyLiveShareUrl = (cardUrl: string) =>
+  'https://x.com/intent/post?text=' +
+  encodeURIComponent('My key is live on @swaydotfamily 🔑\n\nBack me and join my room:') +
+  '&url=' +
+  encodeURIComponent(cardUrl);
+
 export const plainText = (rich: Array<{ t: string }>) => rich.map((s) => s.t).join('');
 
 /** Trade sheet stepper (prototype tstep): ±0.1 below 1 key, whole keys above, never under 0.01. */

@@ -64,7 +64,7 @@ export async function marketRoutes(app: FastifyInstance) {
   });
 
   const ExploreQuery = z.object({
-    tab: z.enum(['creators', 'tags', 'new']).default('creators'),
+    tab: z.enum(['creators', 'tags', 'new', 'launched']).default('creators'),
     sort: z.enum(['trending', 'volume', 'price', 'score']).default('trending'),
     q: z.string().max(60).optional(),
   });
@@ -87,6 +87,15 @@ export async function marketRoutes(app: FastifyInstance) {
         take: 60,
       });
       creators = await marketDtosForUsers(prisma, users);
+    } else if (p.tab === 'launched') {
+      // Keys that went onchain most recently: a place for new creators to be found and backed.
+      const ms = await prisma.keyMarket.findMany({
+        where: { ...where, opened: true },
+        include: { user: true },
+        orderBy: [{ openedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
+        take: 60,
+      });
+      creators = await marketDTOs(prisma, ms);
     } else if (p.sort === 'trending') {
       const ms = await prisma.keyMarket.findMany({
         where,

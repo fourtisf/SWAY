@@ -75,7 +75,7 @@ export function StakeCard({ level }: { level: number }) {
           <b>Stake {TOKEN.the}</b>
           <br />
           <span className="t3" style={{ fontSize: 13 }}>
-            {level > 0 ? `Level ${level} ${l.name}: −${Math.round(l.cut * 100)}% protocol fee, 2,000-character posts` : 'Cut the protocol fee on your trades by up to 75%'}
+            {level > 0 ? `Level ${level} ${l.name}: −${Math.round(l.cut * 100)}% protocol fee, 2,000-character posts` : 'Earn ETH from key trading fees and cut your own fees by up to 75%'}
           </span>
         </span>
       </span>

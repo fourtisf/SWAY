@@ -25,7 +25,7 @@ import { MOCK } from './env';
 import { useEthUsd, useFormat } from './format';
 import { invalidateMoney, qk, useMe } from './queries';
 import { closeModal, openModal, toast, useUI } from './store';
-import { shareCardUrl } from './util';
+import { keyLiveShareUrl, shareCardUrl } from './util';
 import { SWAY_WALLET_OFF, useMemberWallets, useSwayWallet, type MemberWallet, type SwayWallet } from './wallet';
 import { setActiveChoice } from './wallet/active';
 import { openConnectWallet } from './wallet-actions';
@@ -472,7 +472,7 @@ export function useActions() {
         const open = permits.find((p) => p.kind === 'open');
         if (open) await w.waitForReceipt(await w.register(open));
         qc.setQueryData<MeDTO>(qk.me, (o) => (o?.market ? { ...o, market: { ...o.market, opened: true } } : o));
-        toast('Your key is live');
+        openModal({ type: 'keyLive' });
         // The indexer mirrors MarketOpened within seconds.
         void (async () => {
           for (let i = 0; i < 20; i++) {
@@ -483,6 +483,11 @@ export function useActions() {
             if (next?.market?.opened) {
               qc.setQueryData(qk.me, next);
               qc.invalidateQueries({ queryKey: qk.profile(next.user.handle) });
+              // The mirror shows it now: credit the Launch your key task without a trip to Tasks.
+              await api()
+                .taskVerify('launchkey')
+                .catch(() => null);
+              qc.invalidateQueries({ queryKey: qk.tasks });
               break;
             }
           }
@@ -494,6 +499,10 @@ export function useActions() {
       }
     },
 
+    shareKeyLive() {
+      if (!me) return;
+      window.open(keyLiveShareUrl(`${window.location.origin}/card/${me.user.handle}`), '_blank', 'noopener');
+    },
     shareCard() {
       if (!me) return;
       // [B] the card page's OG image makes X unfurl the link

@@ -1,7 +1,7 @@
 /**
  * Tasks (brief §6): the Join checklist unlocks in order (a task is 'locked' until the previous checklist task
- * is verified, trusted or skipped); daily tasks are keyed by utcDay(); 'buykey' completes automatically from
- * the Holding mirror. Points go to the append-only ledger with ref `task:<id>:<YYYY-MM-DD>`.
+ * is verified, trusted or skipped); daily tasks are keyed by utcDay(); the auto tasks complete from the mirror:
+ * 'launchkey' once the member's own market is open onchain, 'buykey' from the Holding mirror. Points go to the append-only ledger with ref `task:<id>:<YYYY-MM-DD>`.
  */
 import type { FastifyRequest } from 'fastify';
 import type { PrismaClient, TaskCompletion, User } from '@sway/db';
@@ -155,19 +155,36 @@ export async function holdsOthersKey(
   return [...units.values()].some((u) => u >= ACCESS_UNITS);
 }
 
-/** Completes the auto task when the mirror shows a key the member didn't mint. */
+/** The member's own key market is open onchain (launched by them, by a first buy, or a claimed fan market). */
+export async function keyIsLive(prisma: PrismaClient, userId: string): Promise<boolean> {
+  const m = await prisma.keyMarket.findUnique({ where: { userId }, select: { opened: true, claimed: true } });
+  return !!m?.opened && m.claimed;
+}
+
+const autoDone = (deps: AppDeps, user: User, wallet: string | null, id: string): Promise<boolean> =>
+  id === 'launchkey' ? keyIsLive(deps.prisma, user.id) : holdsOthersKey(deps.prisma, user, wallet);
+
+const AUTO_HINT: Record<string, string> = {
+  launchkey: 'Launch your key first: open your profile and tap Launch my key',
+  buykey: 'Hold at least 1 key of a creator other than yourself',
+};
+
+/** Completes open auto tasks the mirror already shows as done. True when any was awarded. */
 export async function autoTasks(
   deps: AppDeps,
   user: User,
   wallet: string | null,
   list: TaskDTO[],
 ): Promise<boolean> {
-  const t = list.find((x) => x.id === 'buykey');
-  if (!t || t.status !== 'open') return false;
-  if (!(await holdsOthersKey(deps.prisma, user, wallet))) return false;
-  const def = taskById('buykey')!;
-  await award(deps, user, def, taskDay(def), 'verified', 'auto');
-  return true;
+  let any = false;
+  for (const t of list) {
+    if (!t.auto || t.status !== 'open') continue;
+    if (!(await autoDone(deps, user, wallet, t.id))) continue;
+    const def = taskById(t.id)!;
+    await award(deps, user, def, taskDay(def), 'verified', 'auto');
+    any = true;
+  }
+  return any;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -190,11 +207,11 @@ export async function verifyTask(
   const done = async (status: TaskStatus) => dto(def, status, links);
 
   if (def.auto) {
-    if (await holdsOthersKey(deps.prisma, user, wallet)) {
+    if (await autoDone(deps, user, wallet, def.id)) {
       await award(deps, user, def, day, 'verified', 'auto');
       return done('verified');
     }
-    throw unprocessable('not_verified', 'Hold at least 1 key of a creator other than yourself');
+    throw unprocessable('not_verified', AUTO_HINT[def.id] ?? 'Not done yet');
   }
   // Telegram membership cannot be read from X: low-value task, trusted now and re-checkable later (brief §12).
   if (def.id === 'tg') {

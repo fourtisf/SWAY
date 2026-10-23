@@ -47,6 +47,20 @@ test('the wallet can wait: skip it during onboarding', async ({ page }) => {
   await expect(page.locator('.sb .me-chip')).toContainText('@nowallet');
 });
 
+test('links in posts open: t.me and URLs in a new tab, swayfamily.com inside the app', async ({ page }) => {
+  await connect(page, 'linker');
+  await page.fill('#compose', 'Join t.me/swayfams. Rules: https://example.org/rules and swayfamily.com/model');
+  await page.locator('#postBtn').click();
+  const post = postBy(page, 'Join t.me/swayfams');
+  await expect(post.locator('a.lk', { hasText: 't.me/swayfams' })).toHaveAttribute('href', 'https://t.me/swayfams');
+  await expect(post.locator('a.lk', { hasText: 't.me/swayfams' })).toHaveAttribute('target', '_blank');
+  await expect(post.locator('a.lk', { hasText: 'https://example.org/rules' })).toHaveAttribute('rel', 'noopener noreferrer nofollow ugc');
+  // The trailing period stays text; the site's own link stays in the app.
+  await expect(post.locator('.post-t')).toContainText('t.me/swayfams. Rules');
+  await post.locator('a.lk', { hasText: 'swayfamily.com/model' }).click();
+  await expect(page).toHaveURL(/\/model$/);
+});
+
 test('post menu: delete your post, report and block others', async ({ page }) => {
   await connect(page, 'menutester');
   await expect(page.locator('.sb-nav')).toContainText('Settings');

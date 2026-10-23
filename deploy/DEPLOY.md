@@ -64,7 +64,9 @@ by submitting the handle again in Admin → Markets.
 your own wallet as the contracts' owner, checks the RPC answers chain 4663, deploys without the launchpad (add it
 with `bash /srv/sway/deploy/setup-launchpad.sh`: it rehearses a graduation into the real Uniswap V2 on a fork, then
 deploys; graduated tokens move into Uniswap by themselves) (and
-without staking until $SWAY exists), and turns browser-made wallets off: people trade with wallet apps. Then accept
+without staking until $SWAY exists: add it with `bash /srv/sway/deploy/setup-staking.sh`, which reads the token's
+supply, proposes levels at 0.01/0.1/0.5/1% of it, asks before deploying, and turns it on for key trades when the
+operator owns SwayKeys; otherwise press **Admin → Contracts → Turn on staking** with the owner wallet), and turns browser-made wallets off: people trade with wallet apps. Then accept
 ownership on each contract from your wallet in **Admin → Contracts** (MetaMask on the owner account, a little ETH for
 gas). Optional: `bash /srv/sway/deploy/verify-contracts.sh` publishes the source on the explorer (no transaction).
 Read `docs/SECURITY_REVIEW.md` first.

@@ -143,7 +143,8 @@ export interface TagDTO {
   posts: number;
 }
 
-export type ExploreTab = 'creators' | 'tags' | 'new';
+/** 'launched': keys that went onchain most recently. */
+export type ExploreTab = 'creators' | 'tags' | 'new' | 'launched';
 export type ExploreSort = 'trending' | 'volume' | 'price' | 'score';
 
 export interface SearchResponse {

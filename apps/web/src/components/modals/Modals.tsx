@@ -16,6 +16,7 @@ import { LaunchSheet } from '../launch/LaunchSheet'; // [C]
 import { BoostSheet, DeletePostModal, ReportModal } from './Social'; // [B]
 // [A] wallets & funding
 import { MoveFromEthereumModal } from '../wallet/Ethereum';
+import { KeyLiveModal } from '../wallet/LaunchKeyCard';
 import { AccountWalletModal, BackupModal, ConnectWalletModal, DepositModal, ImportModal, RemoveModal, RenameModal, WithdrawModal } from '../wallet/WalletModals';
 import { DropModal } from '../engage/Drops'; // [D]
 
@@ -194,6 +195,8 @@ function Body({ m }: { m: Modal }) {
       return <RemoveModal address={m.address} />;
     case 'walletAccount':
       return <AccountWalletModal address={m.address} />;
+    case 'keyLive':
+      return <KeyLiveModal />;
     // [D]
     case 'drop':
       return <DropModal />;

@@ -32,6 +32,7 @@ describe('tasks', () => {
       tg: 'locked',
       card: 'locked',
       daily: 'open',
+      launchkey: 'open',
       buykey: 'open',
     });
     expect(t0.inviteLink).toBe('http://localhost:3000/i/tasker');
@@ -41,6 +42,8 @@ describe('tasks', () => {
     expect(by.daily!.actionUrl).toContain('SwayDaily');
     expect(by.card).toMatchObject({ action: 'Share card', actionUrl: null });
     expect(by.buykey).toMatchObject({ action: null, actionUrl: null });
+    // Launch your key is done on the member's own profile, not on X.
+    expect(by.launchkey).toMatchObject({ auto: true, action: 'Launch my key', actionUrl: null, group: 'Creator' });
 
     const locked = await verify(cookie, 'card');
     expect(locked.statusCode).toBe(409);
@@ -139,12 +142,29 @@ describe('tasks', () => {
     ).toBe(1);
   });
 
+  it('completes Launch your key once the member’s own market is open onchain', async () => {
+    const me = await member(ctx, 'launcher');
+    const r = await verify(me.cookie, 'launchkey');
+    expect(r.statusCode).toBe(422);
+    expect(r.json().message).toContain('Launch my key');
+    // Not open yet (a row waiting for its MarketOpened event) still doesn't count.
+    const m = await openMarketRow(me);
+    await prisma.keyMarket.update({ where: { id: m.id }, data: { opened: false } });
+    expect(status((await tasks(me.cookie)).json<TasksResponse>()).launchkey).toBe('open');
+    await prisma.keyMarket.update({ where: { id: m.id }, data: { opened: true } });
+    expect(status((await tasks(me.cookie)).json<TasksResponse>()).launchkey).toBe('verified');
+    expect(await prisma.pointsLedger.findMany({ where: { userId: me.user.id, ref: 'task:launchkey:1970-01-01' }, select: { amount: true } })).toEqual([
+      { amount: 2000 },
+    ]);
+    expect((await verify(me.cookie, 'launchkey')).json<TaskDTO>().status).toBe('verified');
+  });
+
   it('hides the repost task until there is a launch post to repost', async () => {
     const x = await makeApp({ env: { X_LAUNCH_POST_ID: '' } });
     try {
       const { cookie } = await login(x, 'norepost');
       const t = (await x.app.inject({ url: '/api/tasks', headers: { cookie } })).json<TasksResponse>();
-      expect(t.tasks.map((k) => k.id)).toEqual(['follow', 'tg', 'card', 'daily', 'buykey']);
+      expect(t.tasks.map((k) => k.id)).toEqual(['follow', 'tg', 'card', 'daily', 'launchkey', 'buykey']);
       // The checklist runs follow → tg → card; Telegram opens Sway's group.
       expect(status(t)).toMatchObject({ follow: 'open', tg: 'locked' });
       expect(t.tasks.find((k) => k.id === 'tg')!.actionUrl).toBe('https://t.me/swayfams');
@@ -157,7 +177,7 @@ describe('tasks', () => {
     const t = (await tasks()).json<TasksResponse>();
     expect(t.points.total).toBe(0);
     expect(t.inviteLink).toBe('');
-    expect(t.tasks).toHaveLength(6);
+    expect(t.tasks).toHaveLength(7);
   });
 });
 

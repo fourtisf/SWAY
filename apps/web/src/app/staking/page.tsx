@@ -219,7 +219,7 @@ export default function StakingPage() {
       <div className="sec-h">
         <h2>Levels</h2>
         <span className="t3" style={{ fontSize: 13 }}>
-          Placeholders until {TOKEN.the} launches
+          Read from the staking contract
         </span>
       </div>
       {s.levels.map((l) => (

@@ -40,8 +40,9 @@ export default function ExplorePage() {
       <Tabs<ExploreTab>
         items={[
           ['creators', 'Creators'],
-          ['tags', 'Tags'],
+          ['launched', 'Just launched'],
           ['new', 'New members'],
+          ['tags', 'Tags'],
         ]}
         value={tab}
         onChange={(v) => useUI.setState({ exploreTab: v })}
@@ -92,9 +93,15 @@ export default function ExplorePage() {
           ))}
         </div>
       ) : (
-        <Empty icon="search" title={`No member matches “${q}”`}>
-          Try a shorter name or handle.
-        </Empty>
+        tab === 'launched' && !q ? (
+          <Empty icon="rocket" title="No keys launched yet">
+            Be the first: open your profile and tap Launch my key.
+          </Empty>
+        ) : (
+          <Empty icon="search" title={`No member matches “${q}”`}>
+            Try a shorter name or handle.
+          </Empty>
+        )
       )}
     </>
   );

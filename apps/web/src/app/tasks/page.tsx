@@ -87,9 +87,15 @@ function TaskRow({ t, handle }: { t: TaskDTO; handle: string }) {
             Unlocks next
           </span>
         ) : t.auto ? (
-          <Link className="btn btn-glass btn-sm" href="/explore">
-            Buy a key
-          </Link>
+          t.id === 'launchkey' ? (
+            <Link className="btn btn-white btn-sm" href={`/${handle}`}>
+              {t.action ?? 'Launch my key'}
+            </Link>
+          ) : (
+            <Link className="btn btn-glass btn-sm" href="/explore">
+              Buy a key
+            </Link>
+          )
         ) : (
           <div className="row" style={{ gap: 6 }}>
             {t.skippable && !went && (

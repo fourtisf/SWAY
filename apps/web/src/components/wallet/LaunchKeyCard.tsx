@@ -1,12 +1,15 @@
 'use client';
 /** "Launch my key" on the Wallet page while the member's own key market isn't onchain yet (also on their profile). */
-import { shortAddress } from '@sway/shared';
+import { TASKS, shortAddress } from '@sway/shared';
+import Link from 'next/link';
 import { useState } from 'react';
 import { useActions } from '@/lib/actions';
+import { useFormat } from '@/lib/format';
 import { useMe } from '@/lib/queries';
-import { openModal } from '@/lib/store';
+import { closeModal, openModal } from '@/lib/store';
 import { useMemberWallets } from '@/lib/wallet';
 import { openConnectWallet } from '@/lib/wallet-actions';
+import { Icon } from '../icons';
 import { Spinner } from '../ui';
 
 const same = (a?: string | null, b?: string | null) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
@@ -67,5 +70,49 @@ export function LaunchKeyCard() {
         </button>
       </div>
     </div>
+  );
+}
+
+const LAUNCH_PTS = TASKS.find((t) => t.id === 'launchkey')?.pts ?? 0;
+
+/** Right after Launch my key: the moment to tell their followers, while it's fresh. */
+export function KeyLiveModal() {
+  const me = useMe().data;
+  const a = useActions();
+  const F = useFormat();
+  if (!me) return null;
+  return (
+    <>
+      <div className="m-h">
+        <h3>Your key is live 🔑</h3>
+        <button className="x-btn" aria-label="Close" onClick={closeModal}>
+          <Icon name="close" />
+        </button>
+      </div>
+      <div className="m-b">
+        <p className="t2" style={{ margin: '0 0 16px' }}>
+          Your key market is open on Robinhood Chain. Tell your followers so they can back you and join your room. You earn 6% of every trade in your key.
+        </p>
+        <button
+          className="btn btn-white btn-lg btn-block"
+          id="share-key-live"
+          onClick={() => {
+            a.shareKeyLive();
+            closeModal();
+          }}
+        >
+          <Icon name="x" />
+          Share on X
+        </button>
+        <Link className="btn btn-glass btn-block" style={{ marginTop: 8 }} href={`/${me.user.handle}`} onClick={closeModal}>
+          View my key
+        </Link>
+        {LAUNCH_PTS > 0 && (
+          <p className="t3" style={{ fontSize: 12.5, margin: '12px 0 0', textAlign: 'center' }}>
+            +{F.int(LAUNCH_PTS)} points for Launch your key land in Tasks once the chain confirms it.
+          </p>
+        )}
+      </div>
+    </>
   );
 }

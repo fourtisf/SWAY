@@ -189,7 +189,16 @@ test('a new member launches their own key from their profile, then buys more of 
   const bar = page.locator('.price-bar');
   await expect(page.locator('#launchKeyNote')).toContainText('Your key isn’t onchain yet');
   await bar.getByRole('button', { name: 'Launch my key' }).click();
-  await expect(page.locator('.toasts')).toContainText('Your key is live');
+  // Right away: share it on X (the post carries the member's card so X unfurls it), and the task is credited.
+  const live = page.locator('.modal');
+  await expect(live.locator('h3')).toHaveText('Your key is live 🔑');
+  await page.context().route('https://x.com/**', (r) => r.fulfill({ status: 200, body: 'X' })); // no real X in tests
+  const [popup] = await Promise.all([page.waitForEvent('popup'), live.getByRole('button', { name: 'Share on X' }).click()]);
+  await popup.waitForLoadState();
+  expect(decodeURIComponent(popup.url())).toContain('My key is live on @swaydotfamily');
+  expect(decodeURIComponent(popup.url())).toContain('/card/keylauncher');
+  await popup.close();
+  await expect(live).toHaveCount(0);
   await expect(bar.getByRole('button', { name: 'Launch my key' })).toHaveCount(0);
   await expect(page.locator('#launchKeyNote')).toHaveCount(0);
 
@@ -202,6 +211,12 @@ test('a new member launches their own key from their profile, then buys more of 
   await nav(page, 'Wallet');
   await expect(page.locator('.wl-list .tr.wl')).toHaveCount(1);
   await expect(page.locator('#launchKeyCard')).toHaveCount(0);
+  await nav(page, 'Tasks');
+  await expect(page.locator('.task', { hasText: 'Launch your key' })).toContainText('Verified');
+  // New keys are easy to find: Explore → Just launched.
+  await nav(page, 'Explore');
+  await page.getByRole('tab', { name: 'Just launched' }).click();
+  await expect(page.locator('.cards .hc').first()).toBeVisible();
 });
 
 test('log out from the account menu', async ({ page }) => {

@@ -4,49 +4,48 @@ import { hueOf, isVideoUrl, minutesSince, type MarketDTO, type PostDTO } from '@
 import { frameOfScore } from '@sway/scoring';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import type { CSSProperties, MouseEvent, ReactNode } from 'react';
+import type { CSSProperties, MouseEvent } from 'react';
 import { useActions } from '@/lib/actions';
+import { linkify } from '@/lib/linkify';
 import { useFormat } from '@/lib/format';
 import { Icon } from '../icons';
 import { goTag } from '../shell/Rail';
 import { Avatar, Spark, VB } from '../ui';
 import { PostMenu } from './PostMenu';
 
-/** Mentions → profiles, #tags → Explore, swayfamily.com/model → /model (prototype linkify()). */
+/** Mentions → profiles, #tags → Explore, links → new tab (swayfamily.com links stay in the app). See lib/linkify. */
 export function Linkify({ text }: { text: string }) {
   const router = useRouter();
-  const out: ReactNode[] = [];
-  const re = /@([a-z0-9_]+)|#(\w+)|swayfamily\.com\/model/gi;
-  let last = 0;
-  let m: RegExpExecArray | null;
-  let i = 0;
-  while ((m = re.exec(text))) {
-    if (m.index > last) out.push(text.slice(last, m.index));
-    const tok = m[0];
-    if (m[1]) {
-      const h = m[1].toLowerCase();
-      out.push(
-        <span key={i++} className="mn" onClick={() => router.push(`/${h}`)}>
-          {tok}
-        </span>,
-      );
-    } else if (m[2]) {
-      const t = m[2];
-      out.push(
-        <span key={i++} className="ht" onClick={() => goTag(router, t)}>
-          {tok}
-        </span>,
-      );
-    } else
-      out.push(
-        <span key={i++} className="lk" onClick={() => router.push('/model')}>
-          {tok}
-        </span>,
-      );
-    last = m.index + tok.length;
-  }
-  if (last < text.length) out.push(text.slice(last));
-  return <>{out}</>;
+  return (
+    <>
+      {linkify(text).map((s, i) => {
+        if (s.kind === 'text') return s.text;
+        if (s.kind === 'mention')
+          return (
+            <span key={i} className="mn" onClick={() => router.push(`/${s.handle}`)}>
+              {s.text}
+            </span>
+          );
+        if (s.kind === 'tag')
+          return (
+            <span key={i} className="ht" onClick={() => goTag(router, s.tag)}>
+              {s.text}
+            </span>
+          );
+        if (s.path)
+          return (
+            <Link key={i} className="lk" href={s.path}>
+              {s.text}
+            </Link>
+          );
+        return (
+          <a key={i} className="lk" href={s.href} target="_blank" rel="noopener noreferrer nofollow ugc">
+            {s.text}
+          </a>
+        );
+      })}
+    </>
+  );
 }
 
 /** X-style image grid: 1 wide, 2 side by side, 3 = one tall + two stacked, 4 = 2×2. A video plays inline. */

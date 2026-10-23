@@ -400,6 +400,7 @@ const OWNABLE = parseAbi([
   'function pendingOwner() view returns (address)',
   'function acceptOwnership()',
 ]);
+const KEYS_STAKING = parseAbi(['function staking() view returns (address)', 'function setStaking(address staking_)']);
 const OWNED = [
   ['swayKeys', 'SwayKeys'],
   ['fanEscrow', 'FanEscrow'],
@@ -441,6 +442,26 @@ function Contracts() {
       );
     },
   });
+  // A staking contract added later (deploy/setup-staking.sh) only counts once SwayKeys points at it.
+  const staking = cfg?.contracts.swayStaking ?? null;
+  const keysStaking = useQuery({
+    queryKey: ['admin', 'keysStaking', cfg?.chainId, cfg?.contracts.swayKeys, staking],
+    enabled: !!cfg?.contracts.swayKeys && !!staking,
+    queryFn: async () => {
+      const pub = createPublicClient({ chain: swayChain({ chainId: cfg!.chainId, rpcUrl: cfg!.rpcUrl }), transport: http(cfg!.rpcUrl) });
+      return pub.readContract({ address: cfg!.contracts.swayKeys!, abi: KEYS_STAKING, functionName: 'staking' });
+    },
+  }).data;
+  const keysOwner = data?.find((c) => c.name === 'SwayKeys')?.owner ?? null;
+  const stakingOff = !!staking && !!keysStaking && keysStaking.toLowerCase() !== staking.toLowerCase();
+  const turnOnStaking = async () => {
+    const ext = useExternalWallet.getState().api;
+    if (!ext) throw new Error('Wallet apps aren’t available in this browser');
+    const { address, wallet } = await ext.connect({ via: 'injected', rdns: via || null });
+    if (keysOwner && address.toLowerCase() !== keysOwner.toLowerCase())
+      throw new Error(`Switch your wallet app to ${shortAddress(keysOwner)}, the SwayKeys owner (it shared ${shortAddress(address)})`);
+    await wallet.waitForReceipt(await wallet.writeContract({ address: cfg!.contracts.swayKeys!, abi: KEYS_STAKING, functionName: 'setStaking', args: [staking!] }));
+  };
 
   const accept = async (c: OwnedContract & { pending: Address }) => {
     const ext = useExternalWallet.getState().api;
@@ -477,6 +498,18 @@ function Contracts() {
           </select>
         )}
       </div>
+      {stakingOff && (
+        <div className="glass adm-card" id="turn-on-staking">
+          <b style={{ fontSize: 16 }}>Turn on staking</b>
+          <p className="t2" style={{ fontSize: 13.5, margin: '4px 0 12px' }}>
+            SwayStaking {shortAddress(staking!)} is deployed, but SwayKeys doesn’t use it yet: levels don’t cut fees and the stakers’ share still goes to
+            the treasury. The SwayKeys owner{keysOwner ? ` (${shortAddress(keysOwner)})` : ''} turns it on with one transaction.
+          </p>
+          <button className="btn btn-white btn-sm" disabled={!!busy} onClick={() => run('staking', turnOnStaking, 'Staking is on for key trades')}>
+            {busy === 'staking' ? 'Confirm in wallet…' : 'Turn on staking'}
+          </button>
+        </div>
+      )}
       {isError ? (
         <Empty icon="shield" title="Couldn’t read the contracts">
           The chain didn’t answer. Try again in a moment.

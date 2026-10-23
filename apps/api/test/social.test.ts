@@ -315,6 +315,13 @@ describe('profiles, markets, explore, search', () => {
     expect(await ex('tab=creators&sort=trending')).toEqual(['alpha', 'bravo']);
     expect(await ex('tab=new')).toEqual(['bravo', 'alpha']);
     expect(await ex('tab=creators&q=brav')).toEqual(['bravo']);
+    // Just launched: keys that went onchain most recently, open markets only.
+    await prisma.keyMarket.update({ where: { id: ma.id }, data: { openedAt: new Date(Date.now() - 60_000) } });
+    await prisma.keyMarket.update({ where: { id: mb.id }, data: { openedAt: new Date() } });
+    expect(await ex('tab=launched')).toEqual(['bravo', 'alpha']);
+    await prisma.keyMarket.update({ where: { id: mb.id }, data: { opened: false } });
+    expect(await ex('tab=launched')).toEqual(['alpha']);
+    await prisma.keyMarket.update({ where: { id: mb.id }, data: { opened: true } });
 
     // The official account is listed like any creator; New members also shows members without a key yet.
     const off = await member(ctx, 'swaydotfamily');
@@ -330,7 +337,7 @@ describe('profiles, markets, explore, search', () => {
 
     // An account flagged as a bot drops out of every list.
     await prisma.user.update({ where: { id: b.user.id }, data: { botFlag: true, botReason: 'admin' } });
-    for (const q of ['tab=creators&sort=volume', 'tab=creators&sort=trending', 'tab=new'])
+    for (const q of ['tab=creators&sort=volume', 'tab=creators&sort=trending', 'tab=new', 'tab=launched'])
       expect(await ex(q)).not.toContain('bravo');
     expect((await get('/api/markets?tab=creators')).json<MarketsResponse>().markets.map((x) => x.handle)).not.toContain(
       'bravo',

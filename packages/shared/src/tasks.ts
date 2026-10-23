@@ -3,9 +3,9 @@
  * links. Join-checklist tasks unlock in order.
  */
 
-export type TaskId = 'follow' | 'repost' | 'tg' | 'card' | 'daily' | 'buykey';
-export type TaskGroup = 'Join checklist' | 'Daily';
-export type TaskIcon = 'x' | 'repeat' | 'telegram' | 'share' | 'flame' | 'key';
+export type TaskId = 'follow' | 'repost' | 'tg' | 'card' | 'daily' | 'launchkey' | 'buykey';
+export type TaskGroup = 'Join checklist' | 'Daily' | 'Creator';
+export type TaskIcon = 'x' | 'repeat' | 'telegram' | 'share' | 'flame' | 'key' | 'rocket';
 
 export interface TaskDef {
   id: TaskId;
@@ -35,6 +35,7 @@ export const TASKS: readonly TaskDef[] = [
   { id: 'tg', title: 'Join the Telegram', pts: 500, icon: 'telegram', group: 'Join checklist', skippable: true, action: 'Join' },
   { id: 'card', title: 'Share your Sway card on X', pts: 2000, icon: 'share', group: 'Join checklist', action: 'Share card' },
   { id: 'daily', title: 'Post with #SwayDaily today', pts: 750, icon: 'flame', group: 'Daily', daily: true, action: 'Post' },
+  { id: 'launchkey', title: 'Launch your key', pts: 2000, icon: 'rocket', group: 'Creator', auto: true, action: 'Launch my key' },
   { id: 'buykey', title: 'Hold a key of another creator', pts: 1500, icon: 'key', group: 'Daily', auto: true },
 ];
 

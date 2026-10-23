@@ -24,6 +24,8 @@ export type Modal =
   | { type: 'walletRename'; address: string }
   | { type: 'walletRemove'; address: string }
   | { type: 'walletAccount'; address: string }
+  /** Right after Launch my key: share it on X. */
+  | { type: 'keyLive' }
   /* [B] post menu: boost confirm sheet, report a post or an account, delete confirm. */
   | { type: 'boost'; postId: string }
   | { type: 'report'; postId?: string; handle: string }

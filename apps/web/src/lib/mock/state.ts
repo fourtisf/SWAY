@@ -736,7 +736,8 @@ export class MockWorld {
     let unlocked = true;
     return TASKS.map((tk) => {
       let st = this.tasks[tk.id] || {};
-      if (tk.auto && this.keysHeld().m > 0 && !st.done) this.tasks[tk.id] = st = { done: true, pts: tk.pts };
+      const autoDone = tk.id === 'launchkey' ? this.keyOpen : this.keysHeld().m > 0;
+      if (tk.auto && autoDone && !st.done) this.tasks[tk.id] = st = { done: true, pts: tk.pts };
       const lock = !unlocked && tk.group === 'Join checklist';
       if (!st.done && tk.group === 'Join checklist') unlocked = false;
       const status: TaskDTO['status'] = st.done ? (st.skipped ? 'skipped' : 'verified') : lock ? 'locked' : st.busy ? 'pending' : 'open';

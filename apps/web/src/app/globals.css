@@ -194,6 +194,7 @@ h1,h2,h3,h4{margin:0;letter-spacing:-.01em}
 .post-t{margin:2px 0 10px;font-size:15px;line-height:1.35;white-space:pre-wrap;word-wrap:break-word;color:var(--tx)}
 .post-t .mn,.post-t .ht,.post-t .lk{color:var(--blue);cursor:pointer}
 .post-t .mn:hover,.post-t .ht:hover,.post-t .lk:hover{text-decoration:underline}
+.post-t a.lk{overflow-wrap:anywhere}
 .post-a{display:flex;align-items:center;gap:6px;margin-left:-8px}
 .pa{display:inline-flex;align-items:center;gap:4px;height:34px;padding:0 8px;border-radius:9999px;color:var(--tx2);font-size:13px;min-width:62px;transition:color .2s,background .2s}
 .pa svg{width:18.75px;height:18.75px}

@@ -158,7 +158,7 @@ export function getMockApi(): SwayApi {
       if (tab === 'tags') return { creators: [], tags: w.tags.filter((t) => !qq || t.toLowerCase().includes(qq)).map((t) => ({ tag: t, posts: 400 + (hash(t) % 9000) })) };
       let list = w.creators();
       if (qq) list = list.filter((c) => c.handle.includes(qq) || c.name.toLowerCase().includes(qq));
-      if (tab === 'new') list.sort((a, b) => a.joined - b.joined);
+      if (tab === 'new' || tab === 'launched') list.sort((a, b) => a.joined - b.joined);
       else {
         const sorts = {
           trending: (a: typeof list[0], b: typeof list[0]) => b.change - a.change,
