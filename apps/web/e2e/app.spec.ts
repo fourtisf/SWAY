@@ -237,3 +237,9 @@ test('icon-only sidebar: the avatar opens the account menu with Log out', async 
   await expect(page.locator('.sb .me-chip')).toHaveCount(0);
   await expect(page.locator('.guest')).toBeVisible();
 });
+
+test('a shared link opens Explore on Just launched', async ({ page }) => {
+  await page.goto('/explore?tab=launched');
+  await expect(page.getByRole('tab', { name: 'Just launched' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('.cards .hc').first()).toBeVisible();
+});

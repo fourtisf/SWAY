@@ -1,6 +1,7 @@
 'use client';
 import type { ExploreSort, ExploreTab } from '@sway/shared';
 import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { Icon } from '@/components/icons';
 import { goTag } from '@/components/shell/Rail';
 import { Empty, Loading, Tabs } from '@/components/ui';
@@ -9,7 +10,14 @@ import { useFormat } from '@/lib/format';
 import { useExplore } from '@/lib/queries';
 import { useUI } from '@/lib/store';
 
+const TABS: ExploreTab[] = ['creators', 'launched', 'new', 'tags'];
+
 export default function ExplorePage() {
+  useEffect(() => {
+    // Shared links can open a tab: swayfamily.com/explore?tab=launched
+    const t = new URLSearchParams(window.location.search).get('tab');
+    if (t && (TABS as string[]).includes(t)) useUI.setState({ exploreTab: t as ExploreTab });
+  }, []);
   const tab = useUI((s) => s.exploreTab);
   const sort = useUI((s) => s.exploreSort);
   const q = useUI((s) => s.exploreQ);
