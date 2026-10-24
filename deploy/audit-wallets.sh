@@ -4,6 +4,7 @@
 # Sends nothing. Run as root or as the app user, after sway-update:
 #   bash /srv/sway/deploy/audit-wallets.sh swaydotfamily _sonic_hub bittez [operator] [treasury] [0xOtherWallet …]
 #   bash /srv/sway/deploy/audit-wallets.sh --all
+#   bash /srv/sway/deploy/audit-wallets.sh --list swaydotfamily _sonic_hub bittez_   (just the addresses + explorer links)
 # Handles take all of that member's wallets (Sway wallet + linked); `operator` and `treasury` add Sway's own wallets;
 # moves between the audited wallets cancel out. It also lists who traded the audited members' keys.
 set -euo pipefail

@@ -4,6 +4,7 @@
  *
  *   bash deploy/audit-wallets.sh swaydotfamily _sonic_hub bittez [operator] [treasury] [0xExtraWallet …]
  *   bash deploy/audit-wallets.sh --all
+ *   bash deploy/audit-wallets.sh --list swaydotfamily _sonic_hub bittez_   (only the addresses, with explorer links)
  *
  * Handles take every wallet of that member (account + linked). Every key trade pays 10% in fees (creator 6%,
  * protocol 2%, holders 1%, referral 1%; +5% to holders on a sell within 24h of the seller's last buy), credited in
@@ -69,7 +70,7 @@ if (args.includes('--all')) {
     if (operator) owners.set(operator, '(operator)');
     else console.log('! operator: OPERATOR_PRIVATE_KEY is not set');
   }
-  for (const h of args.filter((a) => !a.startsWith('0x') && a !== 'operator' && a !== 'treasury').map((x) => x.replace(/^@/, ''))) {
+  for (const h of args.filter((a) => !a.startsWith('0x') && !a.startsWith('--') && a !== 'operator' && a !== 'treasury').map((x) => x.replace(/^@/, ''))) {
     const u = await prisma.user.findFirst({ where: { handle: { equals: h, mode: 'insensitive' } }, select: memberSelect });
     if (u && (u.wallet || u.linkedWallets.length)) {
       addMembers([u]);
@@ -115,6 +116,54 @@ const ctx: AuditContext = {
   members,
   txs: explorer ? blockscout(explorer, { apiKey: process.env.EXPLORER_API_KEY ?? '', progress }) : null,
 };
+
+// --list: every address of these accounts (made here, connected or linked, the market's own address) and the
+// unlinked wallets that traded their keys, with balance, transactions sent and an explorer link to check by hand.
+if (args.includes('--list')) {
+  const link = (a: string) => (explorer ? `${explorer.replace(/\/$/, '')}/address/${a}` : '');
+  const show = async (a: string, what: string) => {
+    const [bal, sent] = await Promise.all([pub.getBalance({ address: a as Address }), pub.getTransactionCount({ address: a as Address })]);
+    console.log(`  ${a}  ${what.padEnd(34)} ${eth(bal).padStart(26)} · ${String(sent).padStart(4)} tx sent  ${link(a)}`);
+  };
+  const listed = new Set<string>();
+  const users = await prisma.user.findMany({
+    where: { id: { in: [...userIds] } },
+    select: { handle: true, wallet: { select: { address: true, connector: true } }, linkedWallets: { select: { address: true, connector: true, label: true } }, market: { select: { subject: true, fan: true } } },
+  });
+  for (const u of users) {
+    console.log(`\n@${u.handle}`);
+    const rows: Array<[string, string]> = [];
+    if (u.wallet) rows.push([lc(u.wallet.address), `account wallet${u.wallet.connector ? ` (${u.wallet.connector})` : ''}`]);
+    for (const w of u.linkedWallets) rows.push([lc(w.address), `linked${w.connector ? ` (${w.connector})` : ''}${w.label ? ` "${w.label}"` : ''}`]);
+    if (u.market && !u.market.fan && !rows.some(([a]) => a === lc(u.market!.subject))) rows.push([lc(u.market.subject), 'the key’s address (earlier wallet)']);
+    for (const [a, what] of rows) {
+      await show(a, `${what}${a === operator ? ' · OPERATOR' : ''}${a === treasury ? ' · TREASURY' : ''}`);
+      listed.add(a);
+    }
+  }
+  const extra = [...owners.entries()].filter(([a]) => !listed.has(a));
+  if (extra.length) console.log('\nOther addresses you named');
+  for (const [a, what] of extra) {
+    await show(a, what);
+    listed.add(a);
+  }
+  const traders = await prisma.trade.findMany({ where: { marketId: { in: ownMarkets.map((m) => m.id) } }, distinct: ['trader'], select: { trader: true } });
+  const unlinked = traders.map((t) => lc(t.trader)).filter((a) => !listed.has(a));
+  if (unlinked.length) console.log('\nWallets that traded these keys but aren’t linked to these accounts (yours? add them to the audit)');
+  for (const a of unlinked) await show(a, members.get(a) ?? 'not a member');
+  const sway = new Map<string, string>();
+  if (treasury && !listed.has(treasury)) sway.set(treasury, 'Sway treasury');
+  if (operator && !listed.has(operator)) sway.set(operator, sway.has(operator) ? 'Sway operator · treasury' : 'Sway operator');
+  if (sway.size) console.log('\nSway’s own wallets');
+  for (const [a, what] of sway) await show(a, what);
+  if (explorer) {
+    const probe = await blockscout(explorer, { apiKey: process.env.EXPLORER_API_KEY ?? '', retryMs: 500 })([...listed][0] ?? treasury);
+    console.log(`\nExplorer from this server: ${'error' in probe ? `FAILED: ${probe.error}` : 'OK'}`);
+  }
+  console.log(`\nAll addresses, for the audit:\n${[...listed, ...unlinked].join(' ')}`);
+  await prisma.$disconnect();
+  process.exit(0);
+}
 
 console.log(`Sway audit · chain ${cfg.chainId} · ETH $${ethUsd || '?'} · explorer ${explorer || 'none: deposits, withdrawals and gas are skipped'}`);
 console.log('\nSWAY’S OWN WALLETS AND CONTRACTS');
