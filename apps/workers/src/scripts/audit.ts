@@ -13,7 +13,7 @@
  */
 import { prisma } from '@sway/db';
 import { ROBINHOOD_MAINNET_EXPLORER, swayChain } from '@sway/shared';
-import { createPublicClient, http, type Address, type PublicClient } from 'viem';
+import { createPublicClient, http, parseAbi, type Address, type PublicClient } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { KEYS_ABI, LOCKED, auditWallet, blockscout, sellValue, sum4, totals, type AuditContext, type WalletReport } from '../audit';
 import { loadConfig } from '../config';
@@ -270,6 +270,67 @@ for (const m of ownMarkets) {
   if (list.length > 30) console.log(`  … and ${list.length - 30} more`);
 }
 if (outsiders.size) console.log(`\n(✓ = in this audit. Wallets without ✓ that are yours: add their handle or 0x address to count them in.)`);
+
+// The app's own ledger per account (Wallet → Activity): key and launchpad token trades, claims, withdrawals made in
+// the app, gas drips. It has no deposits, so what came in from outside ≈ ETH now − everything the ledger moved
+// (less the gas, which is small on an L2). This works when the explorer can't be read.
+const LAUNCHPAD_ABI = parseAbi(['function quoteSell(address token, uint256 tokensIn) view returns (uint256 ethOut, uint256 fee)']);
+const KINDS: Array<[RegExp, string]> = [
+  [/^(Bought|Sold) .* keys? of /, 'key trades'],
+  [/^(Bought|Sold) .*\$/, 'launchpad token trades'],
+  [/^Claimed earnings/, 'earnings claimed'],
+  [/^Withdrawal/, 'withdrawals from the app'],
+  [/^Gas for your first trades/, 'gas drip received'],
+];
+const when = (d: Date) => d.toISOString().slice(0, 16).replace('T', ' ');
+console.log('\nAPP LEDGER PER ACCOUNT (Wallet → Activity, UTC)');
+for (const uid of userIds) {
+  const u = await prisma.user.findUniqueOrThrow({ where: { id: uid }, select: { handle: true } });
+  const rows = (await prisma.activity.findMany({ where: { userId: uid }, orderBy: { createdAt: 'asc' } })).filter((r) => !r.label.endsWith('(external wallet)'));
+  const sums = new Map<string, { n: number; wei: bigint }>();
+  let moved = 0n;
+  for (const r of rows) {
+    const k = KINDS.find(([re]) => re.test(r.label))?.[1] ?? 'other';
+    const x = sums.get(k) ?? sums.set(k, { n: 0, wei: 0n }).get(k)!;
+    x.n++;
+    x.wei += big(r.amountWei);
+    moved += big(r.amountWei);
+  }
+  const mine = reports.filter((r) => r.owner === `@${u.handle}`);
+  const now = mine.reduce((s, r) => s + r.balance, 0n);
+  const toClaim = mine.reduce((s, r) => s + sum4(r.claimable) + r.keysValue, 0n);
+  console.log(`\n  @${u.handle}`);
+  for (const r of rows.slice(-60)) {
+    // Withdrawals: where the ETH went, read from the transaction itself.
+    let dest = '';
+    if (/^Withdrawal/.test(r.label) && r.txHash) {
+      const tx = await pub.getTransaction({ hash: r.txHash as `0x${string}` }).catch(() => null);
+      if (tx?.to) dest = `  → ${lc(tx.to)}${owners.has(lc(tx.to)) ? ` ${owners.get(lc(tx.to))}` : members.has(lc(tx.to)) ? ` ${members.get(lc(tx.to))}` : ''}`;
+    }
+    console.log(`    ${when(r.createdAt)}  ${r.label.slice(0, 44).padEnd(44)} ${eth(big(r.amountWei)).padStart(28)}${dest}`);
+  }
+  if (rows.length > 60) console.log(`    (${rows.length - 60} older rows not shown)`);
+  for (const [k, x] of sums) line(`  ${k} (${x.n})`, x.wei);
+  line('  ETH in its wallets now', now);
+  some('  keys + earnings still to collect', toClaim);
+  line('  ⇒ came in from outside (≈ deposits)', now - moved, 'ETH now − what the ledger moved: less gas and transfers made outside the app');
+  const tokens = await prisma.launchHolder.findMany({
+    where: { address: { in: mine.map((r) => r.address) }, balance: { gt: 0 } },
+    select: { address: true, balance: true, launchToken: { select: { symbol: true, tokenAddress: true, graduated: true } } },
+  });
+  for (const t of tokens) {
+    const lt = t.launchToken;
+    let value = '';
+    if (lt.graduated) value = ' (graduated: priced on Uniswap)';
+    else if (cfg.contracts.launchpad && lt.tokenAddress) {
+      const [out] = await pub
+        .readContract({ address: cfg.contracts.launchpad, abi: LAUNCHPAD_ABI, functionName: 'quoteSell', args: [lt.tokenAddress as Address, big(t.balance)] })
+        .catch(() => [0n] as const);
+      value = ` · selling them on the launchpad now pays ${eth(out)}`;
+    }
+    console.log(`    ${t.address.slice(0, 10)}… holds ${(Number(big(t.balance)) / 1e18).toLocaleString('en-US', { maximumFractionDigits: 0 })} $${lt.symbol}${value}`);
+  }
+}
 
 // One summary per account (all its wallets), then everything together.
 const accounts = [...new Set(reports.map((r) => r.owner))];
