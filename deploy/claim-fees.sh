@@ -7,7 +7,8 @@
 #     creator, holder and referral fees) into the operator wallet.
 #  3. Fees already credited to an older treasury (the current one, the one in the deployment file, ADMIN_ADDRESS, or
 #     addresses given as arguments) can only be claimed by that wallet: it offers to send it a little gas from the
-#     operator and prints the steps to claim and forward them.
+#     operator, then to claim and forward them to the operator with that wallet's private key, typed hidden and
+#     never saved (or prints the steps to do it from a wallet app instead).
 # It shows everything first and asks before each transaction. Stakers' fees are theirs and are never touched.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
@@ -95,6 +96,32 @@ else
 fi
 
 # 3. Fees credited to an older treasury: only that wallet can claim them.
+# claim_from <address>: asks for that wallet's key (hidden, kept only in this shell), claims, then forwards
+# everything but the transfer's gas to the operator.
+claim_from() {
+  local a="$1" key from bal gp est limit value
+  read -r -s -p "    Private key of $a: " key || true
+  echo
+  key="${key//[[:space:]]/}"
+  [[ "$key" =~ ^(0x)?[0-9a-fA-F]{64}$ ]] || { echo "    that isn't a private key (64 hex characters)"; return 1; }
+  [[ "$key" == 0x* ]] || key="0x$key"
+  from="$(CAST wallet address --private-key "$key" | lc)"
+  [ "$from" = "$a" ] || { echo "    that key is for $from, not $a: nothing sent"; key=""; return 1; }
+  CAST send "$KEYS" 'claim(address[])' '[]' --private-key "$key" --rpc-url "$RPC" >/dev/null
+  echo "    claimed: $a has $(eth "$(CAST balance "$a" --rpc-url "$RPC")")"
+  # Forward all of it but this transfer's gas: fix the gas limit and price so the rest can be sent exactly.
+  bal="$(CAST balance "$a" --rpc-url "$RPC")"
+  gp="$(node -e 'console.log((BigInt(process.argv[1])*2n).toString())' "$(CAST gas-price --rpc-url "$RPC")")"
+  est="$(CAST estimate "$OP" --value 1 --from "$a" --rpc-url "$RPC")"
+  limit="$(node -e 'console.log((BigInt(process.argv[1])*3n/2n).toString())' "$est")"
+  value="$(node -e 'const v=BigInt(process.argv[1])-BigInt(process.argv[2])*BigInt(process.argv[3]);console.log((v>0n?v:0n).toString())' "$bal" "$limit" "$gp")"
+  if [ "$value" != 0 ]; then
+    CAST send "$OP" --value "$value" --gas-limit "$limit" --gas-price "$gp" --private-key "$key" --rpc-url "$RPC" >/dev/null
+    echo "    forwarded $(eth "$value") to the operator $OP"
+  fi
+  key=""
+  echo "    the operator wallet now has $(eth "$(CAST balance "$OP" --rpc-url "$RPC")")"
+}
 LEFT=0
 for A in "${OLD[@]}"; do
   F="$(old_fees "$A")"
@@ -107,7 +134,10 @@ for A in "${OLD[@]}"; do
     CAST send "$A" --value "$GAS" --private-key "$PK" --rpc-url "$RPC" >/dev/null
     echo "    sent"
   fi
-  echo "    Then, in the wallet app that holds $A (MetaMask, Bitget, Rabby…):"
+  if ask "    Claim it here and forward it to the operator? You type $A's private key (hidden, never saved)."; then
+    claim_from "$A" && continue
+  fi
+  echo "    Or, in the wallet app that holds $A (MetaMask, Bitget, Rabby…):"
   echo "      a. open ${EXPLORER:-the explorer}/address/$KEYS?tab=write_contract"
   echo "      b. Connect wallet → pick $A → claim → subjects: []  → Write, and confirm"
   echo "      c. send the ETH from $A to the operator $OP (the wallet's Max button leaves the gas)"
