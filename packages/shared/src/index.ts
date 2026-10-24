@@ -6,3 +6,4 @@ export * from './merkle';
 export * from './push';
 export * from './tasks';
 export * from './permits';
+export * from './move-all';

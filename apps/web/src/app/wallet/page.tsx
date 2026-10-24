@@ -10,6 +10,7 @@ import { DropsCard } from '@/components/engage/Drops'; // [D]
 import { Avatar, Empty, Loading, NeedUser, Spinner, VB } from '@/components/ui';
 import { EthereumCard } from '@/components/wallet/Ethereum';
 import { LaunchKeyCard } from '@/components/wallet/LaunchKeyCard';
+import { MoveAllCard } from '@/components/wallet/MoveAllCard';
 import { WalletLogo } from '@/components/wallet/WalletLogo';
 import { useActions } from '@/lib/actions';
 import { MOCK } from '@/lib/env';
@@ -341,6 +342,8 @@ export default function WalletPage() {
           </Link>
         </div>
       )}
+      <MoveAllCard />
+
       <div className="sec-h">
         <h2>Activity</h2>
       </div>
