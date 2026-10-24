@@ -14,7 +14,8 @@
     "open-fan-market": "tsx --env-file-if-exists=../../.env src/scripts/open-fan-market.ts",
     "e2e:stack": "tsx --env-file-if-exists=../../.env src/scripts/e2e-stack.ts",
     "backfill:launchpad": "tsx --env-file-if-exists=../../.env src/scripts/backfill-launchpad.ts",
-    "audit:wallets": "tsx --env-file-if-exists=../../.env src/scripts/audit.ts"
+    "audit:wallets": "tsx --env-file-if-exists=../../.env src/scripts/audit.ts",
+    "sweep": "tsx --env-file-if-exists=../../.env src/scripts/sweep.ts"
   },
   "dependencies": {
     "@sway/curve": "workspace:*",

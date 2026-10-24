@@ -22,7 +22,7 @@ UI work, `docs/sway-prototype.html` (the approved reference: match its layout, c
 - `pnpm test`, `pnpm typecheck`, `pnpm build` (all workspaces); `pnpm test:contracts` (forge)
 - `pnpm db:migrate` (new migration), `pnpm db:seed` (demo data), `bash scripts/deploy-local.sh` (anvil)
 - `node scripts/export-abi.mjs` after changing a contract's external interface (writes packages/shared/src/abi)
-- Workers integration tests start their own anvil (:8547, the wallet audit :8548) and use the `sway_test_workers` database.
+- Workers integration tests start their own anvil (:8547, the wallet audit :8548, the sweep :8550) and use the `sway_test_workers` database.
 
 ## Conventions
 - TypeScript ESM everywhere; internal packages are consumed as TS source (no build step).

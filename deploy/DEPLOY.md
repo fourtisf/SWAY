@@ -112,6 +112,7 @@ Then open https://swayfamily.com, sign in with X, create the Sway wallet and buy
 
 - **Updates:** push to the branch, then `sway-update` (as root).
 - **Fees to the operator wallet:** `bash /srv/sway/deploy/claim-fees.sh` makes the operator the treasury (when it owns SwayKeys), claims what it has earned, and walks an older treasury through claiming and forwarding its fees. It asks before each transaction.
+- **Collect everything into the operator wallet:** `bash /srv/sway/deploy/sweep.sh [handle …]` sells the operator's keys (not the locked first one) and launchpad tokens, claims its SwayKeys earnings, airdrops and launchpad creator fees, asking before each transaction; the handles' wallets get a little gas and a list of what to collect in the app.
 - **Where did the ETH go:** `bash /srv/sway/deploy/audit-wallets.sh <handle or 0x…>…` (read-only): deposits, trades, fees and what is left to claim; `deploy/check-earnings.sh 0x…` shows only what is claimable.
 - **Backups:** `/var/backups/sway` (nightly, 14 days). Copy them off the machine.
 - **Certificates:** renewed by certbot's timer; nginx reloads after each renewal.
