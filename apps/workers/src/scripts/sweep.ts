@@ -4,11 +4,14 @@
  * can do it from the app (their keys live in the browser, not here).
  *
  *   bash deploy/sweep.sh [handle|0xaddress …]
+ *   bash deploy/sweep.sh --key      empties a wallet whose private key you type (hidden, never saved), such as a
+ *                                   member's Sway wallet backed up from the app, into the operator wallet
  */
 import { prisma } from '@sway/db';
 import { swayChain } from '@sway/shared';
 import { swayLaunchpadAbi } from '@sway/shared/abi';
 import { createInterface } from 'node:readline/promises';
+import { Writable } from 'node:stream';
 import { createPublicClient, createWalletClient, erc20Abi, http, type Address, type PublicClient } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { loadConfig } from '../config';
@@ -32,12 +35,71 @@ try {
   /* ETH only */
 }
 const eth = (w: bigint) => `${(Number(w) / 1e18).toFixed(6)} ETH${ethUsd ? ` ($${((Number(w) / 1e18) * ethUsd).toFixed(2)})` : ''}`;
-const rl = createInterface({ input: process.stdin, output: process.stdout });
+// A private key is read without echoing it: readline writes through this stream, muted while it's typed or pasted.
+let muted = false;
+const output = new Writable({
+  write(chunk, encoding, done) {
+    if (!muted) process.stdout.write(chunk, encoding);
+    done();
+  },
+});
+const rl = createInterface({ input: process.stdin, output, terminal: !!process.stdin.isTTY });
 const confirm = async (q: string) => (await rl.question(`${q} Type yes: `)).trim() === 'yes';
+const askHidden = async (q: string) => {
+  process.stdout.write(q);
+  muted = true;
+  const a = await rl.question('');
+  muted = false;
+  process.stdout.write('\n');
+  return a.replace(/\s+/g, '');
+};
+
+if (process.argv.includes('--key')) {
+  // Empty a wallet whose key is typed here (a member's backed-up Sway wallet) into the operator wallet.
+  const raw = await askHidden('Private key of the wallet to empty (hidden, never saved): ');
+  if (!/^(0x)?[0-9a-fA-F]{64}$/.test(raw)) {
+    console.log('That isn’t a private key (64 hex characters). Nothing was sent.');
+    process.exit(1);
+  }
+  const theirs = privateKeyToAccount((raw.startsWith('0x') ? raw : `0x${raw}`) as `0x${string}`);
+  const from = lc(theirs.address) as Address;
+  const who =
+    (await prisma.wallet.findUnique({ where: { address: from }, select: { user: { select: { handle: true } } } }))?.user.handle ??
+    (await prisma.linkedWallet.findUnique({ where: { address: from }, select: { user: { select: { handle: true } } } }))?.user.handle;
+  console.log(`Wallet ${from}${who ? ` (@${who})` : ''}: ${eth(await pub.getBalance({ address: from }))}`);
+  if (from === me) {
+    console.log('That is the operator wallet itself: run it without --key.');
+    process.exit(1);
+  }
+  const theirWallet = createWalletClient({ chain, account: theirs, transport: http(cfg.rpcUrl) });
+  // It pays its own gas: top it up from the operator when it's nearly empty.
+  const gasPrice = await pub.getGasPrice();
+  const gas = gasPrice * 4_500_000n > 30_000_000_000_000n ? gasPrice * 4_500_000n : 30_000_000_000_000n;
+  const has = await pub.getBalance({ address: from });
+  if (has < gas && (await confirm(`It needs gas: send it ${eth(gas - has)} from the operator wallet?`))) {
+    await pub.waitForTransactionReceipt({ hash: await wallet.sendTransaction({ to: from, value: gas - has }) });
+    console.log('  sent');
+  }
+  const done = await sweep({ prisma, pub, wallet: theirWallet, keys: cfg.contracts.swayKeys, launchpad: cfg.contracts.launchpad, confirm, log: (m) => console.log(`  ${m}`), eth });
+  // Everything but this transfer's gas goes to the operator wallet.
+  const [balance, price] = await Promise.all([pub.getBalance({ address: from }), pub.getGasPrice()]);
+  const keep = price * 900_000n > 10_000_000_000_000n ? price * 900_000n : 10_000_000_000_000n;
+  if (balance > keep && (await confirm(`Send ${eth(balance - keep)} from ${from} to the operator wallet ${me}?`))) {
+    const r = await pub.waitForTransactionReceipt({ hash: await theirWallet.sendTransaction({ to: me as Address, value: balance - keep }) });
+    console.log(`  sent (${r.transactionHash})`);
+  }
+  console.log(
+    `\nDone: tokens sold ${eth(done.soldTokens)}, keys sold ${eth(done.soldKeys)}, earnings ${eth(done.claimedKeys)}, creator fees ${eth(done.creatorFees)}, ${done.airdrops} airdrops claimed.` +
+      `\nOperator ${me}: ${eth(await pub.getBalance({ address: me as Address }))}`,
+  );
+  rl.close();
+  await prisma.$disconnect();
+  process.exit(0);
+}
 
 // Other accounts: their wallets get gas, and their leftovers are listed for the app.
 const others: Array<{ address: Address; label: string }> = [];
-for (const a of process.argv.slice(2)) {
+for (const a of process.argv.slice(2).filter((x) => !x.startsWith('--'))) {
   if (/^0x[0-9a-fA-F]{40}$/.test(a)) others.push({ address: lc(a) as Address, label: '(address)' });
   else {
     const u = await prisma.user.findFirst({

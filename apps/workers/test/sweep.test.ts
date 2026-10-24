@@ -1,8 +1,10 @@
 /**
  * The operator sweep against a real anvil chain and the indexer: the operator holds another member's keys, has
  * key and launchpad earnings, an open airdrop and its own launchpad tokens; one sweep turns all of it into ETH and
- * tops up another wallet's gas, and a second sweep finds nothing left.
+ * tops up another wallet's gas, and a second sweep finds nothing left. Then `sweep --key` empties a member's wallet
+ * from its pasted key into the operator.
  */
+import { spawn } from 'node:child_process';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Redis } from 'ioredis';
 import { createWalletClient, erc20Abi, getContractAddress, http, parseEther, type Address, type Hex } from 'viem';
@@ -44,7 +46,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   // Later files launch on fresh chains too, at the same token address.
-  await prisma.launchToken.deleteMany({ where: { user: { handle: 'opacct' } } });
+  await prisma.launchToken.deleteMany({ where: { user: { handle: { in: ['opacct', 'keyacct'] } } } });
   chain?.stop();
   await c?.redis.quit();
   await prisma.$disconnect();
@@ -128,4 +130,63 @@ describe('operator sweep', () => {
     await sweep(ctx, [{ address: carol, label: '@carol', wei: 30_000_000_000_000n }]);
     expect(asked).toEqual([]);
   });
+});
+
+describe('sweep --key', () => {
+  // The script itself, answering its prompts like someone at the terminal; the key must never be echoed.
+  it('empties a pasted key wallet into the operator', async () => {
+    const keys = chain.deployment.swayKeys as Address;
+    const pad = chain.deployment.launchpad as Address;
+    const viemChain = swayChain({ chainId: chain.chainId, rpcUrl: chain.rpcUrl });
+    const op = chain.wallet(0);
+    const pk = generatePrivateKey();
+    const acct = privateKeyToAccount(pk);
+    await chain.test.setBalance({ address: acct.address, value: parseEther('1') });
+    const me = Object.assign(createWalletClient({ chain: viemChain, account: acct, transport: http(chain.rpcUrl) }), { address: acct.address });
+    const fanAcct = privateKeyToAccount(generatePrivateKey());
+    await chain.test.setBalance({ address: fanAcct.address, value: parseEther('5') });
+    const fan = Object.assign(createWalletClient({ chain: viemChain, account: fanAcct, transport: http(chain.rpcUrl) }), { address: fanAcct.address });
+    const wait = async (hash: Hex) => chain.pub.waitForTransactionReceipt({ hash });
+    const write = async (w: typeof me | typeof op, req: Record<string, unknown>) => wait(await w.writeContract({ chain: viemChain, account: w.account!, ...req } as never));
+    await prisma.user.create({ data: { xId: '660001', handle: 'keyacct', name: 'keyacct', joinedAt: new Date(), memberNo: 660001, wallet: { create: { address: lc(me.address), kind: 'embedded' } } } });
+    await write(op, { address: keys, abi: swayKeysAbi, functionName: 'openMarket', args: [me.address, 660001n] });
+    await write(fan, { address: keys, abi: swayKeysAbi, functionName: 'buy', args: [me.address, 300n], value: quoteWei(100n, 'buy', 300n).total });
+    const drop = buildAirdrop([{ address: me.address, units: 100n }, { address: fan.address, units: 300n }], 100_000_000n * 10n ** 18n);
+    const predicted = getContractAddress({ from: pad, nonce: BigInt(await chain.pub.getTransactionCount({ address: pad })) });
+    await prisma.launchToken.deleteMany({ where: { tokenAddress: lc(predicted) } });
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
+    const digest = (await chain.pub.readContract({ address: pad, abi: swayLaunchpadAbi, functionName: 'launchDigest', args: [me.address, 'Key', 'KEY', 10n ** 18n, 20n * 10n ** 18n, drop.root, deadline] })) as Hex;
+    const signature = await privateKeyToAccount(KEYS[0]!).sign({ hash: digest });
+    await write(me, { address: pad, abi: swayLaunchpadAbi, functionName: 'launch', args: ['Key', 'KEY', 10n ** 18n, 20n * 10n ** 18n, drop.root, deadline, signature] });
+    const token = (await chain.pub.readContract({ address: pad, abi: swayLaunchpadAbi, functionName: 'tokenOf', args: [me.address] })) as Address;
+    await write(fan, { address: pad, abi: swayLaunchpadAbi, functionName: 'buy', args: [token, 0n], value: parseEther('0.1') });
+    await write(me, { address: pad, abi: swayLaunchpadAbi, functionName: 'buy', args: [token, 0n], value: parseEther('0.05') });
+    const indexer = new Indexer(c);
+    for (let i = 0; i < 20; i++) if (!(await indexer.tick())) break;
+    const lt = await prisma.launchToken.findFirstOrThrow({ where: { tokenAddress: lc(token) } });
+    const mine = drop.entries.find((e) => lc(e.address) === lc(me.address))!;
+    await prisma.launchAirdrop.create({ data: { launchTokenId: lt.id, address: lc(me.address), amount: mine.amount.toString(), proof: mine.proof } });
+    await chain.test.setBalance({ address: me.address, value: 0n });
+    const before = await chain.pub.getBalance({ address: op.address });
+    const out = await new Promise<string>((ok) => {
+      const p = spawn('npx', ['tsx', 'src/scripts/sweep.ts', '--key'], { env: { ...process.env, API_PORT: '1' } });
+      let o = '';
+      let answered = 0;
+      // Answer each prompt as it appears, the way someone at the terminal would.
+      p.stdout.on('data', (d: Buffer) => {
+        o += d;
+        const prompts = (o.match(/Private key of the wallet|Type yes:/g) ?? []).length;
+        for (; answered < prompts; answered++) p.stdin.write(o.includes('Private key') && answered === 0 ? `${pk.slice(2)}\n` : 'yes\n');
+      });
+      p.stderr.on('data', (d: Buffer) => (o += d));
+      p.on('close', () => ok(o));
+    });
+    expect(out).not.toContain(pk.slice(2));
+    expect(out).toContain('Done:');
+    expect(await chain.pub.readContract({ address: token, abi: erc20Abi, functionName: 'balanceOf', args: [me.address] })).toBe(0n);
+    expect(await chain.pub.readContract({ address: pad, abi: swayLaunchpadAbi, functionName: 'airdropClaimed', args: [token, me.address] })).toBe(true);
+    expect(await chain.pub.readContract({ address: pad, abi: swayLaunchpadAbi, functionName: 'creatorFees', args: [me.address] })).toBe(0n);
+    expect(await chain.pub.getBalance({ address: me.address })).toBeLessThan(parseEther('0.01'));
+    expect(await chain.pub.getBalance({ address: op.address })).toBeGreaterThan(before);
+  }, 120_000);
 });

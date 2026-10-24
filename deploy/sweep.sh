@@ -4,6 +4,9 @@
 # Handles or addresses after it get a little gas and a list of what they still have to collect in the app (their
 # keys live in the browser). Run as root or as the app user, after sway-update:
 #   bash /srv/sway/deploy/sweep.sh _sonic_hub bittez_
+# With --key it instead empties a wallet whose private key you paste (hidden, never saved), like a member's Sway
+# wallet (Wallet → ⋯ → Back up key), into the operator wallet:
+#   bash /srv/sway/deploy/sweep.sh --key
 set -euo pipefail
 ROOT="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 OWNER="$(stat -c %U "$ROOT")"
