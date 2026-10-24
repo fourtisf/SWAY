@@ -1,7 +1,7 @@
 /**
  * Read-only audit of wallets (scripts/audit.ts prints it): where their ETH came from and went, what their key
  * trades cost, which fees went where, and what is still waiting to be claimed. Money in and out comes from the
- * explorer (Blockscout's account API: normal and internal transactions), trades and claims from the indexer's
+ * explorer (Blockscout: the etherscan-style account API, else its v2 API), trades and claims from the indexer's
  * mirror, claimable earnings and balances from the chain.
  */
 import { quoteWei } from '@sway/curve';
@@ -14,51 +14,112 @@ export const KEYS_ABI = parseAbi([
   'function staking() view returns (address)',
   'function referrerOf(address user) view returns (address)',
 ]);
-const LOCKED = 100n;
+export const LOCKED = 100n;
 const lc = (a: string) => a.toLowerCase();
 const big = (d: unknown) => BigInt(String(d ?? 0).split('.')[0] || '0');
 
-/** One transaction as Blockscout's etherscan-style account API lists it. */
+/** One transaction, as Blockscout's etherscan-style account API lists it. `fee` (v2) is the whole fee paid. */
 export interface ExplorerTx {
   from: string;
   to: string;
   value: string;
   gasUsed?: string;
   gasPrice?: string;
+  fee?: string;
   isError?: string;
 }
-/** Normal and internal transactions of an address, or null when the explorer can't be read. */
-export type TxSource = (address: string) => Promise<{ normal: ExplorerTx[]; internal: ExplorerTx[] } | null>;
+export type TxHistory = { normal: ExplorerTx[]; internal: ExplorerTx[] };
+/** Normal and internal transactions of an address, or why the explorer couldn't give them. */
+export type TxSource = (address: string) => Promise<TxHistory | { error: string }>;
 
-export function blockscout(explorer: string): TxSource {
-  const base = explorer.replace(/\/$/, '');
-  const get = async (url: string): Promise<{ result?: ExplorerTx[] | string } | null> => {
-    for (let i = 0; i < 3; i++) {
-      try {
-        const r = await fetch(url, { signal: AbortSignal.timeout(20_000) });
-        if (r.ok) return (await r.json()) as { result?: ExplorerTx[] | string };
-      } catch {
-        /* retry */
+type Got = { body: unknown } | { error: string };
+async function getJson(url: string, retryMs: number): Promise<Got> {
+  let error = '';
+  for (let i = 0; i < 3; i++) {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(30_000), headers: { accept: 'application/json' } });
+      const text = await r.text();
+      if (!r.ok) error = `HTTP ${r.status}${text ? `: ${text.replace(/\s+/g, ' ').slice(0, 80)}` : ''}`;
+      else {
+        try {
+          return { body: JSON.parse(text) };
+        } catch {
+          error = `not JSON: ${text.replace(/\s+/g, ' ').slice(0, 80)}`;
+        }
       }
-      await new Promise((ok) => setTimeout(ok, 1500));
+    } catch (e) {
+      const cause = (e as { cause?: { code?: string; message?: string } }).cause;
+      error = `${(e as Error).message}${cause ? ` (${cause.code ?? cause.message})` : ''}`;
     }
-    return null;
-  };
-  const list = async (address: string, action: string): Promise<ExplorerTx[] | null> => {
+    if (i < 2) await new Promise((ok) => setTimeout(ok, retryMs * (i + 1)));
+  }
+  return { error };
+}
+
+/** Blockscout's etherscan-style API (`/api?module=account…`), falling back to its v2 API (`/api/v2/addresses/…`). */
+export function blockscout(explorer: string, apiKey = '', retryMs = 1500): TxSource {
+  const base = explorer.replace(/\/$/, '');
+  const key = apiKey ? `apikey=${encodeURIComponent(apiKey)}` : '';
+  const v1 = async (address: string, action: 'txlist' | 'txlistinternal'): Promise<ExplorerTx[] | { error: string }> => {
     const out: ExplorerTx[] = [];
-    for (let page = 1; page <= 20; page++) {
-      const body = await get(`${base}/api?module=account&action=${action}&address=${address}&sort=asc&page=${page}&offset=1000`);
-      if (!body) return null;
-      const rows = Array.isArray(body.result) ? body.result : [];
-      out.push(...rows);
-      if (rows.length < 1000) break;
+    for (let page = 1; page <= 50; page++) {
+      const got = await getJson(`${base}/api?module=account&action=${action}&address=${address}&sort=asc&page=${page}&offset=1000${key ? `&${key}` : ''}`, retryMs);
+      if ('error' in got) return got;
+      const body = got.body as { message?: string; result?: unknown };
+      // "No transactions found" comes back as an empty result; a rate limit or a bad request as a string.
+      if (!Array.isArray(body.result)) {
+        if (/no .*found/i.test(String(body.message ?? '')) || body.result == null) break;
+        return { error: `${body.message ?? 'error'}: ${String(body.result).slice(0, 80)}` };
+      }
+      out.push(...(body.result as ExplorerTx[]));
+      if (body.result.length < 1000) break;
       await new Promise((ok) => setTimeout(ok, 250));
     }
     return out;
   };
+  type V2Item = {
+    from?: { hash?: string } | null;
+    to?: { hash?: string } | null;
+    created_contract?: { hash?: string } | null;
+    value?: string;
+    fee?: { value?: string } | null;
+    status?: string | null;
+    success?: boolean | null;
+  };
+  const v2 = async (address: string, kind: 'transactions' | 'internal-transactions'): Promise<ExplorerTx[] | { error: string }> => {
+    const out: ExplorerTx[] = [];
+    let next = '';
+    for (let page = 0; page < 500; page++) {
+      const q = [next, key].filter(Boolean).join('&');
+      const got = await getJson(`${base}/api/v2/addresses/${address}/${kind}${q ? `?${q}` : ''}`, retryMs);
+      if ('error' in got) return got;
+      const body = got.body as { items?: V2Item[]; next_page_params?: Record<string, string | number> | null };
+      if (!Array.isArray(body.items)) return { error: 'no items in the answer' };
+      for (const t of body.items) {
+        const failed = kind === 'transactions' ? t.status === 'error' : t.success === false;
+        out.push({
+          from: t.from?.hash ?? '',
+          to: t.to?.hash ?? t.created_contract?.hash ?? '',
+          value: t.value ?? '0',
+          fee: kind === 'transactions' ? (t.fee?.value ?? '0') : undefined,
+          isError: failed ? '1' : '0',
+        });
+      }
+      if (!body.next_page_params) break;
+      next = new URLSearchParams(Object.entries(body.next_page_params).map(([k, v]) => [k, String(v)] as [string, string])).toString();
+      await new Promise((ok) => setTimeout(ok, 250));
+    }
+    return out;
+  };
+  const why = (x: ExplorerTx[] | { error: string }) => (Array.isArray(x) ? 'ok' : x.error);
   return async (address) => {
-    const [normal, internal] = await Promise.all([list(address, 'txlist'), list(address, 'txlistinternal')]);
-    return normal && internal ? { normal, internal } : null;
+    const a = await v1(address, 'txlist');
+    const b = Array.isArray(a) ? await v1(address, 'txlistinternal') : a;
+    if (Array.isArray(a) && Array.isArray(b)) return { normal: a, internal: b };
+    const c = await v2(address, 'transactions');
+    const d = Array.isArray(c) ? await v2(address, 'internal-transactions') : c;
+    if (Array.isArray(c) && Array.isArray(d)) return { normal: c, internal: d };
+    return { error: `${base}/api → ${why(b)}; /api/v2 → ${why(d)}` };
   };
 }
 
@@ -70,6 +131,7 @@ export interface WalletReport {
   address: string;
   owner: string;
   explorerOk: boolean;
+  explorerError: string | null;
   /** ETH from addresses outside the audited set (and not Sway's own contracts). */
   depositsIn: bigint;
   fromOperator: bigint;
@@ -105,6 +167,8 @@ export interface AuditContext {
   keys: Address;
   /** Every audited wallet → its label (@handle). Transfers between them count as moves, not deposits. */
   owners: Map<string, string>;
+  /** Markets of the audited members (a claimed fan market keeps its fan subject), lowercase. */
+  ownSubjects: Set<string>;
   operator: string | null;
   /** Sway's other contracts (launchpad, staking…), lowercase. */
   swayContracts: Set<string>;
@@ -119,6 +183,7 @@ export async function auditWallet(ctx: AuditContext, address: string): Promise<W
     address: a,
     owner: ctx.owners.get(a) ?? '',
     explorerOk: false,
+    explorerError: null,
     depositsIn: 0n, fromOperator: 0n, fromOwn: 0n, fromKeysContract: 0n, fromOtherSway: 0n,
     withdrawnOut: 0n, toOwn: 0n, toKeysContract: 0n, toOtherSway: 0n, gas: 0n, expectedBalance: 0n,
     balance: await ctx.pub.getBalance({ address: a as Address }),
@@ -129,12 +194,13 @@ export async function auditWallet(ctx: AuditContext, address: string): Promise<W
   const other = (x: string) => others.get(x) ?? others.set(x, { address: x, in: 0n, out: 0n }).get(x)!;
 
   const h = ctx.txs ? await ctx.txs(a) : null;
-  if (h) {
+  if (h && 'error' in h) r.explorerError = h.error;
+  else if (h) {
     r.explorerOk = true;
     for (const t of h.normal) {
       const from = lc(t.from || ''), to = lc(t.to || ''), v = t.isError === '1' ? 0n : BigInt(t.value || '0');
       if (from === a) {
-        r.gas += BigInt(t.gasUsed || '0') * BigInt(t.gasPrice || '0');
+        r.gas += t.fee !== undefined ? BigInt(t.fee || '0') : BigInt(t.gasUsed || '0') * BigInt(t.gasPrice || '0');
         if (to === a) continue;
         if (to === keys) r.toKeysContract += v;
         else if (ctx.swayContracts.has(to)) r.toOtherSway += v;
@@ -181,7 +247,7 @@ export async function auditWallet(ctx: AuditContext, address: string): Promise<W
     r.fees.protocol += big(t.protocolFeeWei);
     r.fees.holder += big(t.holderFeeWei);
     r.fees.referral += big(t.referralFeeWei);
-    if (own(lc(t.market.subject))) r.creatorFeesToOwn += big(t.creatorFeeWei);
+    if (ctx.ownSubjects.has(lc(t.market.subject))) r.creatorFeesToOwn += big(t.creatorFeeWei);
     else r.creatorFeesToOthers += big(t.creatorFeeWei);
   }
   for (const c of await ctx.prisma.earningsClaim.findMany({ where: { address: a } })) {
@@ -191,7 +257,10 @@ export async function auditWallet(ctx: AuditContext, address: string): Promise<W
     r.claimed.protocol += big(c.protocolWei);
   }
 
-  const holdings = await ctx.prisma.holding.findMany({ where: { address: a, units: { gt: 0n } }, include: { market: { select: { subject: true, supplyUnits: true } } } });
+  const holdings = await ctx.prisma.holding.findMany({
+    where: { address: a, units: { gt: 0n } },
+    include: { market: { select: { subject: true, supplyUnits: true, user: { select: { wallet: { select: { address: true } } } } } } },
+  });
   const [creator, holder, referral, protocol] = await ctx.pub.readContract({
     address: ctx.keys,
     abi: KEYS_ABI,
@@ -200,12 +269,17 @@ export async function auditWallet(ctx: AuditContext, address: string): Promise<W
   });
   r.claimable = { creator, holder, referral, protocol };
   for (const x of holdings) {
-    const sellable = lc(x.market.subject) === a ? x.units - LOCKED : x.units;
-    if (sellable > 0n && x.market.supplyUnits - sellable >= LOCKED) r.keysValue += quoteWei(x.market.supplyUnits, 'sell', sellable).total;
+    const isOwner = lc(x.market.subject) === a || lc(x.market.user.wallet?.address ?? '') === a;
+    r.keysValue += sellValue(x.market.supplyUnits, isOwner ? x.units - LOCKED : x.units);
   }
   const ref = lc(await ctx.pub.readContract({ address: ctx.keys, abi: KEYS_ABI, functionName: 'referrerOf', args: [a as Address] }));
   r.referrer = /^0x0{40}$/.test(ref) ? null : ref;
   return r;
+}
+
+/** What selling `units` would pay now (before anyone else sells), or 0 when they can't be sold. */
+export function sellValue(supply: bigint, units: bigint): bigint {
+  return units > 0n && supply - units >= LOCKED ? quoteWei(supply, 'sell', units).total : 0n;
 }
 
 export interface AuditTotals {
@@ -246,6 +320,6 @@ export function totals(reports: WalletReport[]): AuditTotals {
     keysValue: T((r) => r.keysValue),
     net: null,
   };
-  if (reports.every((r) => r.explorerOk)) t.net = t.balance + t.claimable + t.keysValue - t.deposits + t.withdrawals;
+  if (reports.length && reports.every((r) => r.explorerOk)) t.net = t.balance + t.claimable + t.keysValue - t.deposits + t.withdrawals;
   return t;
 }

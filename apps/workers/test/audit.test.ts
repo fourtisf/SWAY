@@ -138,7 +138,9 @@ describe('wallet audit', () => {
     }
 
     const owners = new Map([a, b, d].map((w) => [lc(w.address), '@audited'] as [string, string]));
-    const ctx: AuditContext = { prisma, pub: chain.pub as never, keys, owners, operator: lc(op.address), swayContracts: new Set(), txs: await chainExplorer() };
+    const ctx: AuditContext = {
+      prisma, pub: chain.pub as never, keys, owners, ownSubjects: new Set([lc(a.address)]), operator: lc(op.address), swayContracts: new Set(), txs: await chainExplorer(),
+    };
     const reports = [];
     for (const w of [a, b, d]) reports.push(await auditWallet(ctx, w.address));
     const [ra, rb, rd] = reports as [(typeof reports)[0], (typeof reports)[0], (typeof reports)[0]];
