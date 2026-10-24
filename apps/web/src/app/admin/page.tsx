@@ -477,10 +477,10 @@ function Contracts() {
 
   // Fees credited to a wallet the server doesn't hold (an older treasury, say): claim them from the wallet app, then
   // send them on to the current treasury, keeping enough for that transfer's gas.
-  const claimHere = async () => {
+  const claimHere = async (rdns: string | null) => {
     const ext = useExternalWallet.getState().api;
     if (!ext) throw new Error('Wallet apps aren’t available in this browser');
-    const { address, wallet } = await ext.connect({ via: 'injected', rdns: via || null });
+    const { address, wallet } = await ext.connect({ via: 'injected', rdns });
     const pub = createPublicClient({ chain: swayChain({ chainId: cfg!.chainId, rpcUrl: cfg!.rpcUrl }), transport: http(cfg!.rpcUrl) });
     const keys = cfg!.contracts.swayKeys!;
     const [c, h, r, p] = await pub.readContract({ address: keys, abi: KEYS_FEES, functionName: 'claimable', args: [address, []] });
@@ -544,13 +544,22 @@ function Contracts() {
         <div className="glass adm-card" id="claim-fees">
           <b style={{ fontSize: 16 }}>Claim fees from a wallet app</b>
           <p className="t2" style={{ fontSize: 13.5, margin: '4px 0 12px' }}>
-            For fees credited to a wallet this server doesn’t hold, like an older treasury. Open your wallet app on that account and press Claim: it
-            claims everything waiting for it{treasury ? `, then sends it on to the treasury ${shortAddress(treasury)}` : ''}. Two confirmations, a little
-            gas on {cfg.chainName}.
+            For fees credited to a wallet this server doesn’t hold, like an older treasury. Pick the wallet app that holds that account (switched
+            to it): it claims everything waiting for it{treasury ? `, then sends it on to the treasury ${shortAddress(treasury)}` : ''}. Two
+            confirmations, a little gas on {cfg.chainName}.
           </p>
-          <button className="btn btn-white btn-sm" disabled={!!busy} onClick={() => run('claim-fees', claimHere, 'Fees claimed and sent to the treasury')}>
-            {busy === 'claim-fees' ? 'Confirm in wallet…' : 'Claim'}
-          </button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {(detected.length ? detected : [{ rdns: '', name: 'browser wallet' }]).map((d) => (
+              <button
+                key={d.rdns || 'injected'}
+                className="btn btn-white btn-sm"
+                disabled={!!busy}
+                onClick={() => run(`claim-fees:${d.rdns}`, () => claimHere(d.rdns || null), 'Fees claimed and sent to the treasury')}
+              >
+                {busy === `claim-fees:${d.rdns}` ? 'Confirm in wallet…' : `Claim with ${d.name}`}
+              </button>
+            ))}
+          </div>
         </div>
       )}
       {isError ? (
