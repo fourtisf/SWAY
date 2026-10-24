@@ -25,7 +25,9 @@ const pub = createPublicClient({ chain: swayChain({ chainId: cfg.chainId, rpcUrl
 const explorer = process.env.EXPLORER_API_URL || cfg.explorerUrl || (cfg.chainId === 4663 ? ROBINHOOD_MAINNET_EXPLORER : '');
 const lc = (a: string) => a.toLowerCase();
 const ZERO = /^0x0{40}$/;
-const big = (d: unknown) => BigInt(String(d ?? 0).split('.')[0] || '0');
+// Prisma Decimals print large values in exponent form (1.08e+26), so read them with toFixed(0).
+const big = (d: unknown): bigint =>
+  d == null ? 0n : typeof d === 'bigint' ? d : BigInt(typeof (d as { toFixed?: unknown }).toFixed === 'function' ? (d as { toFixed(n: number): string }).toFixed(0) : String(d).split('.')[0] || '0');
 
 let ethUsd = Number(process.env.ETH_USD_FALLBACK || 0);
 try {
@@ -330,6 +332,59 @@ for (const uid of userIds) {
     }
     console.log(`    ${t.address.slice(0, 10)}… holds ${(Number(big(t.balance)) / 1e18).toLocaleString('en-US', { maximumFractionDigits: 0 })} $${lt.symbol}${value}`);
   }
+}
+
+// What each account still holds and what it would fetch today: ETH, keys (at the curve's sell price, each position
+// as if sold first), launchpad tokens (the launchpad's quoteSell, which can't pay out more ETH than its curve holds)
+// and earnings waiting to be claimed.
+console.log('\nWHAT EACH ACCOUNT HOLDS NOW, AND WHAT IT SELLS FOR TODAY');
+let grand = 0n;
+for (const acc of [...new Set(reports.map((r) => r.owner))]) {
+  const mine = reports.filter((r) => r.owner === acc);
+  const wallets = mine.map((r) => r.address);
+  let sum = 0n;
+  console.log(`\n  ${acc}`);
+  for (const r of mine) {
+    some(`  ETH in ${r.address.slice(0, 10)}…`, r.balance);
+    sum += r.balance;
+  }
+  const keyRows = await prisma.holding.findMany({
+    where: { address: { in: wallets }, units: { gt: 0n } },
+    include: { market: { select: { subject: true, supplyUnits: true, user: { select: { handle: true, wallet: { select: { address: true } } } } } } },
+  });
+  for (const h of keyRows) {
+    const owner = lc(h.market.subject) === h.address || lc(h.market.user.wallet?.address ?? '') === h.address;
+    const sellable = owner ? h.units - LOCKED : h.units;
+    const value = sellValue(h.market.supplyUnits, sellable);
+    line(`  ${keysOf(h.units)} of @${h.market.user.handle}`, value, owner && sellable <= 0n ? 'your own first key: locked, can’t be sold' : `${keysOf(sellable > 0n ? sellable : 0n)} sellable · in ${h.address.slice(0, 10)}…`);
+    sum += value;
+  }
+  const tokenRows = await prisma.launchHolder.findMany({
+    where: { address: { in: wallets }, balance: { gt: 0 } },
+    select: { address: true, balance: true, launchToken: { select: { symbol: true, tokenAddress: true, graduated: true } } },
+  });
+  for (const t of tokenRows) {
+    const lt = t.launchToken;
+    const amount = (Number(big(t.balance)) / 1e18).toLocaleString('en-US', { maximumFractionDigits: 0 });
+    if (lt.graduated || !cfg.contracts.launchpad || !lt.tokenAddress) {
+      console.log(`    ${amount} $${lt.symbol} in ${t.address.slice(0, 10)}…${lt.graduated ? ' (graduated: sell on Uniswap)' : ''}`);
+      continue;
+    }
+    const [out] = await pub
+      .readContract({ address: cfg.contracts.launchpad, abi: LAUNCHPAD_ABI, functionName: 'quoteSell', args: [lt.tokenAddress as Address, big(t.balance)] })
+      .catch(() => [0n] as const);
+    line(`  ${amount} $${lt.symbol}`, out, `sold on the launchpad now · in ${t.address.slice(0, 10)}…`);
+    sum += out;
+  }
+  const toClaim = mine.reduce((s, r) => s + sum4(r.claimable), 0n);
+  some('  earnings waiting to be claimed', toClaim, 'Wallet → Claim');
+  sum += toClaim;
+  line('  ⇒ worth today', sum);
+  grand += sum;
+}
+line('ALL ACCOUNTS: worth today', grand);
+if (!owners.has(treasury)) {
+  some('  + fees at the treasury', treasuryFees, treasury);
 }
 
 // One summary per account (all its wallets), then everything together.

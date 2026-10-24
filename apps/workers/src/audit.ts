@@ -21,7 +21,9 @@ const lc = (a: string) => a.toLowerCase();
 const SELECTORS = new Map<string, string>(
   Object.values(abis).flatMap((abi) => (abi as readonly { type: string }[]).filter((x): x is AbiFunction => x.type === 'function').map((f) => [toFunctionSelector(f), f.name] as [string, string])),
 );
-const big = (d: unknown) => BigInt(String(d ?? 0).split('.')[0] || '0');
+// Prisma Decimals print large values in exponent form (1.08e+26), so read them with toFixed(0).
+const big = (d: unknown): bigint =>
+  d == null ? 0n : typeof d === 'bigint' ? d : BigInt(typeof (d as { toFixed?: unknown }).toFixed === 'function' ? (d as { toFixed(n: number): string }).toFixed(0) : String(d).split('.')[0] || '0');
 
 /** One transaction, as Blockscout's etherscan-style account API lists it. `fee` (v2) is the whole fee paid. */
 export interface ExplorerTx {
