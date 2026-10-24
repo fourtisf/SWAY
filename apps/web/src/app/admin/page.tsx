@@ -401,6 +401,10 @@ const OWNABLE = parseAbi([
   'function acceptOwnership()',
 ]);
 const KEYS_STAKING = parseAbi(['function staking() view returns (address)', 'function setStaking(address staking_)']);
+const KEYS_FEES = parseAbi([
+  'function treasury() view returns (address)',
+  'function claimable(address account, address[] subjects) view returns (uint256 creator, uint256 holder, uint256 referral, uint256 protocol)',
+]);
 const OWNED = [
   ['swayKeys', 'SwayKeys'],
   ['fanEscrow', 'FanEscrow'],
@@ -452,6 +456,14 @@ function Contracts() {
       return pub.readContract({ address: cfg!.contracts.swayKeys!, abi: KEYS_STAKING, functionName: 'staking' });
     },
   }).data;
+  const treasury = useQuery({
+    queryKey: ['admin', 'treasury', cfg?.chainId, cfg?.contracts.swayKeys],
+    enabled: !!cfg?.contracts.swayKeys,
+    queryFn: async () => {
+      const pub = createPublicClient({ chain: swayChain({ chainId: cfg!.chainId, rpcUrl: cfg!.rpcUrl }), transport: http(cfg!.rpcUrl) });
+      return pub.readContract({ address: cfg!.contracts.swayKeys!, abi: KEYS_FEES, functionName: 'treasury' });
+    },
+  }).data;
   const keysOwner = data?.find((c) => c.name === 'SwayKeys')?.owner ?? null;
   const stakingOff = !!staking && !!keysStaking && keysStaking.toLowerCase() !== staking.toLowerCase();
   const turnOnStaking = async () => {
@@ -461,6 +473,24 @@ function Contracts() {
     if (keysOwner && address.toLowerCase() !== keysOwner.toLowerCase())
       throw new Error(`Switch your wallet app to ${shortAddress(keysOwner)}, the SwayKeys owner (it shared ${shortAddress(address)})`);
     await wallet.waitForReceipt(await wallet.writeContract({ address: cfg!.contracts.swayKeys!, abi: KEYS_STAKING, functionName: 'setStaking', args: [staking!] }));
+  };
+
+  // Fees credited to a wallet the server doesn't hold (an older treasury, say): claim them from the wallet app, then
+  // send them on to the current treasury, keeping enough for that transfer's gas.
+  const claimHere = async () => {
+    const ext = useExternalWallet.getState().api;
+    if (!ext) throw new Error('Wallet apps aren’t available in this browser');
+    const { address, wallet } = await ext.connect({ via: 'injected', rdns: via || null });
+    const pub = createPublicClient({ chain: swayChain({ chainId: cfg!.chainId, rpcUrl: cfg!.rpcUrl }), transport: http(cfg!.rpcUrl) });
+    const keys = cfg!.contracts.swayKeys!;
+    const [c, h, r, p] = await pub.readContract({ address: keys, abi: KEYS_FEES, functionName: 'claimable', args: [address, []] });
+    if (c + h + r + p === 0n) throw new Error(`Nothing to claim for ${shortAddress(address)}: switch your wallet app to the account that holds the fees`);
+    await wallet.waitForReceipt(await wallet.claim([]));
+    const to = await pub.readContract({ address: keys, abi: KEYS_FEES, functionName: 'treasury' });
+    if (to.toLowerCase() === address.toLowerCase()) return;
+    const [balance, gasPrice] = await Promise.all([pub.getBalance({ address }), pub.getGasPrice()]);
+    const keep = gasPrice * 3n * 300_000n > 10_000_000_000_000n ? gasPrice * 3n * 300_000n : 10_000_000_000_000n;
+    if (balance > keep) await wallet.waitForReceipt(await wallet.sendEth(to, balance - keep));
   };
 
   const accept = async (c: OwnedContract & { pending: Address }) => {
@@ -507,6 +537,19 @@ function Contracts() {
           </p>
           <button className="btn btn-white btn-sm" disabled={!!busy} onClick={() => run('staking', turnOnStaking, 'Staking is on for key trades')}>
             {busy === 'staking' ? 'Confirm in wallet…' : 'Turn on staking'}
+          </button>
+        </div>
+      )}
+      {cfg.contracts.swayKeys && (
+        <div className="glass adm-card" id="claim-fees">
+          <b style={{ fontSize: 16 }}>Claim fees from a wallet app</b>
+          <p className="t2" style={{ fontSize: 13.5, margin: '4px 0 12px' }}>
+            For fees credited to a wallet this server doesn’t hold, like an older treasury. Open your wallet app on that account and press Claim: it
+            claims everything waiting for it{treasury ? `, then sends it on to the treasury ${shortAddress(treasury)}` : ''}. Two confirmations, a little
+            gas on {cfg.chainName}.
+          </p>
+          <button className="btn btn-white btn-sm" disabled={!!busy} onClick={() => run('claim-fees', claimHere, 'Fees claimed and sent to the treasury')}>
+            {busy === 'claim-fees' ? 'Confirm in wallet…' : 'Claim'}
           </button>
         </div>
       )}
