@@ -34,7 +34,7 @@ async function chainExplorer(): Promise<TxSource> {
     for (const tx of b.transactions) {
       const rc = await chain.pub.getTransactionReceipt({ hash: tx.hash });
       const isError = rc.status === 'success' ? '0' : '1';
-      normal.push({ from: tx.from, to: tx.to ?? '', value: tx.value.toString(), gasUsed: rc.gasUsed.toString(), gasPrice: rc.effectiveGasPrice.toString(), isError });
+      normal.push({ from: tx.from, to: tx.to ?? '', value: tx.value.toString(), gasUsed: rc.gasUsed.toString(), gasPrice: rc.effectiveGasPrice.toString(), isError, input: tx.input });
       const trace = (await chain.pub.request({ method: 'debug_traceTransaction', params: [tx.hash, { tracer: 'callTracer' }] } as never)) as Call;
       const walk = (calls: Call[] | undefined) => {
         for (const k of calls ?? []) {
@@ -102,6 +102,8 @@ describe('wallet audit', () => {
       data: { xId: '880001', handle: 'audited', name: 'Audited', joinedAt: new Date(), memberNo: 880001, wallet: { create: { address: lc(a.address), kind: 'embedded' } } },
     });
     for (const w of [b, d]) await prisma.linkedWallet.create({ data: { userId: user.id, address: lc(w.address) } });
+    const e = mk(); // another member's wallet
+    await prisma.user.create({ data: { xId: '880002', handle: 'friend', name: 'Friend', wallet: { create: { address: lc(e.address), kind: 'embedded' } } } });
     const op = chain.wallet(0);
     await chain.pub.waitForTransactionReceipt({
       hash: await op.writeContract({ address: keys, abi: swayKeysAbi, functionName: 'openMarket', args: [a.address, 880001n], chain: op.chain, account: op.account! }),
@@ -125,6 +127,8 @@ describe('wallet audit', () => {
       hash: await a.writeContract({ address: keys, abi: swayKeysAbi, functionName: 'claim', args: [[a.address]], chain: viemChain, account: a.account! }),
     });
     await send(a, funder.address, parseEther('0.1'));
+    await send(b, e.address, parseEther('0.05'));
+    await send(d, a.address, parseEther('0.02'));
 
     const indexer = new Indexer(c);
     await catchUp(indexer);
@@ -139,7 +143,7 @@ describe('wallet audit', () => {
 
     const owners = new Map([a, b, d].map((w) => [lc(w.address), '@audited'] as [string, string]));
     const ctx: AuditContext = {
-      prisma, pub: chain.pub as never, keys, owners, ownSubjects: new Set([lc(a.address)]), operator: lc(op.address), swayContracts: new Set(), txs: await chainExplorer(),
+      prisma, pub: chain.pub as never, keys, owners, ownSubjects: new Set([lc(a.address)]), operator: lc(op.address), swayContracts: new Map(), members: new Map([...owners, [lc(e.address), '@friend']]), txs: await chainExplorer(),
     };
     const reports = [];
     for (const w of [a, b, d]) reports.push(await auditWallet(ctx, w.address));
@@ -153,7 +157,16 @@ describe('wallet audit', () => {
     }
     expect(ra.withdrawnOut).toBe(parseEther('0.1'));
     expect(ra.others).toEqual([{ address: lc(funder.address), in: parseEther('1'), out: parseEther('0.1') }]);
-    expect(rb.others).toEqual([{ address: lc(funder.address), in: parseEther('1'), out: 0n }]);
+    expect(rb.others).toEqual([
+      { address: lc(funder.address), in: parseEther('1'), out: 0n },
+      { address: lc(e.address), in: 0n, out: parseEther('0.05') },
+    ]);
+    expect(rb.toMembers).toBe(parseEther('0.05'));
+    expect([ra.fromOwn, rd.toOwn]).toEqual([parseEther('0.02'), parseEther('0.02')]);
+    // What each wallet's own transactions did, named from Sway's ABIs.
+    expect(rb.actions.map((x) => [x.action, x.count]).sort()).toEqual([['ETH to other members', 1], ['SwayKeys.buy', 1], ['SwayKeys.sell', 1]]);
+    expect(rb.actions.reduce((s, x) => s + x.gas, 0n)).toBe(rb.gas);
+    expect(ra.actions.map((x) => [x.action, x.count, x.value]).sort()).toEqual([['ETH to outside addresses', 1, parseEther('0.1')], ['SwayKeys.claim', 1, 0n]]);
     expect(rb.buys + rb.sells + rd.buys + rd.sells).toBe(4);
     expect(rb.toKeysContract).toBe(rb.paid);
     expect(rb.fromKeysContract).toBe(rb.received);
@@ -169,13 +182,15 @@ describe('wallet audit', () => {
     const t = totals(reports);
     expect(t.deposits).toBe(parseEther('3'));
     expect(t.withdrawals).toBe(parseEther('0.1'));
+    expect(t.toMembers).toBe(parseEther('0.05'));
+    expect(t.fromOwn).toBe(t.toOwn);
     expect(t.fees).toEqual(fees);
     // Holders here are all the same person, so the holder fees come back too (less per-unit rounding dust).
     expect(t.holderRewardsEarned).toBeLessThanOrEqual(fees.holder);
     expect(fees.holder - t.holderRewardsEarned).toBeLessThan(10_000n);
     // ETH that left the wallets and didn't come back is exactly what the trades kept: paid − received − claimed.
-    expect(t.deposits - t.withdrawals - t.gas - t.balance).toBe(t.paid - t.received - t.claimed);
-    expect(t.net).toBe(t.balance + t.claimable + t.keysValue - t.deposits + t.withdrawals);
+    expect(t.deposits - t.withdrawals - t.toMembers - t.gas - t.balance).toBe(t.paid - t.received - t.claimed);
+    expect(t.net).toBe(t.balance + t.claimable + t.keysValue - t.deposits + t.withdrawals + t.toMembers);
     // Apart from gas, what the person is down is the fees that left them (protocol, unreferred referral halves,
     // rounding dust) plus the fees a sale of the keys still held would pay.
     const held = quoteWei(supply, 'sell', 100n);

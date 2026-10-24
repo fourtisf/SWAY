@@ -97,6 +97,13 @@ const ownMarkets = await prisma.keyMarket.findMany({
   where: { OR: [{ userId: { in: [...userIds] } }, { subject: { in: [...owners.keys()] } }] },
   select: { id: true, subject: true, supplyUnits: true, volumeWei: true, user: { select: { handle: true, wallet: { select: { address: true } } } } },
 });
+const members = new Map<string, string>();
+for (const w of await prisma.wallet.findMany({ select: { address: true, user: { select: { handle: true } } } })) members.set(lc(w.address), `@${w.user.handle}`);
+for (const w of await prisma.linkedWallet.findMany({ select: { address: true, user: { select: { handle: true } } } })) members.set(lc(w.address), `@${w.user.handle}`);
+const contractNames: Record<string, string> = { fanEscrow: 'FanEscrow', swayStaking: 'SwayStaking', genesisPass: 'GenesisPass', launchpad: 'Launchpad', drops: 'Drops' };
+const swayContracts = new Map<string, string>();
+for (const [k, v] of Object.entries(cfg.contracts)) if (typeof v === 'string' && /^0x/.test(v) && !ZERO.test(v) && lc(v) !== lc(keys)) swayContracts.set(lc(v), contractNames[k] ?? k);
+const progress = (msg: string) => process.stderr.write(`\r  explorer: ${msg}`.slice(0, 100).padEnd(100));
 const ctx: AuditContext = {
   prisma,
   pub,
@@ -104,8 +111,9 @@ const ctx: AuditContext = {
   owners,
   ownSubjects: new Set(ownMarkets.map((m) => lc(m.subject))),
   operator,
-  swayContracts: new Set(Object.values(cfg.contracts).filter((v): v is Address => typeof v === 'string' && /^0x/.test(v) && lc(v) !== lc(keys)).map(lc)),
-  txs: explorer ? blockscout(explorer, process.env.EXPLORER_API_KEY ?? '') : null,
+  swayContracts,
+  members,
+  txs: explorer ? blockscout(explorer, { apiKey: process.env.EXPLORER_API_KEY ?? '', progress }) : null,
 };
 
 console.log(`Sway audit · chain ${cfg.chainId} · ETH $${ethUsd || '?'} · explorer ${explorer || 'none: deposits, withdrawals and gas are skipped'}`);
@@ -119,13 +127,20 @@ if (!noStaking) {
   line("stakers' fees waiting in SwayKeys", stakers, `${staking} (harvest() pays them to stakers)`);
   some('staking contract holds', await pub.getBalance({ address: staking as Address }), "harvested, not paid out yet");
 }
-if (operator) line('operator: ETH in the wallet', await pub.getBalance({ address: operator as Address }), `${operator} (pays Sway's own transactions)`);
+if (operator) {
+  line('operator: ETH in the wallet', await pub.getBalance({ address: operator as Address }), `${operator} (pays Sway's own transactions)`);
+  const who = members.get(operator);
+  if (who) console.log(`  ! the operator is also ${who}'s wallet: Sway's running costs (gas, gas drips) come out of that account`);
+}
+const drips = await prisma.activity.aggregate({ where: { ref: { startsWith: 'gasdrip:' }, txHash: { not: null } }, _sum: { amountWei: true }, _count: { _all: true } });
+line('gas drips sent to new members', big(drips._sum.amountWei), `${drips._count._all} members · GAS_DRIP_WEI=${process.env.GAS_DRIP_WEI || '0'} · SPONSOR_ONBOARDING=${process.env.SPONSOR_ONBOARDING || '0'}`);
 
 const reports: WalletReport[] = [];
 for (const a of owners.keys()) {
   reports.push(await auditWallet(ctx, a));
   await new Promise((ok) => setTimeout(ok, 300));
 }
+if (explorer) process.stderr.write(`\r${' '.repeat(100)}\r`);
 
 let explorerErrorShown = false;
 for (const r of reports) {
@@ -133,16 +148,26 @@ for (const r of reports) {
   if (r.explorerOk) {
     line('ETH deposited from outside', r.depositsIn);
     some('gas drip from Sway', r.fromOperator);
-    some('moved from / to own wallets (net)', r.fromOwn - r.toOwn);
+    some('received from your other wallets', r.fromOwn);
+    some('sent to your other wallets', -r.toOwn);
+    some('received from other members', r.fromMembers);
+    some('sent to other members', -r.toMembers, r.address === operator ? 'gas drips and transfers' : '');
     some('sent out to other addresses', -r.withdrawnOut, 'bridges, exchanges, Pons…');
     some('paid into SwayKeys (buys)', -r.toKeysContract);
     some('paid out by SwayKeys (sells, claims)', r.fromKeysContract);
     some('other Sway contracts (net)', r.fromOtherSway - r.toOtherSway, 'launchpad, staking…');
     some('gas', -r.gas);
     line('ETH in the wallet now', r.balance, r.balance === r.expectedBalance ? 'matches the history' : `the history adds up to ${eth(r.expectedBalance)}: check the explorer`);
-    if (r.others.length) console.log('  outside addresses:');
-    for (const o of r.others.slice(0, 8)) console.log(`    ${o.address}${o.address === treasury ? ' (treasury)' : ''}  in ${eth(o.in)} · out ${eth(o.out)}`);
-    if (r.others.length > 8) console.log(`    … and ${r.others.length - 8} more`);
+    if (r.actions.length) console.log('  what this wallet’s transactions did:');
+    for (const x of r.actions.slice(0, 12))
+      console.log(`    ${x.action.padEnd(34)} ${String(x.count).padStart(5)} tx · gas ${eth(x.gas)}${x.value ? ` · sent ${eth(x.value)}` : ''}`);
+    if (r.actions.length > 12) console.log(`    … and ${r.actions.length - 12} more kinds`);
+    if (r.others.length) console.log('  other addresses it sent ETH to or got ETH from:');
+    for (const o of r.others.slice(0, 10)) {
+      const name = o.address === treasury ? '(treasury)' : (members.get(o.address) ?? '');
+      console.log(`    ${o.address} ${name.padEnd(18)} in ${eth(o.in)} · out ${eth(o.out)}`);
+    }
+    if (r.others.length > 10) console.log(`    … and ${r.others.length - 10} more`);
   } else {
     line('ETH in the wallet now', r.balance);
     if (r.explorerError) {
@@ -197,10 +222,32 @@ for (const m of ownMarkets) {
 }
 if (outsiders.size) console.log(`\n(✓ = in this audit. Wallets without ✓ that are yours: add their handle or 0x address to count them in.)`);
 
+// One summary per account (all its wallets), then everything together.
+const accounts = [...new Set(reports.map((r) => r.owner))];
+if (accounts.length > 1) {
+  console.log('\nPER ACCOUNT');
+  for (const acc of accounts) {
+    const a = totals(reports.filter((r) => r.owner === acc));
+    console.log(`  ${acc}`);
+    if (a.net !== null) {
+      line('  in: from outside / other members', a.deposits + a.fromMembers);
+      line('  in − out with your other accounts', a.fromOwn - a.toOwn);
+      line('  out: to outside / other members', -(a.withdrawals + a.toMembers));
+      line('  gas', -a.gas);
+    }
+    line('  key trades: received − paid', a.received - a.paid);
+    line('  earnings claimed', a.claimed);
+    line('  now: ETH + to claim + keys', a.balance + a.claimable + a.keysValue);
+    if (a.net !== null) line('  result', a.net);
+  }
+}
+
 const t = totals(reports);
 console.log(`\nALL ${reports.length} AUDITED WALLETS TOGETHER (moves between them cancel out)`);
 if (t.net !== null) {
   line('ETH deposited from outside', t.deposits);
+  some('received from other members', t.fromMembers);
+  some('sent to other members', -t.toMembers, owners.has(operator ?? '') ? 'includes gas drips' : '');
   line('sent out to other addresses', -t.withdrawals);
   line('gas', -t.gas);
 }
@@ -216,5 +263,5 @@ line('earnings waiting to be claimed', t.claimable, 'Wallet → Claim on each wa
 line('ETH in the wallets now', t.balance);
 line('keys held, sell value now', t.keysValue);
 if (!owners.has(treasury)) line('treasury: protocol fees to claim', treasuryFees, treasury);
-if (t.net !== null) line('net result', t.net, 'ETH + claimable + keys now, against deposits minus withdrawals');
+if (t.net !== null) line('net result', t.net, 'ETH + claimable + keys now, against everything in minus everything out');
 await prisma.$disconnect();
