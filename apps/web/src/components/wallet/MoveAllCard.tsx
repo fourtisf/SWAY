@@ -31,10 +31,12 @@ export function MoveAllCard() {
       `Sell the launchpad tokens in ${shortAddress(wallet.address)}, claim its airdrops, earnings and creator fees, and send all its ETH to ${shortAddress(to)}? Keys stay where they are.`,
     );
     if (!ok) return;
-    setStep('Starting…');
+    setStep('Loading your tokens…');
     try {
       const api = getApi();
-      const [pad, drops] = await Promise.all([api.launchpad().catch(() => null), api.launchAirdrops().catch(() => null)]);
+      // Either can be slow or fail; neither is required (the chain is read directly after), so cap the wait.
+      const soon = <T,>(p: Promise<T>) => Promise.race([p.catch(() => null), new Promise<null>((ok) => setTimeout(() => ok(null), 15_000))]);
+      const [pad, drops] = await Promise.all([soon(api.launchpad()), soon(api.launchAirdrops())]);
       const r = await moveAll({
         wallet,
         to: to as Address,
@@ -49,6 +51,7 @@ export function MoveAllCard() {
       toast(r.sentWei > 0n ? `Sent ${F.$(weiToEth(r.sentWei.toString()))} to ${shortAddress(to)}` : 'Nothing left to send');
       await qc.invalidateQueries();
     } catch (e) {
+      console.error('move everything', e);
       toast(errorMessage(e));
     }
     setStep(null);

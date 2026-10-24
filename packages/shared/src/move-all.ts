@@ -43,7 +43,8 @@ const MIN_KEEP = 10_000_000_000_000n;
 export async function moveAll(i: MoveAllInput): Promise<MoveAllResult> {
   const { wallet, chain } = i;
   const me = wallet.address;
-  const pub = createPublicClient({ chain: swayChain({ chainId: chain.chainId, rpcUrl: chain.rpcUrl }), transport: http(chain.rpcUrl) });
+  // A short timeout and few retries: a stuck RPC should end in an error the member sees, not an endless spinner.
+  const pub = createPublicClient({ chain: swayChain({ chainId: chain.chainId, rpcUrl: chain.rpcUrl }), transport: http(chain.rpcUrl, { timeout: 20_000, retryCount: 2 }) });
   const step = i.onStep ?? (() => undefined);
   const write = async (call: Parameters<MoveAllWallet['writeContract']>[0]) => wallet.waitForReceipt(await wallet.writeContract(call));
   const out: MoveAllResult = { soldWei: 0n, claimedWei: 0n, sentWei: 0n, sendHash: null };
@@ -51,6 +52,7 @@ export async function moveAll(i: MoveAllInput): Promise<MoveAllResult> {
 
   if (pad) {
     const tokens = new Set(i.tokens.filter((t): t is Address => !!t).map((t) => t.toLowerCase() as Address));
+    step('Checking airdrops…');
     for (const a of i.airdrops) {
       if (!same(a.address, me)) continue;
       tokens.add(a.token.toLowerCase() as Address);
@@ -59,6 +61,7 @@ export async function moveAll(i: MoveAllInput): Promise<MoveAllResult> {
       await write({ address: pad, abi: swayLaunchpadAbi, functionName: 'claimAirdrop', args: [a.token, BigInt(a.amount), a.proof] });
     }
     for (const token of tokens) {
+      step('Checking your tokens…');
       const balance = await pub.readContract({ address: token, abi: erc20Abi, functionName: 'balanceOf', args: [me] });
       if (balance === 0n) continue;
       const curve = (await pub.readContract({ address: pad, abi: swayLaunchpadAbi, functionName: 'curves', args: [token] })) as readonly unknown[];
@@ -78,6 +81,7 @@ export async function moveAll(i: MoveAllInput): Promise<MoveAllResult> {
   }
 
   if (chain.swayKeys) {
+    step('Checking key earnings…');
     const e = (await pub.readContract({ address: chain.swayKeys, abi: swayKeysAbi, functionName: 'claimable', args: [me, i.claimSubjects] })) as readonly bigint[];
     const total = e.reduce((s, x) => s + x, 0n);
     if (total > 0n) {
@@ -88,6 +92,7 @@ export async function moveAll(i: MoveAllInput): Promise<MoveAllResult> {
   }
 
   if (pad) {
+    step('Checking creator fees…');
     const fees = (await pub.readContract({ address: pad, abi: swayLaunchpadAbi, functionName: 'creatorFees', args: [me] })) as bigint;
     if (fees > 0n) {
       step('Claiming creator fees…');
@@ -96,6 +101,7 @@ export async function moveAll(i: MoveAllInput): Promise<MoveAllResult> {
     }
   }
 
+  step('Checking your ETH…');
   const [balance, gasPrice] = await Promise.all([pub.getBalance({ address: me }), pub.getGasPrice()]);
   const keep = gasPrice * 900_000n > MIN_KEEP ? gasPrice * 900_000n : MIN_KEEP;
   if (balance > keep && !same(i.to, me)) {

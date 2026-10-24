@@ -70,7 +70,8 @@ describe('move everything', () => {
       onStep: (s) => steps.push(s),
     });
 
-    expect(steps).toEqual(['Claiming the $MEE airdrop…', 'Approving $MEE…', 'Selling $MEE…', 'Claiming key earnings…', 'Claiming creator fees…', 'Sending your ETH…']);
+    expect(steps.filter((x) => !x.startsWith('Checking'))).toEqual(['Claiming the $MEE airdrop…', 'Approving $MEE…', 'Selling $MEE…', 'Claiming key earnings…', 'Claiming creator fees…', 'Sending your ETH…']);
+    expect(steps[0]).toBe('Checking airdrops…');
     expect(r.soldWei).toBeGreaterThan(0n);
     expect(r.claimedWei).toBeGreaterThan(0n);
     expect(await chain.pub.readContract({ address: pad, abi: swayLaunchpadAbi, functionName: 'airdropClaimed', args: [token, me.address] })).toBe(true);
