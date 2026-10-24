@@ -81,6 +81,8 @@ export function TradeSheet({ handle, side: side0 }: { handle: string; side: 'buy
   let maxSellU = sellableHere < supply - locked ? sellableHere : supply - locked;
   if (maxSellU < 0n) maxSellU = 0n;
   const maxSell = unitsToKeys(maxSellU);
+  // Only the locked first key in this wallet: say why it can't be sold instead of "no keys".
+  const onlyLocked = ownLocked && inWallet >= locked && maxSell < CURVE.MIN;
   const buy = side === 'buy';
   const base0 = amt ?? (buy ? 1 : Math.min(1, maxSell));
   const a = !buy && base0 > maxSell ? r2(maxSell) : base0;
@@ -118,7 +120,9 @@ export function TradeSheet({ handle, side: side0 }: { handle: string; side: 'buy
           ? 'Not enough balance'
           : 'Minimum is 0.01 key'
         : maxSell < CURVE.MIN
-          ? 'You have no keys to sell'
+          ? onlyLocked
+            ? 'Your first key is locked'
+            : 'You have no keys to sell'
           : 'More than you hold'
       : `${buy ? 'Buy' : 'Sell'} ${F.keys(a)} key${a === 1 ? '' : 's'} for ${F.$(total)}`;
   const chg = (after / now - 1) * 100;
@@ -167,7 +171,10 @@ export function TradeSheet({ handle, side: side0 }: { handle: string; side: 'buy
           <div className="amt-l">
             <span>Keys</span>
             <span>
-              {buy ? `${F.$(now)} each` : wallets.length > 1 ? `This wallet holds ${F.keys(unitsToKeys(inWallet))} of your ${F.keys(unitsToKeys(held))}` : `You hold ${F.keys(unitsToKeys(held))}`}
+              {buy
+                ? `${F.$(now)} each`
+                : (wallets.length > 1 ? `This wallet holds ${F.keys(unitsToKeys(inWallet))} of your ${F.keys(unitsToKeys(held))}` : `You hold ${F.keys(unitsToKeys(held))}`) +
+                  (ownLocked && inWallet >= locked ? ` · ${F.keys(maxSell)} sellable` : '')}
             </span>
           </div>
           <div className="amt">
@@ -302,6 +309,21 @@ export function TradeSheet({ handle, side: side0 }: { handle: string; side: 'buy
               <Icon name="wallet" />
               Not enough balance: deposit ETH
             </button>
+          ) : me && !buy && onlyLocked ? (
+            <>
+              <div className="note" id="lockedNote" style={{ marginBottom: 10 }}>
+                Your first key stays locked to you, so your room always has an owner. Keys of your own that you buy on top of it can be sold any time.
+              </div>
+              <button
+                className="btn btn-lg btn-block btn-buy"
+                onClick={() => {
+                  setSide('buy');
+                  set(1);
+                }}
+              >
+                Buy more of your key
+              </button>
+            </>
           ) : me ? (
             <button className={`btn btn-lg btn-block ${buy ? 'btn-buy' : 'btn-sell'}`} disabled={bad || busy} onClick={exec}>
               {busy ? (

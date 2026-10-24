@@ -205,6 +205,12 @@ test('a new member launches their own key from their profile, then buys more of 
   // Once it's live, the creator can buy more of their own key (and sell those, never the first).
   await expect(bar.getByRole('button', { name: 'Sell' })).toHaveCount(0);
   await bar.getByRole('button', { name: 'Buy key' }).click();
+  // Selling with only the first key: the sheet says it's locked and offers to buy more instead.
+  const sheet = page.locator('.modal');
+  await sheet.locator('.tside').getByRole('button', { name: 'Sell' }).click();
+  await expect(sheet).toContainText('You hold 1 · 0 sellable');
+  await expect(sheet.locator('#lockedNote')).toContainText('Your first key stays locked to you');
+  await sheet.getByRole('button', { name: 'Buy more of your key' }).click();
   await page.locator('.modal').getByRole('button', { name: /^Buy 1 key/ }).click();
   await expect(page.locator('.toasts')).toContainText('Bought 1 key of');
   await expect(bar.getByRole('button', { name: 'Sell' })).toBeVisible();
