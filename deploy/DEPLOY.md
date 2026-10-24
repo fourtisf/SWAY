@@ -111,6 +111,7 @@ Then open https://swayfamily.com, sign in with X, create the Sway wallet and buy
 ## Later
 
 - **Updates:** push to the branch, then `sway-update` (as root).
+- **Where did the ETH go:** `bash /srv/sway/deploy/audit-wallets.sh <handle or 0x…>…` (read-only): deposits, trades, fees and what is left to claim; `deploy/check-earnings.sh 0x…` shows only what is claimable.
 - **Backups:** `/var/backups/sway` (nightly, 14 days). Copy them off the machine.
 - **Certificates:** renewed by certbot's timer; nginx reloads after each renewal.
 - **Mainnet:** `setup-chain.sh --mainnet` (see step 4) after reading `docs/SECURITY_REVIEW.md`; a third-party audit is still recommended.
